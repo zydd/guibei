@@ -41,6 +41,7 @@ def generate(f):
                 else:
                     raise ValueError(context) from e
 
+        parser.__name__ = f.__name__
         return parser
 
     return wrapper

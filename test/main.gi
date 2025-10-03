@@ -35,6 +35,11 @@ type int: i32
 type bytes: i32[]
 
 
+func one_one() -> pair:
+    asm:
+        (struct.new $pair (i32.const 1) (i32.const 1))
+
+
 func addi32(a: i32, b: i32) -> i32:
     asm:
         (i32.add (local.get $a) (local.get $b))

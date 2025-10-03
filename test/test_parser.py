@@ -7,7 +7,18 @@ import parser
 from parser.lang import *
 
 
-test_type_def = """\
+def test_parser(p, examples):
+    print("Parser:", p.__name__)
+    for ex in examples.split("\0"):
+        if not ex:
+            continue
+        print(repr(ex))
+        prog = parser.run_parser(p, ex)
+        assert prog
+    print()
+
+
+test_parser(type_def(), """\
 type test:
     (i32, i32)\0\
 \0\
@@ -19,41 +30,18 @@ type int:
 type test:
     i322\0\
 \0\
-"""
-
-for code in test_type_def.split("\0"):
-    if not code:
-        continue
-    print(repr(code))
-    prog = parser.run_parser(type_def(), code)
-    assert prog
+""")
 
 
-test_type_name = """\
+test_parser(type_name(), """\
 i32\0\
 i32[]\0\
-"""
-
-for code in test_type_name.split("\0"):
-    if not code:
-        continue
-    print(repr(code))
-    prog = parser.run_parser(type_name(), code)
-    assert prog
+""")
 
 
-test_call = """\
+test_parser(call(), """\
 quit()\0\
 quit( )\0\
 readn(0, 1024)\0\
-\0\
 printn(0, read_count)\0\
-\0\
-"""
-
-for code in test_call.split("\0"):
-    if not code:
-        continue
-    print(repr(code))
-    prog = parser.run_parser(call(), code)
-    assert prog
+""")

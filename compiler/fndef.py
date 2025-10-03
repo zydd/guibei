@@ -29,7 +29,7 @@ class FunctionDef:
 
         ret_type = []
         if self.ret_type:
-            ret_type.append(wast.WasmExpr(["result", self.ret_type]))
+            ret_type.append(wast.WasmExpr(["result", *self.ret_type.compile()]))
 
         body = []
         for expr in self.body:

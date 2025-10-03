@@ -10,4 +10,4 @@ if not prog:
 
 compiler = compiler.CompilePass()
 compiler.compile(prog)
-compiler.write(sys.stdout.buffer)
+compiler.write(open(sys.argv[2], "wb"))

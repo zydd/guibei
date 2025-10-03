@@ -4,7 +4,7 @@ from parser.indent import *
 from compiler.fndef import FunctionCall, FunctionDef, VarDecl
 from compiler.identifier import Identifier
 from compiler.literals import IntLiteral
-from compiler.tuple import TupleDef
+from compiler.tuple import TupleDecl
 from compiler.typedef import TypeDef, TypeName
 from compiler.wast import Asm, WasmExpr
 
@@ -57,7 +57,7 @@ def function_def():
     @generate
     def fn_ret_type():
         yield regex(r"\s*->\s*")
-        return (yield regex(r"\w+"))
+        return (yield type_expr)
 
     yield regex("func +")
     name = yield regex(r"\w+")
@@ -73,7 +73,7 @@ def function_def():
 @generate
 def tuple_def():
     fields = yield parens(sep_by(regex(r"\s*,\s*"), type_expr))
-    return TupleDef(fields)
+    return TupleDecl(fields)
 
 
 # @generate
