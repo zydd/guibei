@@ -29,7 +29,6 @@ def asm():
     def wast_expr():
         return WasmExpr((yield sep_by(indent_spaces(), wast_term())))
 
-
     yield string("asm:")
     yield regex(r"\s*")
     yield indented()
@@ -49,7 +48,8 @@ def typed_id_decl():
 def var_decl():
     yield regex("let +")
     name, type_ = yield typed_id_decl()
-    return VarDecl(name, type_)
+    optional_init = yield optional(sequence(regex(r"\s*=\s*"), expr))
+    return VarDecl(name, type_, init=optional_init[1] if optional_init else None)
 
 
 @generate
@@ -78,13 +78,13 @@ def tuple_def():
 
 # @generate
 # def struct_def()
-    # @generate
-    # def field_decl():
-    #     name = yield regex(r"\w+")
-    #     yield regex(r"\s*:\s*")
-    #     type_ = yield regex(r"\w+")
-    #     return (name, type_)
-    # ...
+# @generate
+# def field_decl():
+#     name = yield regex(r"\w+")
+#     yield regex(r"\s*:\s*")
+#     type_ = yield regex(r"\w+")
+#     return (name, type_)
+# ...
 
 
 @generate

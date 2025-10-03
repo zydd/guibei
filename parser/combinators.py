@@ -136,6 +136,7 @@ def debug_context():
 def debug_current(n):
     def parser(input):
         return input.current()[:n], input
+
     return parser
 
 

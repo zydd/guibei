@@ -2,13 +2,17 @@ import compiler.wast as wast
 
 
 class VarDecl:
-    def __init__(self, name, type_, mutable=False):
+    def __init__(self, name, type_, init, mutable=False):
         self.name = name
         self.type_ = type_
+        self.init = init
         self.mutable = mutable
 
     def compile(self) -> list[wast.WasmExpr]:
-        return [wast.WasmExpr(["local", f"${self.name}", *self.type_.compile()])]
+        res = [wast.WasmExpr(["local", f"${self.name}", *self.type_.compile()])]
+        if self.init:
+            res.extend([*self.init.compile(), wast.WasmExpr(["local.set", f"${self.name}"])])
+        return res
 
 
 class FunctionDef:

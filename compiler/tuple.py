@@ -7,7 +7,6 @@ class TupleDef:
 
     def compile(self) -> list[wast.WasmExpr]:
         fields = []
-        for  type_ in self.field_types:
-            fields.append(wast.WasmExpr(["field",  *type_.compile()]))
+        for type_ in self.field_types:
+            fields.append(wast.WasmExpr(["field", *type_.compile()]))
         return [wast.WasmExpr(["struct", *fields])]
-

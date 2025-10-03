@@ -42,6 +42,7 @@ def indented_block(p):
     body = yield with_pos(sep_by(next_line(), p))
     return body
 
+
 def indent_spaces():
     compiled = re.compile(r"\s*")
 

@@ -75,9 +75,5 @@ func readn(addr: i32, count: i32) -> i32:
 asm: (data (i32.const 0) "Hello World!\n")
 
 func main():
-    let read_count: i32
-    asm:
-        (call $readn (i32.const 0) (i32.const 1024))
-        (local.set $read_count)
-
+    let read_count: i32 = readn(0, 1024)
     printn(0, read_count)

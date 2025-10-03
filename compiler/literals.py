@@ -1,5 +1,6 @@
 import compiler.wast as wast
 
+
 class IntLiteral:
     def __init__(self, value: int):
         self.value = value

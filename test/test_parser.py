@@ -1,5 +1,6 @@
 import os
 import sys
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import parser
@@ -21,7 +22,8 @@ type test:
 """
 
 for code in test_type_def.split("\0"):
-    if not code: continue
+    if not code:
+        continue
     print(repr(code))
     prog = parser.run_parser(type_def(), code)
     assert prog
@@ -33,7 +35,8 @@ i32[]\0\
 """
 
 for code in test_type_name.split("\0"):
-    if not code: continue
+    if not code:
+        continue
     print(repr(code))
     prog = parser.run_parser(type_name(), code)
     assert prog
@@ -49,7 +52,8 @@ printn(0, read_count)\0\
 """
 
 for code in test_call.split("\0"):
-    if not code: continue
+    if not code:
+        continue
     print(repr(code))
     prog = parser.run_parser(call(), code)
     assert prog

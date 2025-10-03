@@ -43,5 +43,3 @@ class Asm:
 
     def compile(self) -> list[WasmExpr]:
         return self.expr.terms
-
-
