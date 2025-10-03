@@ -21,7 +21,11 @@ class WasmExpr:
                     if isinstance(self.terms[0], WasmExpr)
                     else str(self.terms[0])
                 )
-                for term in self.terms[1:]:
+                n = 1
+                if len(self.terms) > 1 and isinstance(self.terms[1], str) and self.terms[1].startswith("$"):
+                    terms[0] += " " + self.terms[1]
+                    n += 1
+                for term in self.terms[n:]:
                     terms.append(
                         term.repr_indented(level + 1) if isinstance(term, WasmExpr) else f"{'    ' * (level + 1)}{term}"
                     )
