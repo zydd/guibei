@@ -4,10 +4,15 @@ import re
 import sys
 
 
+class IncompleteParse(Exception):
+    pass
+
+
 def generate(f):
     @functools.wraps(f)
     def wrapper(*args, **kwargs):
         def parser(input):
+            initial_pos = input.pos
             gen = f(*args, **kwargs)
             result = None
             try:
@@ -27,7 +32,14 @@ def generate(f):
                     line = linecache.getline(filename, lineno).strip("\n")
                     prefix = "->" if lineno == frame_lineno else "  "
                     context += f"{lineno:4}: {prefix} {line}\n"
-                raise ValueError(context + "\n" + e.args[0]) from e
+
+                context += "\n"
+                context += e.args[0]
+
+                if input.pos != initial_pos:
+                    raise IncompleteParse(context) from e
+                else:
+                    raise ValueError(context) from e
 
         return parser
 
@@ -79,7 +91,7 @@ def many(p):
             try:
                 result, input = p(input)
                 results.append(result)
-            except ValueError:
+            except (ValueError, IncompleteParse):
                 break
         return results, input
 
@@ -90,7 +102,7 @@ def optional(p):
     def parser(input):
         try:
             return p(input)
-        except ValueError:
+        except (ValueError, IncompleteParse):
             return None, input
 
     return parser
@@ -113,17 +125,32 @@ def sep_by(sep, p):
         try:
             result, input = p(input)
             results.append(result)
-            while True:
-                # TODO: should updating `input` here in case `sep()` fails?
-                _, input = sep(input)
-                result, input = p(input)
-                results.append(result)
         except ValueError:
-            pass
+            return results, input
+
+        while True:
+            try:
+                _, input = sep(input)
+            except (ValueError, IncompleteParse):
+                break
+            try:
+                result, input = p(input)
+            except ValueError:
+                break
+            results.append(result)
         return results, input
 
     return parser
 
+
+def backtrack(p):
+    def parser(input):
+        try:
+            return p(input)
+        except IncompleteParse as e:
+            raise ValueError("backtrack") from e
+
+    return parser
 
 def debug_context():
     def parser(input):

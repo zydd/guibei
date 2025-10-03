@@ -127,7 +127,7 @@ def prog():
 
 
 type_expr = choice(tuple_def(), type_name())
-expr = choice(function_def(), type_def(), asm(), var_decl(), int_literal(), call(), identifier())
+expr = choice(function_def(), type_def(), asm(), var_decl(), int_literal(), choice(backtrack(call()), identifier()))
 
 
 @generate

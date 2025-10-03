@@ -12,7 +12,7 @@ asm:
 
     (import "wasi_snapshot_preview1" "fd_read"
         (func $__wasi_fd_read (type $__wasi_fd_read_t)))
-    
+
     (type $__wasi_fd_read_t
         (func
             (param $fd i32)
@@ -22,10 +22,10 @@ asm:
             (result i32)))
 
 asm:
-    (global $__stackp (mut i32) (i32.const 1024))
     (export "memory" (memory $memory))
     (export "_start" (func $main))
     (memory $memory 1)
+    (global $__stackp (mut i32) (i32.const 1024))
 
 
 type pair: (i32, i32)
@@ -73,6 +73,7 @@ func readn(addr: i32, count: i32) -> i32:
 
 
 asm: (data (i32.const 0) "Hello World!\n")
+
 
 func main():
     let read_count: i32 = readn(0, 1024)
