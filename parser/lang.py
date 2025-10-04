@@ -6,7 +6,7 @@ from compiler.fndef import FunctionDef, VarDecl
 from compiler.identifier import Identifier
 from compiler.literals import IntLiteral
 from compiler.tuple import TupleDecl
-from compiler.typedef import TypeDef, TypeName
+from compiler.typedef import *
 from compiler.wast import Asm, WasmExpr
 
 
@@ -98,10 +98,19 @@ def type_def():
 
 
 @generate
+def native_type():
+    type_ = yield regex(r"__native_type<(\w+)>", 1)
+    return NativeType(type_)
+
+
+@generate
 def type_name():
-    name = yield regex(r"\w+")
+    name = yield regex(r"[_a-zA-Z]\w*")
     array = yield optional(regex(r"\s*\[\s*\]"))
-    return TypeName(name, dimensions=(1,) if array else ())
+    if array:
+        return ArrayType(name, dimensions=(1,))
+    else:
+        return TypeName(name)
 
 
 @generate
@@ -123,15 +132,11 @@ def call():
 
 
 @generate
-def prog():
-    return (yield sep_by(regex(r"\s*"), statements()))
-
-
-type_expr = choice(tuple_def(), type_name())
-expr = choice(function_def(), type_def(), asm(), var_decl(), int_literal(), choice(backtrack(call()), identifier()))
-
-
-@generate
 def statements():
     yield same_indent()
     return (yield expr)
+
+
+type_expr = choice(tuple_def(), native_type(), type_name())
+expr = choice(function_def(), type_def(), asm(), var_decl(), int_literal(), choice(backtrack(call()), identifier()))
+prog = sep_by(regex(r"\s*"), statements())

@@ -1,5 +1,6 @@
 from .ast import AstNode
 from .wast import WasmExpr
+from .tuple import TupleDecl
 
 
 class TypeDef(AstNode):
@@ -13,48 +14,78 @@ class TypeDef(AstNode):
             self.body[i] = expr.annotate(context)
 
         assert len(self.body) == 1, self.name
-        if isinstance(self.body[0], TypeName):
-            self.dimensions = self.body[0].dimensions
 
-        return self
-
-    def compile(self):
-        compiled_expr = []
-        for expr in self.body:
-            # ignore type aliases for now
-            if isinstance(expr, TypeName) and not expr.dimensions:
-                return []
-
-            compiled_expr.extend(expr.declaration())
-        return [WasmExpr(["type", f"${self.name}", *compiled_expr])]
-
-
-class TypeName(AstNode):
-    native_types = ["i32", "i8", "i64", "f32"]
-
-    def __init__(self, name, dimensions=()):
-        self.name = name
-        self.dimensions = dimensions
-
-    def annotate(self, context):
-        if self.name in self.native_types:
-            return self
-
-        context.lookup_type(self.name)
+        if isinstance(self.body[0], NativeType):
+            return self.body[0]
 
         return self
 
     def declaration(self):
-        if self.dimensions:
-            return [WasmExpr(["array", WasmExpr(["mut", self.name])])]
-        else:
-            return [self.name]
+        compiled_expr = []
+        for expr in self.body:
+            if isinstance(expr, TypeName) and not expr.dimensions:
+                return [WasmExpr([expr.name])]
+
+            compiled_expr.extend(expr.declaration())
+        return [WasmExpr(["type", f"${self.name}", *compiled_expr])]
+
+    def instantiation(self, compiled_args):
+        assert len(self.body) == 1
+
+        match self.body[0]:
+            case TupleDecl():
+                return [WasmExpr(["struct.new", f"${self.name}", *compiled_args])]
+            case ArrayType():
+                return [WasmExpr(["array.new", f"${self.name}", *compiled_args])]
+
+        return self.body[0].instantiation(compiled_args)
 
     def compile(self):
-        if self.name in self.native_types:
-            return [self.name]
-        else:
-            return [WasmExpr(["ref", f"${self.name}"])]
+        return [WasmExpr(["ref", f"${self.name}"])]
+
+
+class NativeType(AstNode):
+    def __init__(self, name):
+        self.name = name
+
+    def annotate(self, context):
+        return self
+
+    def declaration(self):
+        return []
+
+    def compile(self):
+        return [self.name]
+
+
+class TypeName(AstNode):
+    def __init__(self, name):
+        self.name = name
+
+    def annotate(self, context):
+        type_ = context.lookup_type(self.name)
+        while isinstance(type_, TypeName):
+            type_ = context.lookup_type(type_.name)
+
+        return type_
+
+    def compile(self):
+        raise NotImplementedError
+
+
+class ArrayType(AstNode):
+    def __init__(self, name, dimensions):
+        self.name = name
+        self.dimensions = dimensions
+
+    def annotate(self, context):
+        return self
+
+    def declaration(self):
+        return [WasmExpr(["array", WasmExpr(["mut", self.name])])]
+
+    def compile(self):
+        return [WasmExpr(["ref", f"${self.name}"])]
 
 
 class TypeInstantiation:
@@ -72,11 +103,4 @@ class TypeInstantiation:
             else:
                 compiled_args.append(result)
 
-        if self.type_.name in ["i32", "i64", "f32"]:
-            assert len(self.args) == 1
-            return compiled_args
-        elif self.type_.dimensions:
-            assert len(self.args) == 2
-            return [WasmExpr(["array.new", f"${self.type_.name}", *compiled_args])]
-        else:
-            return [WasmExpr(["struct.new", f"${self.type_.name}", *compiled_args])]
+        return self.type_.instantiation(compiled_args)

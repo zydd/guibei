@@ -28,10 +28,10 @@ asm:
     (global $__stackp (mut i32) (i32.const 1024))
 
 
+type i32: __native_type<i32>
+type i8: __native_type<i8>
+type int: __native_type<i32>
 type pair: (i32, i32)
-
-type int: i32
-
 type bytes: i8[]
 
 
@@ -39,7 +39,7 @@ func one_one() -> pair:
     pair(1, 1)
 
 
-func repeat(byte: i32, count: i32) -> bytes:
+func repeat(byte: int, count: i32) -> bytes:
     bytes(byte, count)
 
 
@@ -49,8 +49,8 @@ func addi32(a: i32, b: i32) -> i32:
 
 
 func printbn(arr: bytes):
-    let len: i32
     let i: i32 = 0
+    let len: i32
     asm:
         (local.set $len (array.len (local.get $arr)))
         (block $break

@@ -33,9 +33,14 @@ class FunctionDef(AstNode):
     def annotate(self, context):
         context = context.new()
 
+        self.args = [(name, type_.annotate(context)) for name, type_ in self.args]
+
+        if self.ret_type:
+            self.ret_type = self.ret_type.annotate(context)
+
         for i, expr in enumerate(self.body):
             if isinstance(expr, VarDecl):
-                self.locals.append((expr.name, expr.type_))
+                self.locals.append((expr.name, expr.type_.annotate(context)))
 
             self.body[i] = expr.annotate(context)
             assert self.body[i] is not None, expr

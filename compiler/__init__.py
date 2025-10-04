@@ -31,7 +31,7 @@ class CompilePass:
         self.annotate(prog)
 
         for type_ in self.root_context.types.values():
-            self.wasm.extend(type_.compile())
+            self.wasm.extend(type_.declaration())
 
         for func in self.root_context.functions.values():
             self.wasm.extend(func.compile())
