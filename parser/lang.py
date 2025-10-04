@@ -5,7 +5,7 @@ from compiler.call import Call
 from compiler.fndef import FunctionDef, VarDecl
 from compiler.identifier import Identifier
 from compiler.literals import IntLiteral
-from compiler.tuple import TupleDecl
+from compiler.tuple import TupleDecl, TupleIndex
 from compiler.typedef import *
 from compiler.wast import Asm, WasmExpr
 
@@ -64,12 +64,11 @@ def function_def():
     name = yield regex(r"\w+")
     yield regex(r"\s*")
     args = yield parens(sep_by(regex(r"\s*,\s*"), typed_id_decl()))
-    arg_names, arg_types = zip(*args) if args else ([], [])
     ret_type = yield optional(fn_ret_type())
     yield regex(r"\s*:\s*")
     yield indented()
     body = yield with_pos(sep_by(regex(r"\s*"), statements()))
-    return FunctionDef(name, arg_names, arg_types, ret_type, body)
+    return FunctionDef(name, args, ret_type, body)
 
 
 @generate
@@ -126,10 +125,18 @@ def identifier():
 
 @generate
 def call():
-    name = yield regex(r"\w+")
+    name = yield regex(r"[_a-zA-Z]\w*")
     yield regex(r"\s*")
     args = yield parens(sep_by(regex(r"\s*,\s*"), expr))
     return Call(name, args)
+
+
+@generate
+def tuple_index():
+    var = yield identifier()
+    yield string(".")
+    idx = int((yield regex(r"\d+")))
+    return TupleIndex(var, idx)
 
 
 @generate
@@ -139,5 +146,5 @@ def statements():
 
 
 type_expr = choice(tuple_def(), native_type(), type_name())
-expr = choice(function_def(), type_def(), asm(), var_decl(), int_literal(), choice(backtrack(call()), identifier()))
+expr = choice(function_def(), type_def(), asm(), var_decl(), int_literal(), choice(backtrack(call()), backtrack(tuple_index()), identifier()))
 prog = sep_by(regex(r"\s*"), statements())

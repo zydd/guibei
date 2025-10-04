@@ -15,3 +15,16 @@ class TupleDecl(AstNode):
         for type_ in self.field_types:
             fields.append(WasmExpr(["field", *type_.compile()]))
         return [WasmExpr(["struct", *fields])]
+
+
+class TupleIndex(AstNode):
+    def __init__(self, tuple_, idx):
+        self.tuple_ = tuple_
+        self.idx = idx
+
+    def annotate(self, context, expected_type):
+        self.tuple_ = self.tuple_.annotate(context, expected_type)
+        return self
+
+    def compile(self):
+        return [WasmExpr(["struct.get", f"${self.tuple_.type_.name}", str(self.idx), *self.tuple_.compile()])]

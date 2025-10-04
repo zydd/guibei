@@ -16,7 +16,7 @@ class CompilePass:
             match expr:
                 case FunctionDef():
                     self.root_context.register_func(expr)
-                    self.root_context.register_type(expr.func_type)
+                    self.root_context.register_type(expr.type_)
                 case TypeDef():
                     self.root_context.register_type(expr)
                 case Asm():

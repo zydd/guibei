@@ -31,8 +31,9 @@ asm:
 type i32: __native_type<i32>
 type i64: __native_type<i64>
 type i8: __native_type<i8>
-type pair: (i32, i32)
 type bytes: i8[]
+type pair: (i32, i32)
+type mat2x2: (pair, pair)
 
 
 func one_one() -> pair:
@@ -48,7 +49,7 @@ func addi32(a: i32, b: i32) -> i32:
         (i32.add (local.get $a) (local.get $b))
 
 
-func printbn(arr: bytes):
+func print_bytes(arr: bytes):
     let i: i32 = 0
     let len: i32
     asm:
@@ -94,17 +95,16 @@ func readn(addr: i32, count: i32) -> i32:
             (global.get $__stackp)
         )
         (drop)
-        (local.tee $read_count (i32.load (global.get $__stackp)))
-        (i32.store (i32.add (local.get $addr) (local.get $read_count)) (i32.const 0))
+        (i32.load (global.get $__stackp))
 
 
 asm: (data (i32.const 0) "Hello World!\n")
 
 
 func main():
-    let a: i64 = 3
-    printbn(repeat(97, 10))
-    printbn(repeat(10, 1))
-    printbn(bytes(98, 10))
+    let txt: pair = pair(97, 98)
+    print_bytes(repeat(txt.0, 10))
+    print_bytes(repeat(10, 1))
+    print_bytes(bytes(txt.1, 10))
     let newlines: bytes = repeat(10, 2)
-    printbn(newlines)
+    print_bytes(newlines)
