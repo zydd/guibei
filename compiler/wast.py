@@ -46,7 +46,7 @@ class Asm(AstNode):
     def repr_indented(self, level=0):
         return "\n".join(term.repr_indented(level) for term in self.expr.terms)
 
-    def annotate(self, context):
+    def annotate(self, context, expected_type):
         return self
 
     def compile(self) -> list[WasmExpr]:

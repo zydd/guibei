@@ -8,6 +8,5 @@ class AstNode(abc.ABC):
     def annotate(self, context: Context):
         raise NotImplementedError
 
-    @abc.abstractmethod
     def compile(self) -> list:
         raise NotImplementedError

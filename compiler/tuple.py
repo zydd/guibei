@@ -6,8 +6,8 @@ class TupleDecl(AstNode):
     def __init__(self, field_types):
         self.field_types = field_types
 
-    def annotate(self, context):
-        self.field_types = [type_.annotate(context) for type_ in self.field_types]
+    def annotate(self, context, expected_type):
+        self.field_types = [type_.annotate(context, None) for type_ in self.field_types]
         return self
 
     def declaration(self):
@@ -15,6 +15,3 @@ class TupleDecl(AstNode):
         for type_ in self.field_types:
             fields.append(WasmExpr(["field", *type_.compile()]))
         return [WasmExpr(["struct", *fields])]
-
-    def compile(self):
-        raise NotImplementedError

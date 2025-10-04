@@ -6,7 +6,7 @@ class Identifier(AstNode):
     def __init__(self, name: str):
         self.name = name
 
-    def annotate(self, context):
+    def annotate(self, context, expected_type):
         return self
 
     def compile(self):

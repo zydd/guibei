@@ -9,9 +9,9 @@ class TypeDef(AstNode):
         self.body = body
         self.dimensions = ()
 
-    def annotate(self, context):
+    def annotate(self, context, expected_type):
         for i, expr in enumerate(self.body):
-            self.body[i] = expr.annotate(context)
+            self.body[i] = expr.annotate(context, None)
 
         assert len(self.body) == 1, self.name
 
@@ -48,7 +48,7 @@ class NativeType(AstNode):
     def __init__(self, name):
         self.name = name
 
-    def annotate(self, context):
+    def annotate(self, context, expected_type):
         return self
 
     def declaration(self):
@@ -57,20 +57,19 @@ class NativeType(AstNode):
     def compile(self):
         return [self.name]
 
+    def compile_literal(self, value):
+        return [WasmExpr([f"{self.name}.const", str(value)])]
+
 
 class TypeName(AstNode):
     def __init__(self, name):
         self.name = name
 
-    def annotate(self, context):
+    def annotate(self, context, expected_type):
         type_ = context.lookup_type(self.name)
         while isinstance(type_, TypeName):
             type_ = context.lookup_type(type_.name)
-
         return type_
-
-    def compile(self):
-        raise NotImplementedError
 
 
 class ArrayType(AstNode):
@@ -78,7 +77,7 @@ class ArrayType(AstNode):
         self.name = name
         self.dimensions = dimensions
 
-    def annotate(self, context):
+    def annotate(self, context, expected_type):
         return self
 
     def declaration(self):
@@ -94,13 +93,21 @@ class TypeInstantiation:
         self.type_ = type_
         self.args = args
 
+    def annotate(self, context, expected_type):
+        self.args = [arg.annotate(context, NativeType("i32")) for arg in self.args]
+        return self
+
     def compile(self):
         compiled_args = []
         for arg in self.args:
             result = arg.compile()
-            if isinstance(result, list):
-                compiled_args.extend(result)
-            else:
-                compiled_args.append(result)
+            compiled_args.extend(result)
 
         return self.type_.instantiation(compiled_args)
+
+
+class VoidType(AstNode):
+    def annotate(self, context, expected_type):
+        if expected_type and expected_type != VoidType:
+            raise TypeError
+        return self

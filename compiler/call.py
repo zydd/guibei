@@ -9,17 +9,12 @@ class Call(AstNode):
         self.name = name
         self.args = args
 
-    def annotate(self, context):
-        self.args = [arg.annotate(context) for arg in self.args]
-
+    def annotate(self, context, expected_type):
         callee = context.lookup(self.name)
         match callee:
             case FunctionDef():
-                return FunctionCall(callee, self.args)
+                return FunctionCall(callee, self.args).annotate(context, expected_type)
             case TypeDef():
-                return TypeInstantiation(callee, self.args)
+                return TypeInstantiation(callee, self.args).annotate(context, expected_type)
 
         raise TypeError(f"Cannot call non-function '{self.name}'")
-
-    def compile(self):
-        raise NotImplementedError

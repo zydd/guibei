@@ -64,11 +64,12 @@ def function_def():
     name = yield regex(r"\w+")
     yield regex(r"\s*")
     args = yield parens(sep_by(regex(r"\s*,\s*"), typed_id_decl()))
+    arg_names, arg_types = zip(*args) if args else ([], [])
     ret_type = yield optional(fn_ret_type())
     yield regex(r"\s*:\s*")
     yield indented()
     body = yield with_pos(sep_by(regex(r"\s*"), statements()))
-    return FunctionDef(name, args, ret_type, body)
+    return FunctionDef(name, arg_names, arg_types, ret_type, body)
 
 
 @generate

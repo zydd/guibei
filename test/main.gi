@@ -29,8 +29,8 @@ asm:
 
 
 type i32: __native_type<i32>
+type i64: __native_type<i64>
 type i8: __native_type<i8>
-type int: __native_type<i32>
 type pair: (i32, i32)
 type bytes: i8[]
 
@@ -39,7 +39,7 @@ func one_one() -> pair:
     pair(1, 1)
 
 
-func repeat(byte: int, count: i32) -> bytes:
+func repeat(byte: i32, count: i32) -> bytes:
     bytes(byte, count)
 
 
@@ -102,6 +102,7 @@ asm: (data (i32.const 0) "Hello World!\n")
 
 
 func main():
+    let a: i64 = 3
     printbn(repeat(97, 10))
     printbn(repeat(10, 1))
     printbn(bytes(98, 10))

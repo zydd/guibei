@@ -16,16 +16,17 @@ class CompilePass:
             match expr:
                 case FunctionDef():
                     self.root_context.register_func(expr)
+                    self.root_context.register_type(expr.func_type)
                 case TypeDef():
                     self.root_context.register_type(expr)
                 case Asm():
                     self.wasm.extend(expr.compile())
 
         for name, type_ in self.root_context.types.items():
-            self.root_context.types[name] = type_.annotate(self.root_context)
+            self.root_context.types[name] = type_.annotate(self.root_context, None)
 
         for name, func in self.root_context.functions.items():
-            self.root_context.functions[name] = func.annotate(self.root_context)
+            self.root_context.functions[name] = func.annotate(self.root_context, None)
 
     def compile(self, prog: list):
         self.annotate(prog)
