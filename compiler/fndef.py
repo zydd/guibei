@@ -9,7 +9,7 @@ class VarDecl:
         self.mutable = mutable
 
     def compile(self) -> list[wast.WasmExpr]:
-        res = [wast.WasmExpr(["local", f"${self.name}", *self.type_.compile()])]
+        res = []
         if self.init:
             res.extend([*self.init.compile(), wast.WasmExpr(["local.set", f"${self.name}"])])
         return res
@@ -21,21 +21,31 @@ class FunctionDef:
         self.args = args
         self.ret_type = ret_type
         self.body = body
+        self.locals = []
+
+    def annotate(self, context):
+        for expr in self.body:
+            if isinstance(expr, VarDecl):
+                self.locals.append((expr.name, expr.type_))
+
+        return self
 
     def compile(self) -> list[wast.WasmExpr]:
-        args = []
+        decls = []
         for name, type_ in self.args:
-            args.append(wast.WasmExpr(["param", f"${name}", *type_.compile()]))
+            decls.append(wast.WasmExpr(["param", f"${name}", *type_.compile()]))
 
-        ret_type = []
         if self.ret_type:
-            ret_type.append(wast.WasmExpr(["result", *self.ret_type.compile()]))
+            decls.append(wast.WasmExpr(["result", *self.ret_type.compile()]))
+
+        for name, type_ in self.locals:
+            decls.append(wast.WasmExpr(["local", f"${name}", *type_.compile()]))
 
         body = []
         for expr in self.body:
             body.extend(expr.compile())
 
-        return [wast.WasmExpr(["func", f"${self.name}", *args, *ret_type, *body])]
+        return [wast.WasmExpr(["func", f"${self.name}", *decls, *body])]
 
 
 class FunctionCall:

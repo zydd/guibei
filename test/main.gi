@@ -32,12 +32,7 @@ type pair: (i32, i32)
 
 type int: i32
 
-type bytes: i32[]
-
-
-func one_one() -> pair:
-    asm:
-        (struct.new $pair (i32.const 1) (i32.const 1))
+type bytes: i8[]
 
 
 func repeat(byte: i32, count: i32) -> bytes:
@@ -51,17 +46,16 @@ func addi32(a: i32, b: i32) -> i32:
 
 
 func printbn(arr: bytes):
+    let len: i32
+    let i: i32 = 0
     asm:
-        (local $i i32)
-        (local $len i32)
         (local.set $len (array.len (local.get $arr)))
-        (local.set $i (i32.const 0))
         (block $break
             (loop $copy
                 (br_if $break (i32.ge_u (local.get $i) (local.get $len)))
                 (i32.store8
                     (local.get $i)
-                    (array.get $bytes (local.get $arr) (local.get $i))
+                    (array.get_u $bytes (local.get $arr) (local.get $i))
                 )
                 (local.set $i (i32.add (local.get $i) (i32.const 1)))
                 (br $copy)
@@ -101,11 +95,10 @@ func readn(addr: i32, count: i32) -> i32:
         (i32.store (i32.add (local.get $addr) (local.get $read_count)) (i32.const 0))
 
 
-
 asm: (data (i32.const 0) "Hello World!\n")
 
 
 func main():
-    let newlines: bytes = repeat(10, 2)
     printbn(repeat(97, 10))
+    let newlines: bytes = repeat(10, 2)
     printbn(newlines)

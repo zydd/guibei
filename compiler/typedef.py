@@ -6,6 +6,9 @@ class TypeDef:
         self.name = name
         self.body = body
 
+    def annotate(self, context):
+        return self
+
     def compile(self) -> list[wast.WasmExpr]:
         expr = []
         for e in self.body:
