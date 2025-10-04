@@ -1,12 +1,20 @@
-import compiler.wast as wast
+from .ast import AstNode
+from .wast import WasmExpr
 
 
-class TupleDecl:
+class TupleDecl(AstNode):
     def __init__(self, field_types):
         self.field_types = field_types
 
-    def declaration(self) -> list[wast.WasmExpr]:
+    def annotate(self, context):
+        self.field_types = [type_.annotate(context) for type_ in self.field_types]
+        return self
+
+    def declaration(self):
         fields = []
         for type_ in self.field_types:
-            fields.append(wast.WasmExpr(["field", *type_.compile()]))
-        return [wast.WasmExpr(["struct", *fields])]
+            fields.append(WasmExpr(["field", *type_.compile()]))
+        return [WasmExpr(["struct", *fields])]
+
+    def compile(self):
+        raise NotImplementedError

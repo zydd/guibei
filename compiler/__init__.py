@@ -3,19 +3,7 @@ import typing
 from .fndef import *
 from .typedef import *
 from .wast import *
-
-
-class Context:
-    def __init__(self, parent=None):
-        self.parent = parent
-        self.root = parent.root if parent else self
-
-        self.variables: dict[str, VarDecl] = dict()
-        self.types: dict[str, TypeDef] = dict()
-        self.functions: dict[str, FunctionDef] = dict()
-
-    def child(self):
-        return Context(self)
+from .context import Context
 
 
 class CompilePass:
@@ -27,9 +15,9 @@ class CompilePass:
         for expr in prog:
             match expr:
                 case FunctionDef():
-                    self.root_context.functions[expr.name] = expr
+                    self.root_context.register_func(expr)
                 case TypeDef():
-                    self.root_context.types[expr.name] = expr
+                    self.root_context.register_type(expr)
                 case Asm():
                     self.wasm.extend(expr.compile())
 

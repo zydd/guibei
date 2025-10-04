@@ -35,9 +35,12 @@ type int: i32
 type bytes: i8[]
 
 
+func one_one() -> pair:
+    pair(1, 1)
+
+
 func repeat(byte: i32, count: i32) -> bytes:
-    asm:
-        (array.new $bytes (local.get $byte) (local.get $count))
+    bytes(byte, count)
 
 
 func addi32(a: i32, b: i32) -> i32:
@@ -100,5 +103,7 @@ asm: (data (i32.const 0) "Hello World!\n")
 
 func main():
     printbn(repeat(97, 10))
+    printbn(repeat(10, 1))
+    printbn(bytes(98, 10))
     let newlines: bytes = repeat(10, 2)
     printbn(newlines)

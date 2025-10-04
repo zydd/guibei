@@ -1,7 +1,8 @@
 from parser.combinators import *
 from parser.indent import *
 
-from compiler.fndef import FunctionCall, FunctionDef, VarDecl
+from compiler.call import Call
+from compiler.fndef import FunctionDef, VarDecl
 from compiler.identifier import Identifier
 from compiler.literals import IntLiteral
 from compiler.tuple import TupleDecl
@@ -118,7 +119,7 @@ def call():
     name = yield regex(r"\w+")
     yield regex(r"\s*")
     args = yield parens(sep_by(regex(r"\s*,\s*"), expr))
-    return FunctionCall(name, args)
+    return Call(name, args)
 
 
 @generate

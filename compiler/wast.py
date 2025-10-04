@@ -1,5 +1,6 @@
 from parser.combinators import *
 from parser.indent import *
+from compiler.ast import AstNode
 
 
 class WasmExpr:
@@ -38,12 +39,15 @@ class WasmExpr:
         return f"({' '.join(map(str, self.terms))})"
 
 
-class Asm:
+class Asm(AstNode):
     def __init__(self, expr):
         self.expr = expr
 
     def repr_indented(self, level=0):
         return "\n".join(term.repr_indented(level) for term in self.expr.terms)
+
+    def annotate(self, context):
+        return self
 
     def compile(self) -> list[WasmExpr]:
         return self.expr.terms
