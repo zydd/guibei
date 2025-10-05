@@ -107,4 +107,5 @@ func main():
     print_bytes(repeat(10, 1))
     print_bytes(bytes(txt.1, 10))
     let newlines: bytes = repeat(10, 2)
+    let first: i32 = newlines[0]
     print_bytes(newlines)

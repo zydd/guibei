@@ -14,24 +14,21 @@ class TypeDef(AstNode):
             self.body[i] = expr.annotate(context, None)
 
         assert len(self.body) == 1, self.name
-
-        if isinstance(self.body[0], NativeType):
-            return self.body[0]
-
         return self
+    
+    def root_type(self):
+        return self.body[0].root_type()
 
     def declaration(self):
+        if isinstance(self.root_type(), NativeType):
+            return []
+
         compiled_expr = []
         for expr in self.body:
-            if isinstance(expr, TypeName) and not expr.dimensions:
-                return [WasmExpr([expr.name])]
-
             compiled_expr.extend(expr.declaration())
         return [WasmExpr(["type", f"${self.name}", *compiled_expr])]
 
     def instantiation(self, compiled_args):
-        assert len(self.body) == 1
-
         match self.body[0]:
             case TupleDecl():
                 return [WasmExpr(["struct.new", f"${self.name}", *compiled_args])]
@@ -41,6 +38,9 @@ class TypeDef(AstNode):
         return self.body[0].instantiation(compiled_args)
 
     def compile(self):
+        if isinstance(self.body[0], NativeType):
+            return self.body[0].compile()
+
         return [WasmExpr(["ref", f"${self.name}"])]
 
 
@@ -49,6 +49,9 @@ class NativeType(AstNode):
         self.name = name
 
     def annotate(self, context, expected_type):
+        return self
+    
+    def root_type(self):
         return self
 
     def declaration(self):
@@ -61,30 +64,53 @@ class NativeType(AstNode):
         return [WasmExpr([f"{self.name}.const", str(value)])]
 
 
-class TypeName(AstNode):
+class TypeIdentifier(AstNode):
     def __init__(self, name):
         self.name = name
 
     def annotate(self, context, expected_type):
         type_ = context.lookup_type(self.name)
-        while isinstance(type_, TypeName):
+        while isinstance(type_, TypeIdentifier):
             type_ = context.lookup_type(type_.name)
         return type_
 
 
 class ArrayType(AstNode):
-    def __init__(self, name, dimensions):
-        self.name = name
+    def __init__(self, element_type, dimensions):
+        self.element_type = element_type
         self.dimensions = dimensions
 
     def annotate(self, context, expected_type):
+        self.element_type = self.element_type.annotate(context, None)
+        return self
+    
+    def root_type(self):
         return self
 
     def declaration(self):
-        return [WasmExpr(["array", WasmExpr(["mut", self.name])])]
+        return [WasmExpr(["array", WasmExpr(["mut", *self.element_type.compile()])])]
 
     def compile(self):
         return [WasmExpr(["ref", f"${self.name}"])]
+
+
+class ArrayIndex(AstNode):
+    def __init__(self, array, idx):
+        self.array = array
+        self.idx = idx
+
+    def annotate(self, context, expected_type):
+        self.array = self.array.annotate(context, None)
+        self.idx = self.idx.annotate(context, NativeType("i32"))
+        return self
+
+    def compile(self):
+        match self.array.type_.root_type().element_type.root_type():
+            case NativeType(name="i8"):
+                instr = "array.get_s"
+            case _:
+                instr = "array.get"
+        return [WasmExpr([instr, f"${self.array.type_.name}", *self.array.compile(), *self.idx.compile()])]
 
 
 class TypeInstantiation:

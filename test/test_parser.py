@@ -45,3 +45,10 @@ quit( )\0\
 readn(0, 1024)\0\
 printn(0, read_count)\0\
 """)
+
+test_parser(expr(), """\
+quit()\0\
+quit( )\0\
+readn(0, 1024)\0\
+printn(0, read_count)\0\
+""")

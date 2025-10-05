@@ -10,6 +10,9 @@ class TupleDecl(AstNode):
         self.field_types = [type_.annotate(context, None) for type_ in self.field_types]
         return self
 
+    def root_type(self):
+        return self
+
     def declaration(self):
         fields = []
         for type_ in self.field_types:

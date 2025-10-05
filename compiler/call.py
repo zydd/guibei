@@ -5,16 +5,16 @@ from .typedef import TypeDef, TypeInstantiation
 
 
 class Call(AstNode):
-    def __init__(self, name, args):
-        self.name = name
+    def __init__(self, callee, args):
+        self.callee = callee
         self.args = args
 
     def annotate(self, context, expected_type):
-        callee = context.lookup(self.name)
-        match callee:
+        self.callee = self.callee.annotate(context, None)
+        match self.callee:
             case FunctionDef():
-                return FunctionCall(callee, self.args).annotate(context, expected_type)
+                return FunctionCall(self.callee, self.args).annotate(context, expected_type)
             case TypeDef():
-                return TypeInstantiation(callee, self.args).annotate(context, expected_type)
+                return TypeInstantiation(self.callee, self.args).annotate(context, expected_type)
 
-        raise TypeError(f"Cannot call non-function '{self.name}'")
+        raise TypeError(f"Cannot call non-function '{self.callee}'")

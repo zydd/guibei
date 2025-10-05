@@ -49,7 +49,7 @@ def typed_id_decl():
 def var_decl():
     yield regex("let +")
     name, type_ = yield typed_id_decl()
-    optional_init = yield optional(sequence(regex(r"\s*=\s*"), expr))
+    optional_init = yield optional(sequence(regex(r"\s*=\s*"), expr()))
     return VarDecl(name, type_, init=optional_init[1] if optional_init else None)
 
 
@@ -98,19 +98,20 @@ def type_def():
 
 
 @generate
-def native_type():
+def root_type():
     type_ = yield regex(r"__native_type<(\w+)>", 1)
     return NativeType(type_)
 
 
 @generate
-def type_name():
+def type_identifier():
     name = yield regex(r"[_a-zA-Z]\w*")
+    type_ = TypeIdentifier(name)
     array = yield optional(regex(r"\s*\[\s*\]"))
     if array:
-        return ArrayType(name, dimensions=(1,))
+        return ArrayType(type_, dimensions=(1,))
     else:
-        return TypeName(name)
+        return type_
 
 
 @generate
@@ -124,27 +125,39 @@ def identifier():
 
 
 @generate
-def call():
-    name = yield regex(r"[_a-zA-Z]\w*")
-    yield regex(r"\s*")
-    args = yield parens(sep_by(regex(r"\s*,\s*"), expr))
-    return Call(name, args)
+def call(callee):
+    args = yield parens(sep_by(regex(r"\s*,\s*"), expr()))
+    return Call(callee, args)
 
 
 @generate
-def tuple_index():
-    var = yield identifier()
+def array_index(array):
+    idx = yield brackets(expr())
+    return ArrayIndex(array, idx)
+
+
+@generate
+def tuple_index(tuple_):
     yield string(".")
-    idx = int((yield regex(r"\d+")))
-    return TupleIndex(var, idx)
+    idx = yield regex(r"\d+")
+    return TupleIndex(tuple_, idx)
+
+
+@generate
+def expr():
+    term = yield expr_term
+    yield regex(r" *")
+    
+    term_ex = yield optional(choice(call(term), tuple_index(term), array_index(term)))
+    return term_ex if term_ex is not None else term
 
 
 @generate
 def statements():
     yield same_indent()
-    return (yield expr)
+    return (yield expr())
 
 
-type_expr = choice(tuple_def(), native_type(), type_name())
-expr = choice(function_def(), type_def(), asm(), var_decl(), int_literal(), choice(backtrack(call()), backtrack(tuple_index()), identifier()))
+type_expr = choice(tuple_def(), root_type(), type_identifier())
+expr_term = choice(function_def(), type_def(), asm(), var_decl(), int_literal(), identifier())
 prog = sep_by(regex(r"\s*"), statements())

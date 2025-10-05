@@ -1,5 +1,4 @@
 from compiler.ast import AstNode
-from compiler.wast import WasmExpr
 from compiler.typedef import NativeType
 
 
@@ -9,8 +8,7 @@ class IntLiteral(AstNode):
         self.native_type = None
 
     def annotate(self, context, expected_type):
-        assert isinstance(expected_type, NativeType)
-        self.native_type = expected_type
+        self.native_type = expected_type.root_type()
         return self
 
     def compile(self):
