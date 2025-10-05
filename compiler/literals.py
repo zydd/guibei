@@ -12,3 +12,6 @@ class IntLiteral(AstNode):
 
     def compile(self):
         return self.native_type.compile_literal(self.value)
+
+    def __repr__(self):
+        return repr(self.value)

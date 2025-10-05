@@ -30,6 +30,7 @@ class FunctionType(AstNode):
         self.ret_type = ret_type
 
     def annotate(self, context, expected_type):
+        context = context.new()
         self.args = [arg.annotate(context, None) for arg in self.args]
 
         if self.ret_type:

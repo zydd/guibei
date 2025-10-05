@@ -5,8 +5,14 @@ from compiler.fndef import VarDecl, FunctionDef
 from compiler.typedef import TypeDef
 
 
+operator_characters = "~`!@$%^&*-+=|;:',<.>/?"
+
+
 class Identifier(AstNode):
     def __init__(self, name: str):
+        for i, c in enumerate(operator_characters):
+            name = name.replace(c, f"${i}")
+
         self.name = name
         self.type_ = None
 
@@ -26,3 +32,6 @@ class Identifier(AstNode):
 
     def compile(self):
         return [WasmExpr(["local.get", f"${self.name}"])]
+
+    def __repr__(self):
+        return self.name

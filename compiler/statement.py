@@ -12,7 +12,7 @@ class WhileStatement(AstNode):
         self.condition = self.condition.annotate(context, NativeType("i32"))
         self.body = [expr.annotate(context, None) for expr in self.body]
         return self
-    
+
     def compile(self):
         body = []
         for stmt in self.body:

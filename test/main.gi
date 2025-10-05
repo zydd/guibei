@@ -44,7 +44,7 @@ func repeat(byte: i32, count: i32) -> bytes:
     bytes(byte, count)
 
 
-func addi32(a: i32, b: i32) -> i32:
+func (+)(a: i32, b: i32) -> i32:
     asm:
         (i32.add (local.get $a) (local.get $b))
 
@@ -97,7 +97,7 @@ asm: (data (i32.const 0) "Hello World!\n")
 
 
 func main():
-    let txt: pair = pair(97, 98)
+    let txt: pair = pair(97, 97 + 1)
     print_bytes(repeat(txt.0, 10))
     print_bytes(repeat(10, 1))
     print_bytes(bytes(txt.1, 10))

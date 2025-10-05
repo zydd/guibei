@@ -18,3 +18,6 @@ class Call(AstNode):
                 return TypeInstantiation(self.callee, self.args).annotate(context, expected_type)
 
         raise TypeError(f"Cannot call non-function '{self.callee}'")
+
+    def __repr__(self):
+        return f"{self.callee}{tuple(self.args)}"

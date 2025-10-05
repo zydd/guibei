@@ -12,18 +12,19 @@ class Context:
         return Context(self)
 
     def register_variable(self, var):
-        assert var not in self.variables
-        self.variables[var.name] = var
+        assert str(var.name) not in self.variables, var.name
+        self.variables[str(var.name)] = var
 
     def register_type(self, type_):
-        assert type_ not in self.types
-        self.types[type_.name] = type_
+        assert str(type_.name) not in self.types
+        self.types[str(type_.name)] = type_
 
     def register_func(self, func):
-        assert func not in self.functions
-        self.functions[func.name] = func
+        assert str(func.name) not in self.functions
+        self.functions[str(func.name)] = func
 
     def lookup(self, name: str):
+        name = str(name)
         res = []
 
         if name in self.variables:
@@ -47,6 +48,7 @@ class Context:
         raise KeyError(f"Name '{name}' not found in context")
 
     def lookup_type(self, name: str):
+        name = str(name)
         if name in self.types:
             return self.types[name]
 

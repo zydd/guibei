@@ -15,7 +15,7 @@ class TypeDef(AstNode):
 
         assert len(self.body) == 1, self.name
         return self
-    
+
     def root_type(self):
         return self.body[0].root_type()
 
@@ -50,7 +50,7 @@ class NativeType(AstNode):
 
     def annotate(self, context, expected_type):
         return self
-    
+
     def root_type(self):
         return self
 
@@ -83,7 +83,7 @@ class ArrayType(AstNode):
     def annotate(self, context, expected_type):
         self.element_type = self.element_type.annotate(context, None)
         return self
-    
+
     def root_type(self):
         return self
 

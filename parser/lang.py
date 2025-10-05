@@ -3,7 +3,7 @@ from parser.indent import *
 
 from compiler.call import Call
 from compiler.fndef import FunctionDef, VarDecl
-from compiler.identifier import Identifier
+from compiler.identifier import Identifier, operator_characters
 from compiler.literals import IntLiteral
 from compiler.statement import WhileStatement
 from compiler.tuple import TupleDecl, TupleIndex
@@ -62,7 +62,7 @@ def function_def():
         return (yield type_expr)
 
     yield regex("func +")
-    name = yield regex(r"\w+")
+    name = yield choice(identifier(), operator_identifier())
     yield regex(r"\s*")
     args = yield parens(sep_by(regex(r"\s*,\s*"), typed_id_decl()))
     ret_type = yield optional(fn_ret_type())
@@ -99,14 +99,14 @@ def type_def():
 
 
 @generate
-def root_type():
+def native_type():
     type_ = yield regex(r"__native_type<(\w+)>", 1)
     return NativeType(type_)
 
 
 @generate
 def type_identifier():
-    name = yield regex(r"[_a-zA-Z]\w*")
+    name = yield regex(r"[_a-zA-Z0-9]\w*")
     type_ = TypeIdentifier(name)
     array = yield optional(regex(r"\s*\[\s*\]"))
     if array:
@@ -123,6 +123,14 @@ def int_literal():
 @generate
 def identifier():
     return Identifier((yield regex(r"[_a-zA-Z]\w*")))
+
+
+@generate
+def operator_identifier():
+    yield string("(")
+    op = yield regex(fr"[{operator_characters}]+")
+    yield string(")")
+    return Identifier(op)
 
 
 @generate
@@ -145,12 +153,35 @@ def tuple_index(tuple_):
 
 
 @generate
-def expr():
+def expr_index():
     term = yield expr_term
     yield regex(r" *")
-    
+
     term_ex = yield optional(choice(call(term), tuple_index(term), array_index(term)))
     return term_ex if term_ex is not None else term
+
+
+@generate
+def binop(ops, unit):
+    res = yield unit
+    terms = []
+    operators = []
+
+    while True:
+        yield regex(r"\s*")
+        op = yield optional(ops)
+        if op is None:
+            break
+        yield regex(r"\s*")
+        rhs = yield unit
+        operators.append(op)
+        terms.append(rhs)
+
+    # TODO: right-association
+    for op, rhs in zip(operators, terms):
+        res = Call(Identifier(op), [res, rhs])
+
+    return res
 
 
 @generate
@@ -169,6 +200,20 @@ def statements():
     return (yield choice(while_block(), expr()))
 
 
-type_expr = choice(tuple_def(), root_type(), type_identifier())
+type_expr = choice(tuple_def(), native_type(), type_identifier())
 expr_term = choice(function_def(), type_def(), asm(), var_decl(), int_literal(), identifier())
+
+operators = [
+    regex(r"\*|/|%"),
+    regex(r"\+|-"),
+    regex(r"&"),
+    regex(r"\|"),
+]
+
+op_parser = expr_index()
+for op in operators:
+    op_parser = binop(op, op_parser)
+
+def expr(): return op_parser
+
 prog = sep_by(regex(r"\s*"), statements())

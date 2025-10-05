@@ -7,14 +7,16 @@ import parser
 from parser.lang import *
 
 
-def test_parser(p, examples):
+def test_parser(p, examples, print_result=False):
     print("Parser:", p.__name__)
     for ex in examples.split("\0"):
         if not ex:
             continue
         print(repr(ex))
-        prog = parser.run_parser(p, ex)
-        assert prog
+        res = parser.run_parser(p, ex)
+        if print_result:
+            print(str(res))
+        assert res
     print()
 
 
@@ -33,13 +35,13 @@ type test:
 """)
 
 
-test_parser(type_name(), """\
+test_parser(type_identifier(), """\
 i32\0\
 i32[]\0\
 """)
 
 
-test_parser(call(), """\
+test_parser(expr(), """\
 quit()\0\
 quit( )\0\
 readn(0, 1024)\0\
@@ -52,3 +54,16 @@ quit( )\0\
 readn(0, 1024)\0\
 printn(0, read_count)\0\
 """)
+
+
+test_parser(op_parser, """\
+1+2\0\
+1+2+3\0\
+1+2-3\0\
+1-2+3\0\
+1*2*3\0\
+1|2|3\0\
+1*2+3\0\
+1+2*3\0\
+1+2*3 | 4+5*6\0\
+""", print_result=True)
