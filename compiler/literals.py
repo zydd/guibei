@@ -1,5 +1,4 @@
 from compiler.ast import AstNode
-from compiler.typedef import NativeType
 
 
 class IntLiteral(AstNode):

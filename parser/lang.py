@@ -5,6 +5,7 @@ from compiler.call import Call
 from compiler.fndef import FunctionDef, VarDecl
 from compiler.identifier import Identifier
 from compiler.literals import IntLiteral
+from compiler.statement import WhileStatement
 from compiler.tuple import TupleDecl, TupleIndex
 from compiler.typedef import *
 from compiler.wast import Asm, WasmExpr
@@ -153,9 +154,19 @@ def expr():
 
 
 @generate
+def while_block():
+    yield regex("while +")
+    condition = yield expr()
+    yield regex(r" *:\s*")
+    yield indented()
+    body = yield with_pos(sep_by(regex(r"\s*"), statements()))
+    return WhileStatement(condition, body)
+
+
+@generate
 def statements():
     yield same_indent()
-    return (yield expr())
+    return (yield choice(while_block(), expr()))
 
 
 type_expr = choice(tuple_def(), root_type(), type_identifier())

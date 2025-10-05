@@ -51,20 +51,15 @@ func addi32(a: i32, b: i32) -> i32:
 
 func print_bytes(arr: bytes):
     let i: i32 = 0
-    let len: i32
-    asm:
-        (local.set $len (array.len (local.get $arr)))
-        (block $break
-            (loop $copy
-                (br_if $break (i32.ge_u (local.get $i) (local.get $len)))
-                (i32.store8
-                    (local.get $i)
-                    (array.get_u $bytes (local.get $arr) (local.get $i))
-                )
-                (local.set $i (i32.add (local.get $i) (i32.const 1)))
-                (br $copy)
+    let len: i32 = asm: (array.len (local.get $arr))
+    while asm: (i32.lt_u (local.get $i) (local.get $len)):
+        asm:
+            (i32.store8
+                (local.get $i)
+                (array.get_u $bytes (local.get $arr) (local.get $i))
             )
-        )
+            (local.set $i (i32.add (local.get $i) (i32.const 1)))
+
     printn(0, len)
 
 
