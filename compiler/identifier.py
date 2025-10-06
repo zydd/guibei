@@ -5,7 +5,7 @@ from compiler.fndef import VarDecl, FunctionDef
 from compiler.typedef import TypeDef
 
 
-operator_characters = "~`!@$%^&*-+=|;:',<.>/?"
+operator_characters = "-~`!@$%^&*+=|;:',<.>/?"
 
 
 class Identifier(AstNode):

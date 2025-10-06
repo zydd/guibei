@@ -51,6 +51,10 @@ func (+)(a: i32, b: i32) -> i32:
         i32.add
 
 
+func (-)(a: i32, b: i32) -> i32:
+    asm: (i32.sub {a} {b})
+
+
 func (<)(a: i32, b: i32) -> i32:
     asm: (i32.lt_s {a} {b})
 
@@ -84,7 +88,7 @@ func readn(addr: i32, count: i32) -> i32:
     let read_count: i32
     asm:
         (i32.store offset=4 (global.get $__stackp) {addr})
-        (i32.store offset=8 (global.get $__stackp) (i32.sub {count} (i32.const 1)))
+        (i32.store offset=8 (global.get $__stackp) {count - 1})
 
         (call $__wasi_fd_read
             (i32.const 0)
