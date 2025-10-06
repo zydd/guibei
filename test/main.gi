@@ -46,27 +46,30 @@ func repeat(byte: i32, count: i32) -> bytes:
 
 func (+)(a: i32, b: i32) -> i32:
     asm:
-        (i32.add (local.get $a) (local.get $b))
+        local.get $a
+        local.get $b
+        i32.add
+
+
+func (<)(a: i32, b: i32) -> i32:
+    asm: (i32.lt_s {a} {b})
 
 
 func print_bytes(arr: bytes):
     let i: i32 = 0
     let len: i32 = asm: (array.len (local.get $arr))
-    while asm: (i32.lt_u (local.get $i) (local.get $len)):
+    while i < len:
         asm:
-            (i32.store8
-                (local.get $i)
-                (array.get_u $bytes (local.get $arr) (local.get $i))
-            )
-            (local.set $i (i32.add (local.get $i) (i32.const 1)))
+            (i32.store8 {i} {arr[i]})
+            (local.set $i {i + 1})
 
     printn(0, len)
 
 
 func printn(addr: i32, count: i32):
     asm:
-        (i32.store offset=4 (global.get $__stackp) (local.get $addr))
-        (i32.store offset=8 (global.get $__stackp) (local.get $count))
+        (i32.store offset=4 (global.get $__stackp) {addr})
+        (i32.store offset=8 (global.get $__stackp) {count})
 
         (call $__wasi_fd_write
             (i32.const 1)
@@ -80,8 +83,8 @@ func printn(addr: i32, count: i32):
 func readn(addr: i32, count: i32) -> i32:
     let read_count: i32
     asm:
-        (i32.store offset=4 (global.get $__stackp) (local.get $addr))
-        (i32.store offset=8 (global.get $__stackp) (i32.sub (local.get $count) (i32.const 1)))
+        (i32.store offset=4 (global.get $__stackp) {addr})
+        (i32.store offset=8 (global.get $__stackp) (i32.sub {count} (i32.const 1)))
 
         (call $__wasi_fd_read
             (i32.const 0)

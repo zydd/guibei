@@ -3,12 +3,20 @@ from parser.indent import *
 from compiler.ast import AstNode
 
 
-class WasmExpr:
+class WasmExpr(AstNode):
     def __init__(self, terms):
         self.terms = terms
 
     def __repr__(self):
         return self.repr_indented()
+
+    def annotate(self, context, expected_type):
+        self.terms = [term.annotate(context, None) if isinstance(term, AstNode) else term for term in self.terms]
+        return self
+
+    def compile(self):
+        terms = [t for term in self.terms for t in (term.compile() if isinstance(term, AstNode) else [term])]
+        return [WasmExpr(terms)]
 
     def repr_indented(self, level=0):
         indent = "    " * level
@@ -47,7 +55,8 @@ class Asm(AstNode):
         return "\n".join(term.repr_indented(level) for term in self.expr.terms)
 
     def annotate(self, context, expected_type):
+        self.expr = self.expr.annotate(context, None)
         return self
 
     def compile(self) -> list[WasmExpr]:
-        return self.expr.terms
+        return [t for term in self.expr.terms for t in (term.compile() if isinstance(term, AstNode) else [term])]

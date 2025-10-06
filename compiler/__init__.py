@@ -19,14 +19,18 @@ class CompilePass:
                     self.root_context.register_type(expr.type_)
                 case TypeDef():
                     self.root_context.register_type(expr)
-                case Asm():
-                    self.wasm.extend(expr.compile())
 
         for name, type_ in self.root_context.types.items():
             self.root_context.types[name] = type_.annotate(self.root_context, None)
 
         for name, func in self.root_context.functions.items():
             self.root_context.functions[name] = func.annotate(self.root_context, None)
+
+        for expr in prog:
+            match expr:
+                case Asm():
+                    expr.annotate(self.root_context, None)
+                    self.wasm.extend(expr.compile())
 
     def compile(self, prog: list):
         self.annotate(prog)

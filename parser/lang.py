@@ -25,6 +25,7 @@ def asm():
             regex(r'"[^"]*"'),
             regex(r"[$\w]+"),
             parens(wast_expr()),
+            bracers(expr())
         )
 
     @generate
@@ -34,8 +35,8 @@ def asm():
     yield string("asm:")
     yield regex(r"\s*")
     yield indented()
-    expr = yield with_pos(wast_expr())
-    return Asm(expr)
+    asm = yield with_pos(wast_expr())
+    return Asm(asm)
 
 
 @generate
@@ -206,6 +207,8 @@ expr_term = choice(function_def(), type_def(), asm(), var_decl(), int_literal(),
 operators = [
     regex(r"\*|/|%"),
     regex(r"\+|-"),
+    regex(r"<=|>=|>|<"),
+    regex(r"==|!="),
     regex(r"&"),
     regex(r"\|"),
 ]
