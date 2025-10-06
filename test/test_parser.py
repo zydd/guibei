@@ -20,6 +20,12 @@ def test_parser(p, examples, print_result=False):
     print()
 
 
+test_parser(expr_index(), """\
+quit().0\0\
+""")
+
+
+
 test_parser(type_def(), """\
 type test:
     (i32, i32)\0\

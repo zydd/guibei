@@ -158,8 +158,12 @@ def expr_index():
     term = yield expr_term
     yield regex(r" *")
 
-    term_ex = yield optional(choice(call(term), tuple_index(term), array_index(term)))
-    return term_ex if term_ex is not None else term
+    while True:
+        term_ex = yield optional(choice(call(term), tuple_index(term), array_index(term)))
+        if not term_ex:
+            break
+        term = term_ex
+    return term
 
 
 @generate

@@ -102,7 +102,7 @@ asm: (data (i32.const 0) "Hello World!\n")
 func main():
     let txt: pair = pair(97, 97 + 1)
     print_bytes(repeat(txt.0, 10))
-    print_bytes(repeat(10, 1))
+    print_bytes(repeat(10, one_one().1))
     print_bytes(bytes(txt.1, 10))
     let newlines: bytes = repeat(10, 2)
     let first: i32 = newlines[0]
