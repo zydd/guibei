@@ -1,5 +1,6 @@
 import os
 import sys
+import pytest
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -7,69 +8,55 @@ import parser
 from parser.lang import *
 
 
-def test_parser(p, examples, print_result=False):
-    print("Parser:", p.__name__)
-    for ex in examples.split("\0"):
-        if not ex:
-            continue
-        print(repr(ex))
-        res = parser.run_parser(p, ex)
-        if print_result:
-            print(str(res))
-        assert res
-    print()
+@pytest.mark.parametrize("code", [
+    "call().0",
+    "call()[0]",
+    "call[0].0",
+    "call[0]()",
+    "call[0]().0",
+])
+def test_expr_index(code):
+    assert parser.run_parser(expr_index(), code)
 
 
-test_parser(expr_index(), """\
-quit().0\0\
-""")
+@pytest.mark.parametrize("code", [
+    "type test:\n    (i32, i32)",
+    "type test: (i32, i32, i32)",
+    "type int:\n    i32",
+    "type test:\n    i322",
+])
+def test_type_def(code):
+    assert parser.run_parser(type_def(), code)
 
 
-
-test_parser(type_def(), """\
-type test:
-    (i32, i32)\0\
-\0\
-type test: (i32, i32, i32)\0\
-\0\
-type int:
-    i32\0\
-\0\
-type test:
-    i322\0\
-\0\
-""")
+@pytest.mark.parametrize("code", [
+    "i32",
+    "i32[]",
+])
+def test_type_identifier(code):
+    assert parser.run_parser(type_identifier(), code)
 
 
-test_parser(type_identifier(), """\
-i32\0\
-i32[]\0\
-""")
+@pytest.mark.parametrize("code", [
+    "quit()",
+    "quit( )",
+    "readn(0, 1024)",
+    "printn(0, read_count)",
+])
+def test_expr(code):
+    assert parser.run_parser(expr(), code)
 
 
-test_parser(expr(), """\
-quit()\0\
-quit( )\0\
-readn(0, 1024)\0\
-printn(0, read_count)\0\
-""")
-
-test_parser(expr(), """\
-quit()\0\
-quit( )\0\
-readn(0, 1024)\0\
-printn(0, read_count)\0\
-""")
-
-
-test_parser(op_parser, """\
-1+2\0\
-1+2+3\0\
-1+2-3\0\
-1-2+3\0\
-1*2*3\0\
-1|2|3\0\
-1*2+3\0\
-1+2*3\0\
-1+2*3 | 4+5*6\0\
-""", print_result=True)
+@pytest.mark.parametrize("code", [
+    "1+2",
+    "1+2+3",
+    "1+2-3",
+    "1-2+3",
+    "1*2*3",
+    "1|2|3",
+    "1*2+3",
+    "1+2*3",
+    "1+2*3 | 4+5*6",
+])
+def test_op_parser(code):
+    assert parser.run_parser(op_parser, code)
