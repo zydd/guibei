@@ -2,24 +2,8 @@ asm:
     (import "wasi_snapshot_preview1" "fd_write"
         (func $__wasi_fd_write (type $__wasi_fd_write_t)))
 
-    (type $__wasi_fd_write_t
-        (func
-            (param $fd i32)
-            (param $iovs i32)
-            (param $iovs_len i32)
-            (param $out_nwritten i32)
-            (result i32)))
-
     (import "wasi_snapshot_preview1" "fd_read"
         (func $__wasi_fd_read (type $__wasi_fd_read_t)))
-
-    (type $__wasi_fd_read_t
-        (func
-            (param $fd i32)
-            (param $iovs i32)
-            (param $iovs_len i32)
-            (param $out_nread i32)
-            (result i32)))
 
 asm:
     (export "memory" (memory $memory))
@@ -34,6 +18,10 @@ type i8: __native_type<i8>
 type bytes: i8[]
 type pair: (i32, i32)
 type mat2x2: (pair, pair)
+
+
+type __wasi_fd_write_t: func(fd: i32, iovs: i32, iovs_len: i32, out_nwritten: i32) -> i32
+type __wasi_fd_read_t: func(fd: i32, iovs: i32, iovs_len: i32, out_nread: i32) -> i32
 
 
 func one_one() -> pair:

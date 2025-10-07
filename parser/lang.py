@@ -2,7 +2,7 @@ from parser.combinators import *
 from parser.indent import *
 
 from compiler.call import Call
-from compiler.fndef import FunctionDef, VarDecl
+from compiler.fndef import FunctionDef, FunctionType, VarDecl
 from compiler.identifier import Identifier, operator_characters
 from compiler.literals import IntLiteral
 from compiler.statements import Assignment, ReturnStatement, WhileStatement
@@ -79,6 +79,20 @@ def function_def():
     yield indented()
     body = yield with_pos(sep_by(regex(r"\s*"), statements()))
     return FunctionDef(name, args, ret_type or VoidType(), body)
+
+
+@generate
+def function_type():
+    @generate
+    def fn_ret_type():
+        yield regex(r"\s*->\s*")
+        return (yield type_expr)
+
+    yield regex("func")
+    yield regex(r"\s*")
+    args = yield parens(sep_by(regex(r"\s*,\s*"), typed_id_decl()))
+    ret_type = yield optional(fn_ret_type())
+    return FunctionType(None, args, ret_type or VoidType())
 
 
 @generate
@@ -225,7 +239,7 @@ def statements():
     ))
 
 
-type_expr = choice(tuple_def(), native_type(), type_identifier())
+type_expr = choice(tuple_def(), function_type(), native_type(), type_identifier())
 expr_term = choice(function_def(), type_def(), asm(), int_literal(), identifier())
 
 operators = [

@@ -41,14 +41,27 @@ class FunctionType(AstNode):
 
         return self
 
+    def root_type(self):
+        return self
+
     def declaration(self):
-        return []
+        decls = []
+        for arg in self.args:
+            decls.append(WasmExpr(["param", f"${arg.name}", *arg.var_type.compile()]))
+
+        if not isinstance(self.ret_type, VoidType):
+            decls.append(WasmExpr(["result", *self.ret_type.compile()]))
+
+        type_ = WasmExpr(["func", *decls])
+        if self.name is not None:
+            type_ = WasmExpr(["type", f"${self.name}", type_])
+        return [type_]
 
 
 class FunctionDef(AstNode):
     def __init__(self, name, args, ret_type, body):
         self.name = name
-        self.type_ = FunctionType(f"__func_t_{name}", args, ret_type)
+        self.type_ = FunctionType(f"__func_{name}_t", args, ret_type)
         self.body = body
         self.locals = []
 
