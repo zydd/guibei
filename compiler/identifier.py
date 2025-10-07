@@ -20,15 +20,14 @@ class Identifier(AstNode):
         val = context.lookup(self.name)
         match val:
             case VarDecl():
-                self.type_ = val.type_
+                self.type_ = val.var_type
                 return self
             case FunctionDef():
                 self.type_ = val.type_
                 return val
             case TypeDef():
                 return val
-            case _:
-                raise NotImplementedError
+        raise NotImplementedError
 
     def compile(self):
         return [WasmExpr(["local.get", f"${self.name}"])]

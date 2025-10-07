@@ -1,5 +1,5 @@
 from compiler.ast import AstNode
-from compiler.typedef import NativeType
+from compiler.typedef import NativeType, VoidType
 from compiler.wast import WasmExpr
 
 
@@ -7,6 +7,7 @@ class WhileStatement(AstNode):
     def __init__(self, condition, body):
         self.condition = condition
         self.body = body
+        self.type_ = VoidType()
 
     def annotate(self, context, expected_type):
         self.condition = self.condition.annotate(context, NativeType("i32"))
@@ -31,9 +32,11 @@ class WhileStatement(AstNode):
             ])
         ])]
 
+
 class ReturnStatement(AstNode):
     def __init__(self, expr):
         self.expr = expr
+        self.type_ = VoidType()
 
     def annotate(self, context, expected_type):
         self.expr = self.expr.annotate(context, None)

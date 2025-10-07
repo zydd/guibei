@@ -24,9 +24,11 @@ class TupleIndex(AstNode):
     def __init__(self, tuple_, idx):
         self.tuple_ = tuple_
         self.idx = idx
+        self.type_ = None
 
     def annotate(self, context, expected_type):
         self.tuple_ = self.tuple_.annotate(context, expected_type)
+        self.type_ = self.tuple_.type_.root_type().field_types[-1]
         return self
 
     def compile(self):

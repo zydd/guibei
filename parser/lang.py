@@ -5,7 +5,7 @@ from compiler.call import Call
 from compiler.fndef import FunctionDef, VarDecl
 from compiler.identifier import Identifier, operator_characters
 from compiler.literals import IntLiteral
-from compiler.statement import Assignment, ReturnStatement, WhileStatement
+from compiler.statements import Assignment, ReturnStatement, WhileStatement
 from compiler.tuple import TupleDecl, TupleIndex
 from compiler.typedef import *
 from compiler.wast import Asm, WasmExpr
@@ -78,7 +78,7 @@ def function_def():
     yield regex(r"\s*:\s*")
     yield indented()
     body = yield with_pos(sep_by(regex(r"\s*"), statements()))
-    return FunctionDef(name, args, ret_type, body)
+    return FunctionDef(name, args, ret_type or VoidType(), body)
 
 
 @generate
