@@ -5,7 +5,7 @@ from compiler.call import Call
 from compiler.fndef import FunctionDef, VarDecl
 from compiler.identifier import Identifier, operator_characters
 from compiler.literals import IntLiteral
-from compiler.statement import ReturnStatement, WhileStatement
+from compiler.statement import Assignment, ReturnStatement, WhileStatement
 from compiler.tuple import TupleDecl, TupleIndex
 from compiler.typedef import *
 from compiler.wast import Asm, WasmExpr
@@ -53,6 +53,14 @@ def var_decl():
     name, type_ = yield typed_id_decl()
     optional_init = yield optional(sequence(regex(r"\s*=\s*"), expr()))
     return VarDecl(name, type_, init=optional_init[1] if optional_init else None)
+
+
+@generate
+def assignment():
+    name = yield identifier()
+    yield regex(r"\s*=\s*")
+    value = yield expr()
+    return Assignment(name, value)
 
 
 @generate
@@ -208,11 +216,17 @@ def return_statement():
 @generate
 def statements():
     yield same_indent()
-    return (yield choice(while_block(), return_statement(), expr()))
+    return (yield choice(
+        while_block(),
+        return_statement(),
+        var_decl(),
+        backtrack(assignment()),
+        expr(),
+    ))
 
 
 type_expr = choice(tuple_def(), native_type(), type_identifier())
-expr_term = choice(function_def(), type_def(), asm(), var_decl(), int_literal(), identifier())
+expr_term = choice(function_def(), type_def(), asm(), int_literal(), identifier())
 
 operators = [
     regex(r"\*|/|%"),

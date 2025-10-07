@@ -45,10 +45,7 @@ func repeat(byte: i32, count: i32) -> bytes:
 
 
 func (+)(a: i32, b: i32) -> i32:
-    return asm:
-        local.get $a
-        local.get $b
-        i32.add
+    return asm: (i32.add {a} {b})
     asm: (i32.sub {a} {b})
 
 
@@ -64,9 +61,8 @@ func print_bytes(arr: bytes):
     let i: i32 = 0
     let len: i32 = asm: (array.len (local.get $arr))
     while i < len:
-        asm:
-            (i32.store8 {i} {arr[i]})
-            (local.set $i {i + 1})
+        asm: (i32.store8 {i} {arr[i]})
+        i = i + 1
 
     printn(0, len)
 

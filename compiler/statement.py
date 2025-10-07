@@ -41,3 +41,18 @@ class ReturnStatement(AstNode):
 
     def compile(self):
         return [WasmExpr(["return", *self.expr.compile()])]
+
+
+class Assignment(AstNode):
+    def __init__(self, var, expr):
+        self.var = var
+        self.expr = expr
+
+    def annotate(self, context, expected_type):
+        self.var = self.var.annotate(context, None)
+        self.expr = self.expr.annotate(context, self.var.type_)
+        return self
+
+    def compile(self):
+        return [WasmExpr(["local.set", f"${self.var.name}", *self.expr.compile()])]
+
