@@ -5,7 +5,7 @@ from compiler.call import Call
 from compiler.fndef import FunctionDef, VarDecl
 from compiler.identifier import Identifier, operator_characters
 from compiler.literals import IntLiteral
-from compiler.statement import WhileStatement
+from compiler.statement import ReturnStatement, WhileStatement
 from compiler.tuple import TupleDecl, TupleIndex
 from compiler.typedef import *
 from compiler.wast import Asm, WasmExpr
@@ -200,9 +200,15 @@ def while_block():
 
 
 @generate
+def return_statement():
+    yield regex("return +")
+    return ReturnStatement((yield expr()))
+
+
+@generate
 def statements():
     yield same_indent()
-    return (yield choice(while_block(), expr()))
+    return (yield choice(while_block(), return_statement(), expr()))
 
 
 type_expr = choice(tuple_def(), native_type(), type_identifier())

@@ -30,3 +30,14 @@ class WhileStatement(AstNode):
                 WasmExpr(["br", f"$while_loop_{id}"])
             ])
         ])]
+
+class ReturnStatement(AstNode):
+    def __init__(self, expr):
+        self.expr = expr
+
+    def annotate(self, context, expected_type):
+        self.expr = self.expr.annotate(context, None)
+        return self
+
+    def compile(self):
+        return [WasmExpr(["return", *self.expr.compile()])]

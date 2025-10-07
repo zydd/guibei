@@ -45,10 +45,11 @@ func repeat(byte: i32, count: i32) -> bytes:
 
 
 func (+)(a: i32, b: i32) -> i32:
-    asm:
+    return asm:
         local.get $a
         local.get $b
         i32.add
+    asm: (i32.sub {a} {b})
 
 
 func (-)(a: i32, b: i32) -> i32:
