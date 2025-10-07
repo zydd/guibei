@@ -4,7 +4,7 @@ from parser.indent import *
 from compiler.call import Call
 from compiler.fndef import FunctionDef, FunctionType, VarDecl
 from compiler.identifier import Identifier, operator_characters
-from compiler.literals import IntLiteral
+from compiler.literals import IntLiteral, StringLiteral
 from compiler.statements import Assignment, ReturnStatement, WhileStatement
 from compiler.tuple import TupleDecl, TupleIndex
 from compiler.typedef import *
@@ -75,9 +75,11 @@ def function_def():
     yield regex(r"\s*")
     args = yield parens(sep_by(regex(r"\s*,\s*"), typed_id_decl()))
     ret_type = yield optional(fn_ret_type())
-    yield regex(r"\s*:\s*")
-    yield indented()
-    body = yield with_pos(sep_by(regex(r"\s*"), statements()))
+    if (yield optional(regex(r" *:\s*"))):
+        yield indented()
+        body = yield with_pos(sep_by(regex(r"\s*"), statements()))
+    else:
+        body = []
     return FunctionDef(name, args, ret_type or VoidType(), body)
 
 
@@ -141,6 +143,12 @@ def type_identifier():
 @generate
 def int_literal():
     return IntLiteral(int((yield regex(r"-?\d+"))))
+
+
+@generate
+def string_literal():
+    value = yield regex(r'"([^"\\]|\\.)*"')
+    return StringLiteral(value)
 
 
 @generate
@@ -228,19 +236,34 @@ def return_statement():
 
 
 @generate
+def compiler_annotation():
+    yield string(":[")
+    annotations = yield sep_by(regex(r"\s*,\s*"), expr())
+    yield string("]")
+    yield regex(r"\s*")
+    return annotations
+
+
+@generate
 def statements():
     yield same_indent()
-    return (yield choice(
+    annotations = yield optional(compiler_annotation())
+
+    yield same_indent()
+    stmt = yield choice(
         while_block(),
         return_statement(),
         var_decl(),
         backtrack(assignment()),
         expr(),
-    ))
+    )
+    if annotations:
+        stmt.annotations = annotations
+    return stmt
 
 
 type_expr = choice(tuple_def(), function_type(), native_type(), type_identifier())
-expr_term = choice(function_def(), type_def(), asm(), int_literal(), identifier())
+expr_term = choice(function_def(), type_def(), asm(), int_literal(), string_literal(), identifier())
 
 operators = [
     regex(r"\*|/|%"),

@@ -1,11 +1,4 @@
 asm:
-    (import "wasi_snapshot_preview1" "fd_write"
-        (func $__wasi_fd_write (type $__wasi_fd_write_t)))
-
-    (import "wasi_snapshot_preview1" "fd_read"
-        (func $__wasi_fd_read (type $__wasi_fd_read_t)))
-
-asm:
     (export "memory" (memory $memory))
     (export "_start" (func $main))
     (memory $memory 1)
@@ -20,8 +13,11 @@ type pair: (i32, i32)
 type mat2x2: (pair, pair)
 
 
-type __wasi_fd_write_t: func(fd: i32, iovs: i32, iovs_len: i32, out_nwritten: i32) -> i32
-type __wasi_fd_read_t: func(fd: i32, iovs: i32, iovs_len: i32, out_nread: i32) -> i32
+:[import("wasi_snapshot_preview1", "fd_write")]
+func __wasi_fd_write(fd: i32, iovs: i32, iovs_len: i32, out_nwritten: i32) -> i32
+
+:[import("wasi_snapshot_preview1", "fd_read")]
+func __wasi_fd_read(fd: i32, iovs: i32, iovs_len: i32, out_nread: i32) -> i32
 
 
 func one_one() -> pair:
@@ -60,13 +56,7 @@ func printn(addr: i32, count: i32):
         (i32.store offset=4 (global.get $__stackp) {addr})
         (i32.store offset=8 (global.get $__stackp) {count})
 
-        (call $__wasi_fd_write
-            (i32.const 1)
-            (i32.add (global.get $__stackp) (i32.const 4))
-            (i32.const 1)
-            (global.get $__stackp)
-        )
-        (drop)
+    __wasi_fd_write(1, asm: (global.get $__stackp) + 4, 1, asm: (global.get $__stackp))
 
 
 func readn(addr: i32, count: i32) -> i32:
@@ -75,13 +65,9 @@ func readn(addr: i32, count: i32) -> i32:
         (i32.store offset=4 (global.get $__stackp) {addr})
         (i32.store offset=8 (global.get $__stackp) {count - 1})
 
-        (call $__wasi_fd_read
-            (i32.const 0)
-            (i32.add (global.get $__stackp) (i32.const 4))
-            (i32.const 1)
-            (global.get $__stackp)
-        )
-        (drop)
+    __wasi_fd_read(0, asm: (global.get $__stackp) + 4, 1, asm: (global.get $__stackp))
+
+    asm:
         (i32.load (global.get $__stackp))
 
 

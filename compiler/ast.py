@@ -11,7 +11,7 @@ class AstNode(abc.ABC):
         raise NotImplementedError
 
     def compile(self) -> list:
-        raise NotImplementedError
+        raise NotImplementedError(str(self))
 
     @staticmethod
     def next_id():

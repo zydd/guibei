@@ -4,6 +4,7 @@ class Context:
         self.parent = parent
         self.root = parent.root if parent else self
 
+        self.imports = list()
         self.variables: dict[str] = dict()
         self.types: dict[str] = dict()
         self.functions: dict[str] = dict()
@@ -22,6 +23,9 @@ class Context:
     def register_func(self, func):
         assert str(func.name) not in self.functions
         self.functions[str(func.name)] = func
+
+    def register_import(self, expr):
+        self.root.imports.append(expr)
 
     def lookup(self, name: str):
         name = str(name)

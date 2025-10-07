@@ -1,4 +1,4 @@
-from .wast import WasmExpr
+from .wast import Asm, WasmExpr
 from .ast import AstNode
 
 from compiler.typedef import VoidType
@@ -78,9 +78,20 @@ class FunctionDef(AstNode):
             self.body[i] = expr.annotate(context, None)
             assert self.body[i] is not None, expr
 
+        if hasattr(self, "annotations"):
+            assert self.body == []
+            context.register_import(
+                WasmExpr(["func", f"${self.name}",
+                          WasmExpr([self.annotations[0].callee, *self.annotations[0].args]),
+                          WasmExpr(["type", f"${self.type_.name}"]),
+                          ]))
+
         return self
 
     def compile(self):
+        if not self.body:
+            return []
+
         decls = []
         for arg in self.type_.args:
             decls.append(WasmExpr(["param", f"${arg.name}", *arg.var_type.compile()]))
@@ -94,13 +105,17 @@ class FunctionDef(AstNode):
         body = []
         for expr in self.body[:-1]:
             body.extend(expr.compile())
-            assert expr.type_ is not None
-            if not isinstance(expr.type_, VoidType):
+
+            if not isinstance(expr, Asm) and not isinstance(expr.type_, VoidType):
                 body.append(WasmExpr(["drop"]))
 
-        body.extend(self.body[-1].compile())
+        if self.body:
+            body.extend(self.body[-1].compile())
 
-        return [WasmExpr(["func", f"${self.name}", *decls, *body])]
+            if isinstance(self.type_.ret_type, VoidType) and not isinstance(self.body[-1], Asm) and not isinstance(self.body[-1].type_, VoidType):
+                body.append(WasmExpr(["drop"]))
+
+        return [WasmExpr(["func", f"${self.name}", WasmExpr(["type", f"${self.type_.name}"]), *decls, *body])]
 
 
 class FunctionCall(AstNode):

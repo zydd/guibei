@@ -137,3 +137,6 @@ class VoidType(AstNode):
         if expected_type and expected_type != VoidType:
             raise TypeError
         return self
+
+    def compile(self):
+        return []

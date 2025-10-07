@@ -27,7 +27,7 @@ class Identifier(AstNode):
                 return val
             case TypeDef():
                 return val
-        raise NotImplementedError
+        raise NotImplementedError(self)
 
     def compile(self):
         return [WasmExpr(["local.get", f"${self.name}"])]

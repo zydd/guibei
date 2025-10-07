@@ -44,6 +44,10 @@ class CompilePass:
     def write(self, out: typing.BinaryIO):
         out.write(b"(module\n")
 
+        for w in self.root_context.imports:
+            out.write(w.repr_indented(1).encode())
+            out.write(b"\n")
+
         for w in self.wasm:
             out.write(w.repr_indented(1).encode())
             out.write(b"\n")
