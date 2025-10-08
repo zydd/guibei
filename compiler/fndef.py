@@ -17,6 +17,11 @@ class VarDecl(AstNode):
         if self.init:
             self.init = self.init.annotate(context, self.var_type)
         context.register_variable(self)
+
+        # TODO: resolve enum value type correctly
+        # if self.var_type and self.init and self.init.type_:
+        #     assert self.var_type == self.init.type_, "{} != {}".format(self.var_type, self.init.type_)
+
         return self
 
     def compile(self):

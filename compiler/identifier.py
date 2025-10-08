@@ -1,8 +1,8 @@
 from compiler.ast import AstNode
-from compiler.wast import WasmExpr
-
+from compiler.enum import EnumConst
 from compiler.fndef import VarDecl, FunctionDef
 from compiler.typedef import TypeDef
+from compiler.wast import WasmExpr
 
 
 operator_characters = "-~`!@$%^&*+=|;:',<.>/?"
@@ -26,6 +26,8 @@ class Identifier(AstNode):
                 self.type_ = val.type_
                 return val
             case TypeDef():
+                return val
+            case EnumConst():
                 return val
         raise NotImplementedError(self)
 

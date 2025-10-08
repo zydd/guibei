@@ -3,6 +3,7 @@ import typing
 from .fndef import *
 from .typedef import *
 from .wast import *
+from .enum import Enum
 from .context import Context
 
 
@@ -19,6 +20,9 @@ class CompilePass:
                     self.root_context.register_type(expr.type_)
                 case TypeDef():
                     self.root_context.register_type(expr)
+                case Enum():
+                    self.root_context.register_type(expr)
+                    expr.register_types(self.root_context)
 
         for name, type_ in self.root_context.types.items():
             self.root_context.types[name] = type_.annotate(self.root_context, None)

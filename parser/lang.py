@@ -2,6 +2,7 @@ from parser.combinators import *
 from parser.indent import *
 
 from compiler.call import Call
+from compiler.enum import Enum
 from compiler.fndef import FunctionDef, FunctionType, VarDecl
 from compiler.identifier import Identifier, operator_characters
 from compiler.literals import IntLiteral, StringLiteral
@@ -245,6 +246,21 @@ def compiler_annotation():
 
 
 @generate
+def enum_def():
+    @generate
+    def enum_val():
+        name = yield regex(r"\w+")
+        fields = yield optional(parens(sep_by(regex(r"\s*,\s*"), type_expr)))
+        return name, fields
+
+    yield regex("enum +")
+    name = yield regex(r"\w+")
+    yield regex(r" *:")
+    values = yield indented_block(enum_val())
+    return Enum(name, values)
+
+
+@generate
 def statements():
     yield same_indent()
     annotations = yield optional(compiler_annotation())
@@ -254,6 +270,7 @@ def statements():
         while_block(),
         return_statement(),
         var_decl(),
+        enum_def(),
         backtrack(assignment()),
         expr(),
     )

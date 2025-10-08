@@ -54,6 +54,8 @@ class Assignment(AstNode):
     def annotate(self, context, expected_type):
         self.var = self.var.annotate(context, None)
         self.expr = self.expr.annotate(context, self.var.type_)
+        if self.var.type_ and self.expr.type_:
+            assert self.var.type_ == self.expr.type_
         return self
 
     def compile(self):
