@@ -52,3 +52,8 @@ def parse_file(filename):
     with open(filename) as f:
         text = f.read()
     return run_parser(lang.prog, text, filename=filename)
+
+
+def parse_str(code):
+    return run_parser(lang.prog, code)
+

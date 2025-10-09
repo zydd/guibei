@@ -1,7 +1,7 @@
 from .wast import WasmExpr
 from .ast import AstNode
 from .fndef import FunctionDef, FunctionCall
-from .typedef import TypeDef, TypeInstantiation
+from .typedef import NewType, TypeInstantiation
 
 
 class Call(AstNode):
@@ -14,7 +14,7 @@ class Call(AstNode):
         match self.callee:
             case FunctionDef():
                 return FunctionCall(self.callee, self.args).annotate(context, expected_type)
-            case TypeDef():
+            case _ if isinstance(self.callee, NewType):
                 return TypeInstantiation(self.callee, self.args).annotate(context, expected_type)
 
         raise TypeError(f"Cannot call non-function '{self.callee}'")

@@ -7,7 +7,7 @@ from compiler.fndef import FunctionDef, FunctionType, VarDecl
 from compiler.identifier import Identifier, operator_characters
 from compiler.literals import IntLiteral, StringLiteral
 from compiler.statements import Assignment, ReturnStatement, WhileStatement
-from compiler.tuple import TupleDecl, TupleIndex
+from compiler.tuple import TupleIndex
 from compiler.typedef import *
 from compiler.wast import Asm, WasmExpr
 
@@ -101,7 +101,7 @@ def function_type():
 @generate
 def tuple_def():
     fields = yield parens(sep_by(regex(r"\s*,\s*"), type_expr))
-    return TupleDecl(fields)
+    return TupleType(None, fields)
 
 
 # @generate
@@ -121,7 +121,8 @@ def type_def():
     name = yield regex(r"\w+")
     yield regex(r"\s*:")
     body = yield indented_block(type_expr)
-    return TypeDef(name, body)
+    assert len(body) == 1
+    return NewType(name, body[-1])
 
 
 @generate
@@ -136,7 +137,7 @@ def type_identifier():
     type_ = TypeIdentifier(name)
     array = yield optional(regex(r"\s*\[\s*\]"))
     if array:
-        return ArrayType(type_, dimensions=(1,))
+        return ArrayType(None, type_)
     else:
         return type_
 

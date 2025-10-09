@@ -1,19 +1,18 @@
 from compiler.ast import AstNode
-from compiler.tuple import TupleDecl
-from compiler.typedef import TypeDef
-from compiler.tuple import TupleDecl
+from compiler.typedef import NewType, TupleType
 from compiler.wast import WasmExpr
 
 
-class Enum(AstNode):
+class Enum(NewType):
     def __init__(self, name, values):
-        self.name = name
+        super().__init__(name, None)
         self.values = values
 
     def register_types(self, context):
         for i, (value_name, fields) in enumerate(self.values):
             if fields:
-                field_type = TypeDef(value_name, [TupleDecl(fields)])
+                field_type = TupleType(value_name, fields)
+                field_type.super_ = self
                 context.register_type(field_type)
             else:
                 context.register_const(EnumConst(self, value_name, i))

@@ -1,57 +1,91 @@
 from .ast import AstNode
 from .wast import WasmExpr
-from .tuple import TupleDecl
 
 
-class TypeDef(AstNode):
-    def __init__(self, name, body):
+class NewType(AstNode):
+    def __init__(self, name, super_):
         self.name = name
-        self.body = body
-        self.dimensions = ()
+        self.super_ = super_
 
     def annotate(self, context, expected_type):
-        for i, expr in enumerate(self.body):
-            self.body[i] = expr.annotate(context, None)
+        if self.super_.name is None:
+            self.super_.name = self.name
+            return self.super_.annotate(context, None)
+        else:
+            self.super_ = self.super_.annotate(context, None)
+            return self
 
-        assert len(self.body) == 1, self.name
-        return self
-
-    def root_type(self):
-        return self.body[0].root_type()
+    def primitive(self):
+        return self.super_.primitive()
 
     def declaration(self):
-        if isinstance(self.root_type(), NativeType):
-            return []
+        return self.super_.declaration()
 
-        compiled_expr = []
-        for expr in self.body:
-            compiled_expr.extend(expr.declaration())
-        return [WasmExpr(["type", f"${self.name}", *compiled_expr])]
-
-    def instantiation(self, compiled_args):
-        match self.body[0]:
-            case TupleDecl():
-                return [WasmExpr(["struct.new", f"${self.name}", *compiled_args])]
-            case ArrayType():
-                return [WasmExpr(["array.new", f"${self.name}", *compiled_args])]
-
-        return self.body[0].instantiation(compiled_args)
+    def instantiate(self, compiled_args):
+        return self.super_.instantiate(compiled_args)
 
     def compile(self):
-        if isinstance(self.body[0], NativeType):
-            return self.body[0].compile()
+        return self.super_.compile()
 
+
+class TupleType(NewType):
+    def __init__(self, name, field_types):
+        super().__init__(name, None)
+        self.field_types = field_types
+
+    def annotate(self, context, expected_type):
+        if len(self.field_types) == 0:
+            return VoidType(self.name)
+
+        self.field_types = [type_.annotate(context, None) for type_ in self.field_types]
+        return self
+
+    def primitive(self):
+        return self
+
+    def declaration(self):
+        fields = []
+        for type_ in self.field_types:
+            fields.append(WasmExpr(["field", *type_.compile()]))
+        return [WasmExpr(["type", f"${self.name}", WasmExpr(["struct", *fields])])]
+
+    def instantiate(self, compiled_args):
+        return [WasmExpr(["struct.new", f"${self.name}", *compiled_args])]
+
+    def compile(self):
         return [WasmExpr(["ref", f"${self.name}"])]
 
 
-class NativeType(AstNode):
+class ArrayType(NewType):
+    def __init__(self, name, element_type):
+        super().__init__(name, None)
+        self.element_type = element_type
+
+    def annotate(self, context, expected_type):
+        self.element_type = self.element_type.annotate(context, None)
+        return self
+
+    def primitive(self):
+        return self
+
+    def declaration(self):
+        return [WasmExpr(["type", f"${self.name}", WasmExpr(["array", WasmExpr(["mut", *self.element_type.compile()])])])]
+
+    def instantiate(self, compiled_args):
+        return [WasmExpr(["array.new", f"${self.name}", *compiled_args])]
+
+    def compile(self):
+        return [WasmExpr(["ref", f"${self.name}"])]
+
+
+class NativeType(NewType):
     def __init__(self, name):
-        self.name = name
+        super().__init__(name, None)
 
     def annotate(self, context, expected_type):
         return self
 
-    def root_type(self):
+    def primitive(self):
         return self
 
     def declaration(self):
@@ -60,8 +94,24 @@ class NativeType(AstNode):
     def compile(self):
         return [self.name]
 
-    def compile_literal(self, value):
+    def instantiate(self, value):
         return [WasmExpr([f"{self.name}.const", str(value)])]
+
+
+class VoidType(NewType):
+    def __init__(self, name="()"):
+        super().__init__(name, None)
+
+    def annotate(self, context, expected_type):
+        if expected_type and not isinstance(expected_type, VoidType):
+            raise TypeError
+        return self
+
+    def declaration(self):
+        return []
+
+    def compile(self):
+        return []
 
 
 class TypeIdentifier(AstNode):
@@ -75,25 +125,6 @@ class TypeIdentifier(AstNode):
         return type_
 
 
-class ArrayType(AstNode):
-    def __init__(self, element_type, dimensions):
-        self.element_type = element_type
-        self.dimensions = dimensions
-
-    def annotate(self, context, expected_type):
-        self.element_type = self.element_type.annotate(context, None)
-        return self
-
-    def root_type(self):
-        return self
-
-    def declaration(self):
-        return [WasmExpr(["array", WasmExpr(["mut", *self.element_type.compile()])])]
-
-    def compile(self):
-        return [WasmExpr(["ref", f"${self.name}"])]
-
-
 class ArrayIndex(AstNode):
     def __init__(self, array, idx):
         self.array = array
@@ -105,7 +136,7 @@ class ArrayIndex(AstNode):
         return self
 
     def compile(self):
-        match self.array.type_.root_type().element_type.root_type():
+        match self.array.type_.primitive().element_type.primitive():
             case NativeType(name="i8"):
                 instr = "array.get_s"
             case _:
@@ -113,13 +144,14 @@ class ArrayIndex(AstNode):
         return [WasmExpr([instr, f"${self.array.type_.name}", *self.array.compile(), *self.idx.compile()])]
 
 
-class TypeInstantiation:
+class TypeInstantiation(AstNode):
     def __init__(self, type_, args):
-        assert isinstance(type_, TypeDef)
         self.type_ = type_
         self.args = args
 
     def annotate(self, context, expected_type):
+        self.check_type(self.type_, expected_type)
+
         self.args = [arg.annotate(context, NativeType("i32")) for arg in self.args]
         return self
 
@@ -129,14 +161,4 @@ class TypeInstantiation:
             result = arg.compile()
             compiled_args.extend(result)
 
-        return self.type_.instantiation(compiled_args)
-
-
-class VoidType(AstNode):
-    def annotate(self, context, expected_type):
-        if expected_type and expected_type != VoidType:
-            raise TypeError
-        return self
-
-    def compile(self):
-        return []
+        return self.type_.instantiate(compiled_args)

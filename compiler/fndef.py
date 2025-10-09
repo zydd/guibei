@@ -1,7 +1,7 @@
 from .wast import Asm, WasmExpr
 from .ast import AstNode
 
-from compiler.typedef import VoidType
+from compiler.typedef import NewType, VoidType
 
 
 class VarDecl(AstNode):
@@ -31,9 +31,9 @@ class VarDecl(AstNode):
         return res
 
 
-class FunctionType(AstNode):
+class FunctionType(NewType):
     def __init__(self, name, args, ret_type):
-        self.name = name
+        super().__init__(name, None)
         self.args = [VarDecl(arg_name, arg_type) for arg_name, arg_type in args]
         self.ret_type = ret_type
 
@@ -46,7 +46,7 @@ class FunctionType(AstNode):
 
         return self
 
-    def root_type(self):
+    def primitive(self):
         return self
 
     def declaration(self):

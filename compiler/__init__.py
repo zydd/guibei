@@ -15,14 +15,14 @@ class CompilePass:
     def annotate(self, prog: list):
         for expr in prog:
             match expr:
-                case FunctionDef():
-                    self.root_context.register_func(expr)
-                    self.root_context.register_type(expr.type_)
-                case TypeDef():
-                    self.root_context.register_type(expr)
                 case Enum():
                     self.root_context.register_type(expr)
                     expr.register_types(self.root_context)
+                case _ if isinstance(expr, NewType):
+                    self.root_context.register_type(expr)
+                case FunctionDef():
+                    self.root_context.register_func(expr)
+                    self.root_context.register_type(expr.type_)
 
         for name, type_ in self.root_context.types.items():
             self.root_context.types[name] = type_.annotate(self.root_context, None)

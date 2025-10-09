@@ -1,7 +1,7 @@
 from compiler.ast import AstNode
 from compiler.enum import EnumConst
 from compiler.fndef import VarDecl, FunctionDef
-from compiler.typedef import TypeDef
+from compiler.typedef import NewType
 from compiler.wast import WasmExpr
 
 
@@ -25,7 +25,7 @@ class Identifier(AstNode):
             case FunctionDef():
                 self.type_ = val.type_
                 return val
-            case TypeDef():
+            case _ if isinstance(val, NewType):
                 return val
             case EnumConst():
                 return val

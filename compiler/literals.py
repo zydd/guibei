@@ -7,11 +7,11 @@ class IntLiteral(AstNode):
         self.native_type = None
 
     def annotate(self, context, expected_type):
-        self.native_type = expected_type.root_type()
+        self.native_type = expected_type.primitive()
         return self
 
     def compile(self):
-        return self.native_type.compile_literal(self.value)
+        return self.native_type.instantiate(self.value)
 
     def __repr__(self):
         return repr(self.value)
