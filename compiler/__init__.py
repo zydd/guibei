@@ -13,18 +13,22 @@ class CompilePass:
         self.root_context = Context()
 
     def annotate(self, prog: list):
+        impl_blocks = []
+
         for expr in prog:
             match expr:
-                case Enum():
-                    self.root_context.register_type(expr)
-                    expr.register_types(self.root_context)
                 case _ if isinstance(expr, NewType):
                     self.root_context.register_type(expr)
                 case FunctionDef():
                     self.root_context.register_func(expr)
                     self.root_context.register_type(expr.type_)
+                case TypeImpl():
+                    impl_blocks.append(expr)
 
-        for name, type_ in self.root_context.types.items():
+        for impl in impl_blocks:
+            impl.register_methods(self.root_context)
+
+        for name, type_ in list(self.root_context.types.items()):
             self.root_context.types[name] = type_.annotate(self.root_context, None)
 
         for name, func in self.root_context.functions.items():

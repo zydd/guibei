@@ -4,28 +4,60 @@ from .wast import WasmExpr
 
 class NewType(AstNode):
     def __init__(self, name, super_):
-        self.name = name
-        self.super_ = super_
+        self.name: str = name
+        self.super_: NewType = super_
+        self.methods: dict[str] = dict()
 
     def annotate(self, context, expected_type):
-        if self.super_.name is None:
-            self.super_.name = self.name
-            return self.super_.annotate(context, None)
-        else:
-            self.super_ = self.super_.annotate(context, None)
-            return self
+        context = context.new()
+        context._self_type = self
+
+        if self.super_:
+            if self.super_.name is None:
+                self.super_.name = self.name
+                self.super_.methods = self.methods
+                return self.super_.annotate(context, None)
+            else:
+                self.super_ = self.super_.annotate(context, None)
+
+        for method_name, method_func in self.methods.items():
+            method_func.name = f"{self.name}.{method_name}"
+            method_func.type_.name = f"__method_{self.name}.{method_name}_t"
+            method_func = method_func.annotate(context, None)
+            self.methods[method_name] = method_func
+            context.register_type(method_func.type_)
+            context.register_func(method_func)
+
+        return self
 
     def primitive(self):
         return self.super_.primitive()
 
     def declaration(self):
-        return self.super_.declaration()
+        method_decls = []
+        for method in self.methods.values():
+            method_decls.extend(method.declaration())
+        return self.super_.declaration() + method_decls
 
     def instantiate(self, compiled_args):
         return self.super_.instantiate(compiled_args)
 
     def compile(self):
         return self.super_.compile()
+
+    def check_type(self, expected_type):
+        if isinstance(expected_type, TypeIdentifier):
+            expected_type = expected_type.type_
+
+        if expected_type:
+            cur = self
+
+            while cur:
+                if cur == expected_type:
+                    break
+                cur = cur.super_
+            else:
+                raise TypeError("Expected type {}, got {}".format(expected_type.name, self.name))
 
 
 class TupleType(NewType):
@@ -114,15 +146,26 @@ class VoidType(NewType):
         return []
 
 
-class TypeIdentifier(AstNode):
+class TypeIdentifier(NewType):
     def __init__(self, name):
         self.name = name
+        self.type_: NewType = None
 
     def annotate(self, context, expected_type):
         type_ = context.lookup_type(self.name)
         while isinstance(type_, TypeIdentifier):
             type_ = context.lookup_type(type_.name)
-        return type_
+        self.type_ = type_
+        return self
+
+    def primitive(self):
+        return self.type_.primitive()
+
+    def compile(self):
+        return self.type_.compile()
+
+    def check_type(self, expected_type):
+        return self.type_.check_type(expected_type)
 
 
 class ArrayIndex(AstNode):
@@ -150,7 +193,7 @@ class TypeInstantiation(AstNode):
         self.args = args
 
     def annotate(self, context, expected_type):
-        self.check_type(self.type_, expected_type)
+        self.type_.check_type(expected_type)
 
         self.args = [arg.annotate(context, NativeType("i32")) for arg in self.args]
         return self
@@ -162,3 +205,21 @@ class TypeInstantiation(AstNode):
             compiled_args.extend(result)
 
         return self.type_.instantiate(compiled_args)
+
+
+class TypeImpl(AstNode):
+    def __init__(self, type_name, methods):
+        self.type_name = type_name
+        self.methods = methods
+
+    def register_methods(self, context):
+        type_ = context.lookup_type(self.type_name)
+        for m in self.methods:
+            assert str(m.name) not in type_.methods
+            type_.methods[str(m.name)] = m
+
+    def annotate(self, context, expected_type):
+        raise NotImplementedError
+
+    def compile(self):
+        raise NotImplementedError

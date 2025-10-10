@@ -1,7 +1,7 @@
 
 class Context:
     def __init__(self, parent=None):
-        self.parent = parent
+        self.parent: Context = parent
         self.root = parent.root if parent else self
 
         self.constants: dict[str] = dict()
@@ -9,6 +9,8 @@ class Context:
         self.imports = list()
         self.types: dict[str] = dict()
         self.variables: dict[str] = dict()
+        self._current_function = None
+        self._self_type = None
 
     def new(self):
         return Context(self)
@@ -31,6 +33,16 @@ class Context:
     def register_variable(self, var):
         assert str(var.name) not in self.variables, var.name
         self.variables[str(var.name)] = var
+
+        func = self.current_function()
+        assert var.name not in func.locals
+        func.locals[var.name] = var
+
+    def current_function(self):
+        return self._current_function or self.parent.current_function()
+    
+    def self_type(self):
+        return self._self_type or self.parent.self_type()
 
     def lookup(self, name: str):
         name = str(name)

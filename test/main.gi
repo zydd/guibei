@@ -30,6 +30,11 @@ enum Result:
     Error(bytes)
 
 
+impl Option:
+    func has_value(self: Option) -> i32:
+        1
+
+
 func opt():
     let optional1: Option = None
     let optional2: Option = Some(2)

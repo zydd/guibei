@@ -8,17 +8,16 @@ class Enum(NewType):
         super().__init__(name, None)
         self.values = values
 
-    def register_types(self, context):
+    def annotate(self, context, expected_type):
         for i, (value_name, fields) in enumerate(self.values):
             if fields:
                 field_type = TupleType(value_name, fields)
                 field_type.super_ = self
+                field_type = field_type.annotate(context, expected_type)
                 context.register_type(field_type)
             else:
                 context.register_const(EnumConst(self, value_name, i))
-
-    def annotate(self, context, expected_type):
-        return self
+        return super().annotate(context, expected_type)
 
     def declaration(self):
         return []

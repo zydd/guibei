@@ -81,7 +81,7 @@ def function_def():
         body = yield with_pos(sep_by(regex(r"\s*"), statements()))
     else:
         body = []
-    return FunctionDef(name, args, ret_type or VoidType(), body)
+    return FunctionDef(str(name), args, ret_type or VoidType(), body)
 
 
 @generate
@@ -262,6 +262,15 @@ def enum_def():
 
 
 @generate
+def impl():
+    yield regex("impl +")
+    name = yield regex(r"\w+")
+    yield regex(r" *:")
+    values = yield indented_block(function_def())
+    return TypeImpl(name, values)
+
+
+@generate
 def statements():
     yield same_indent()
     annotations = yield optional(compiler_annotation())
@@ -272,6 +281,7 @@ def statements():
         return_statement(),
         var_decl(),
         enum_def(),
+        impl(),
         backtrack(assignment()),
         expr(),
     )

@@ -39,7 +39,7 @@ class ReturnStatement(AstNode):
         self.type_ = VoidType()
 
     def annotate(self, context, expected_type):
-        self.expr = self.expr.annotate(context, None)
+        self.expr = self.expr.annotate(context, expected_type)
         return self
 
     def compile(self):
@@ -55,7 +55,7 @@ class Assignment(AstNode):
         self.var = self.var.annotate(context, None)
         self.expr = self.expr.annotate(context, self.var.type_)
         if self.var.type_ and self.expr.type_:
-            assert self.var.type_ == self.expr.type_
+            self.var.type_.check_type(self.expr.type_)
         return self
 
     def compile(self):
