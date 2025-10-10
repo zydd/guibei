@@ -33,7 +33,7 @@ class EnumConst(AstNode):
         self.type_ = enum
 
     def annotate(self, context, expected_type):
-        raise NotImplementedError
+        return self
 
     def compile(self):
         return [WasmExpr(["ref.i31", WasmExpr(["i32.const", str(self.idx)])])]

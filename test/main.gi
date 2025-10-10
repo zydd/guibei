@@ -32,7 +32,7 @@ enum Result:
 
 impl Option:
     func has_value(self: Option) -> i32:
-        1
+        3
 
 
 func opt():
@@ -104,7 +104,7 @@ asm: (data (i32.const 0) "Hello World!\n")
 
 
 func main():
-    let txt: pair = pair(97, 97 + 1)
+    let txt: pair = pair(97, 97 + Some(3).has_value())
     txt.0
     print_bytes(repeat(txt.0, 10))
     print_bytes(repeat(10, one_one().1))

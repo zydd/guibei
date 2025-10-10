@@ -21,14 +21,14 @@ class Context:
 
     def register_func(self, func):
         assert str(func.name) not in self.functions
-        self.functions[str(func.name)] = func
+        self.root.functions[str(func.name)] = func
 
     def register_import(self, expr):
         self.root.imports.append(expr)
 
     def register_type(self, type_):
         assert str(type_.name) not in self.types
-        self.types[str(type_.name)] = type_
+        self.root.types[str(type_.name)] = type_
 
     def register_variable(self, var):
         assert str(var.name) not in self.variables, var.name

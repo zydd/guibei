@@ -14,6 +14,8 @@ class CompilePass:
 
     def annotate(self, prog: list):
         impl_blocks = []
+        root_types = []
+        root_functions = []
 
         for expr in prog:
             match expr:
@@ -25,13 +27,16 @@ class CompilePass:
                 case TypeImpl():
                     impl_blocks.append(expr)
 
+        root_types = list(self.root_context.types.items())
+        root_functions = list(self.root_context.functions.items())
+
         for impl in impl_blocks:
             impl.register_methods(self.root_context)
 
-        for name, type_ in list(self.root_context.types.items()):
+        for name, type_ in root_types:
             self.root_context.types[name] = type_.annotate(self.root_context, None)
 
-        for name, func in self.root_context.functions.items():
+        for name, func in root_functions:
             self.root_context.functions[name] = func.annotate(self.root_context, None)
 
         for expr in prog:

@@ -1,7 +1,7 @@
 from parser.combinators import *
 from parser.indent import *
 
-from compiler.call import Call
+from compiler.call import Call, MethodAccess
 from compiler.enum import Enum
 from compiler.fndef import FunctionDef, FunctionType, VarDecl
 from compiler.identifier import Identifier, operator_characters
@@ -179,10 +179,14 @@ def array_index(array):
 
 
 @generate
-def tuple_index(tuple_):
+def attr_access(expr):
+    number = generate(lambda: int((yield regex(r"\d+"))))
     yield string(".")
-    idx = yield regex(r"\d+")
-    return TupleIndex(tuple_, idx)
+    attr = yield choice(number(), regex(r"\w+"))
+    if isinstance(attr, int):
+        return TupleIndex(expr, attr)
+    else:
+        return MethodAccess(expr, attr)
 
 
 @generate
@@ -191,7 +195,7 @@ def expr_index():
     yield regex(r" *")
 
     while True:
-        term_ex = yield optional(choice(call(term), tuple_index(term), array_index(term)))
+        term_ex = yield optional(choice(call(term), attr_access(term), array_index(term)))
         if not term_ex:
             break
         term = term_ex
