@@ -40,7 +40,7 @@ class Context:
 
     def current_function(self):
         return self._current_function or self.parent.current_function()
-    
+
     def self_type(self):
         return self._self_type or self.parent.self_type()
 

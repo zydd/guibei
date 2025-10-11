@@ -48,7 +48,9 @@ def test_tuple_alias():
 
 
 def test_tuple_nested():
-    comp = compile("type float: __native_type<f32>\ntype float_pair: (float, float)\ntype float_mat: (float_pair, float_pair)\n")
+    comp = compile(
+        "type float: __native_type<f32>\ntype float_pair: (float, float)\ntype float_mat: (float_pair, float_pair)\n"
+    )
     assert "float" in comp.root_context.types
     assert isinstance(comp.root_context.types["float"].super_, compiler.typedef.NativeType)
     assert "float_pair" in comp.root_context.types
@@ -64,4 +66,3 @@ def test_void_alias():
     assert "none" in comp.root_context.types
     assert isinstance(comp.root_context.types["none"], compiler.typedef.VoidType)
     assert comp.wasm == []
-

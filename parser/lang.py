@@ -73,12 +73,11 @@ def function_def():
 
     yield regex("func +")
     name = yield choice(identifier(), operator_identifier())
-    yield regex(r"\s*")
+    yield regex(r" *")
     args = yield parens(sep_by(regex(r"\s*,\s*"), typed_id_decl()))
     ret_type = yield optional(fn_ret_type())
-    if (yield optional(regex(r" *:\s*"))):
-        yield indented()
-        body = yield with_pos(sep_by(regex(r"\s*"), statements()))
+    if (yield optional(regex(r" *:"))):
+        body = yield indented_block(statement())
     else:
         body = []
     return FunctionDef(str(name), args, ret_type or VoidType(), body)
@@ -91,8 +90,7 @@ def function_type():
         yield regex(r"\s*->\s*")
         return (yield type_expr)
 
-    yield regex("func")
-    yield regex(r"\s*")
+    yield regex("func *")
     args = yield parens(sep_by(regex(r"\s*,\s*"), typed_id_decl()))
     ret_type = yield optional(fn_ret_type())
     return FunctionType(None, args, ret_type or VoidType())
@@ -192,7 +190,6 @@ def attr_access(expr):
 @generate
 def expr_index():
     term = yield expr_term
-    yield regex(r" *")
 
     while True:
         term_ex = yield optional(choice(call(term), attr_access(term), array_index(term)))
@@ -209,10 +206,10 @@ def binop(ops, unit):
     operators = []
 
     while True:
-        yield regex(r"\s*")
-        op = yield optional(ops)
+        op = (yield optional(sequence(regex(r"\s*"), ops)))
         if op is None:
             break
+        op = op[1]
         yield regex(r"\s*")
         rhs = yield unit
         operators.append(op)
@@ -231,7 +228,7 @@ def while_block():
     condition = yield expr()
     yield regex(r" *:\s*")
     yield indented()
-    body = yield with_pos(sep_by(regex(r"\s*"), statements()))
+    body = yield with_pos(sep_by(regex(r"\s*"), statement()))
     return WhileStatement(condition, body)
 
 
@@ -245,8 +242,7 @@ def return_statement():
 def compiler_annotation():
     yield string(":[")
     annotations = yield sep_by(regex(r"\s*,\s*"), expr())
-    yield string("]")
-    yield regex(r"\s*")
+    yield string("]\n")
     return annotations
 
 
@@ -275,7 +271,7 @@ def impl():
 
 
 @generate
-def statements():
+def statement():
     yield same_indent()
     annotations = yield optional(compiler_annotation())
 
@@ -312,4 +308,10 @@ for op in operators:
 
 def expr(): return op_parser
 
-prog = sep_by(regex(r"\s*"), statements())
+@generate
+def prog():
+    yield regex(r"\s*")
+    res = yield sep_by(regex(r"\s*"), statement())
+    yield regex(r"\s*")
+    yield eof()
+    return res

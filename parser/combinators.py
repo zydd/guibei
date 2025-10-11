@@ -18,7 +18,10 @@ def generate(f):
             try:
                 while True:
                     p = gen.send(result)
+                    prev_pos = input.pos
                     result, input = p(input)
+                    # if input.pos > prev_pos:
+                    #     print("CONSUMED", repr(input.text[prev_pos:input.pos]), "CUR", repr(input.current()[:10]), gen, getattr(p, "parser_debug", p))
             except StopIteration as e:
                 return e.value, input
             except ValueError as e:
@@ -69,6 +72,16 @@ def regex(pattern, group=0):
             found = repr(input.current()[0]) if input.current() else "{eof}"
             raise ValueError(input.context() + f"\nExpected pattern /{pattern}/, found {found}")
 
+    parser.parser_debug = f"regex({repr(pattern)}, group={group})"
+    return parser
+
+
+def eof():
+    def parser(input):
+        if input.pos != len(input.text):
+            found = repr(input.current()[0])
+            raise ValueError(input.context() + f"\nExpected {{eof}}, found {found}")
+        return None, input
     return parser
 
 
@@ -120,24 +133,32 @@ def sequence(*parsers):
     return parser
 
 
-def sep_by(sep, p):
+def sep_by(sep, p, min_count=0):
     def parser(input):
         results = []
         try:
             result, input = p(input)
             results.append(result)
         except ValueError:
-            return results, input
+            if min_count:
+                raise
+            else:
+                return results, input
 
         while True:
-            try:
-                _, input = sep(input)
-            except (ValueError, IncompleteParse):
-                break
-            try:
-                result, input = p(input)
-            except ValueError:
-                break
+            if len(results) < min_count:
+                _, input_sep = sep(input)
+                result, input = p(input_sep)
+            else:
+                try:
+                    # Do not consume input for `sep` if `p` fails
+                    _, input_sep = sep(input)
+                except (ValueError, IncompleteParse):
+                    break
+                try:
+                    result, input = p(input_sep)
+                except ValueError:
+                    break
             results.append(result)
         return results, input
 

@@ -1,3 +1,4 @@
+
 asm:
     (export "memory" (memory $memory))
     (export "_start" (func $main))
@@ -31,8 +32,10 @@ enum Result:
 
 
 impl Option:
-    func has_value(self: Option) -> i32:
-        3
+    func has_value(self: Some) -> i32:
+        return 1
+    func has_value2(self: Multi) -> i32:
+        return 1
 
 
 func opt():

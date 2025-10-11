@@ -39,7 +39,7 @@ def indented_block(p):
 
     yield regex(r"\s*")
     yield indented()
-    body = yield with_pos(sep_by(next_line(), p))
+    body = yield with_pos(sep_by(next_line(), p, min_count=1))
     return body
 
 

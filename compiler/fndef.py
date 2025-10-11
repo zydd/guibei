@@ -87,7 +87,7 @@ class FunctionDef(AstNode):
 
             self.body[i] = expr
             assert expr is not None, self.body[i]
-        
+
         if self.body:
             expr = self.body[-1]
             expr = expr.annotate(context, self.type_.ret_type)
