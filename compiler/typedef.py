@@ -6,6 +6,7 @@ class NewType(AstNode):
     def __init__(self, name, super_):
         self.name: str = name
         self.super_: NewType = super_
+        self.method_defs = list()
         self.methods: dict[str] = dict()
 
     def annotate(self, context, expected_type):
@@ -15,18 +16,21 @@ class NewType(AstNode):
         if self.super_:
             if self.super_.name is None:
                 self.super_.name = self.name
-                self.super_.methods = self.methods
+                self.super_.method_defs = self.method_defs
+                assert not self.super_.methods
                 return self.super_.annotate(context, None)
             else:
                 self.super_ = self.super_.annotate(context, None)
 
-        for method_name, method_func in self.methods.items():
-            method_func.name = f"{self.name}.{method_name}"
-            method_func.type_.name = f"__method_{self.name}.{method_name}_t"
-            method_func = method_func.annotate(context, None)
-            self.methods[method_name] = method_func
-            context.register_type(method_func.type_)
-            context.register_func(method_func)
+        for method in self.method_defs:
+            method_attr_name = method.name
+            method.name = f"{self.name}.{method_attr_name}"
+            method.type_.name = f"__method_{self.name}.{method.name}_t"
+            method = method.annotate(context, None)
+            assert method.name not in self.methods
+            self.methods[method_attr_name] = method
+            context.register_type(method.type_)
+            context.register_func(method)
 
         return self
 
@@ -35,8 +39,8 @@ class NewType(AstNode):
 
     def declaration(self):
         method_decls = []
-        for method in self.methods.values():
-            method_decls.extend(method.declaration())
+        # for method in self.methods.values():
+        #     method_decls.extend(method.compile())
         return self.super_.declaration() + method_decls
 
     def instantiate(self, compiled_args):
@@ -70,7 +74,7 @@ class TupleType(NewType):
             return VoidType(self.name)
 
         self.field_types = [type_.annotate(context, None) for type_ in self.field_types]
-        return self
+        return super().annotate(context, expected_type)
 
     def primitive(self):
         return self
@@ -216,9 +220,7 @@ class TypeImpl(AstNode):
 
     def register_methods(self, context):
         type_ = context.lookup_type(self.type_name)
-        for m in self.methods:
-            assert str(m.name) not in type_.methods
-            type_.methods[str(m.name)] = m
+        type_.method_defs = self.methods
 
     def annotate(self, context, expected_type):
         raise NotImplementedError

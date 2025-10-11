@@ -17,7 +17,11 @@ class Identifier(AstNode):
         self.type_ = None
 
     def annotate(self, context, expected_type):
-        val = context.lookup(self.name)
+        if expected_type:
+            val = context.lookup_var(self.name)
+        else:
+            val = context.lookup(self.name)
+
         match val:
             case VarDecl():
                 self.type_ = val.var_type

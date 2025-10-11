@@ -19,19 +19,22 @@ class Context:
         self.constants[const.name] = const
 
     def register_func(self, func):
-        assert str(func.name) not in self.functions
-        self.root.functions[str(func.name)] = func
+        assert isinstance(func.name, str)
+        assert func.name not in self.functions
+        self.root.functions[func.name] = func
 
     def register_import(self, expr):
         self.root.imports.append(expr)
 
     def register_type(self, type_):
-        assert str(type_.name) not in self.types
-        self.root.types[str(type_.name)] = type_
+        assert isinstance(type_.name, str)
+        assert type_.name not in self.types
+        self.root.types[type_.name] = type_
 
     def register_variable(self, var):
-        assert str(var.name) not in self.variables, var.name
-        self.variables[str(var.name)] = var
+        assert isinstance(var.name, str)
+        assert var.name not in self.variables, var.name
+        self.variables[var.name] = var
 
         func = self.current_function()
         assert var.name not in func.locals
@@ -44,7 +47,6 @@ class Context:
         return self._self_type or self.parent.self_type()
 
     def lookup(self, name: str):
-        name = str(name)
         res = []
 
         if name in self.variables:
@@ -67,6 +69,30 @@ class Context:
 
         if self.parent:
             return self.parent.lookup(name)
+
+        raise KeyError(f"Name '{name}' not found in context")
+
+    def lookup_var(self, name: str):
+        name = str(name)
+        res = []
+
+        if name in self.variables:
+            res.append(self.variables[name])
+
+        if name in self.constants:
+            res.append(self.constants[name])
+
+        if name in self.functions:
+            res.append(self.functions[name])
+
+        if len(res) == 1:
+            return res[0]
+
+        if len(res) > 1:
+            raise KeyError(f"Ambiguous reference to '{name}'")
+
+        if self.parent:
+            return self.parent.lookup_var(name)
 
         raise KeyError(f"Name '{name}' not found in context")
 

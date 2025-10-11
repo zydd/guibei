@@ -32,10 +32,12 @@ enum Result:
 
 
 impl Option:
+    func has_value(self: None) -> i32:
+        return 0
     func has_value(self: Some) -> i32:
         return 1
-    func has_value2(self: Multi) -> i32:
-        return 1
+    func has_value(self: Multi) -> i32:
+        return 2
 
 
 func opt():
@@ -105,14 +107,18 @@ func readn(addr: i32, count: i32) -> i32:
 
 asm: (data (i32.const 0) "Hello World!\n")
 
+asm:
+    (table $tb2 funcref (elem $printn $print_bytes))
 
 func main():
-    let txt: pair = pair(97, 97 + Some(3).has_value())
+    let o: Option = None
+    let txt: pair = pair(97, 97 + Multi(3, 4).has_value())
     txt.0
     print_bytes(repeat(txt.0, 10))
     print_bytes(repeat(10, one_one().1))
     print_bytes(bytes(txt.1, 10))
     let newlines: bytes = repeat(10, 2)
     let first: i32 = newlines[0]
-    print_bytes(newlines)
+    asm:
+        (call_indirect $tb2 (type $__func_print_bytes_t) {newlines} (i32.const 1))
     opt()
