@@ -98,10 +98,15 @@ class FunctionDef(AstNode):
         if hasattr(self, "annotations"):
             assert self.body == []
             context.register_import(
-                WasmExpr(["func", f"${self.name}",
-                          WasmExpr([self.annotations[0].callee, *self.annotations[0].args]),
-                          WasmExpr(["type", f"${self.type_.name}"]),
-                          ]))
+                WasmExpr(
+                    [
+                        "func",
+                        f"${self.name}",
+                        WasmExpr([self.annotations[0].callee, *self.annotations[0].args]),
+                        WasmExpr(["type", f"${self.type_.name}"]),
+                    ]
+                )
+            )
 
         return self
 
@@ -129,7 +134,11 @@ class FunctionDef(AstNode):
         if self.body:
             body.extend(self.body[-1].compile())
 
-            if isinstance(self.type_.ret_type, VoidType) and not isinstance(self.body[-1], Asm) and not isinstance(self.body[-1].type_, VoidType):
+            if (
+                isinstance(self.type_.ret_type, VoidType)
+                and not isinstance(self.body[-1], Asm)
+                and not isinstance(self.body[-1].type_, VoidType)
+            ):
                 body.append(WasmExpr(["drop"]))
 
         return [WasmExpr(["func", f"${self.name}", WasmExpr(["type", f"${self.type_.name}"]), *decls, *body])]
@@ -142,7 +151,9 @@ class FunctionCall(AstNode):
         self.type_ = func.type_.ret_type
 
     def annotate(self, context, expected_type):
-        self.args = [arg_value.annotate(context, arg_type) for arg_value, (_, arg_type) in zip(self.args, self.func.type_.args)]
+        self.args = [
+            arg_value.annotate(context, arg_type) for arg_value, (_, arg_type) in zip(self.args, self.func.type_.args)
+        ]
         return self
 
     def compile(self):

@@ -56,4 +56,3 @@ def parse_file(filename):
 
 def parse_str(code):
     return run_parser(lang.prog(), code)
-

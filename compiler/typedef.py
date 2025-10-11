@@ -101,7 +101,9 @@ class ArrayType(NewType):
         return self
 
     def declaration(self):
-        return [WasmExpr(["type", f"${self.name}", WasmExpr(["array", WasmExpr(["mut", *self.element_type.compile()])])])]
+        return [
+            WasmExpr(["type", f"${self.name}", WasmExpr(["array", WasmExpr(["mut", *self.element_type.compile()])])])
+        ]
 
     def instantiate(self, compiled_args):
         return [WasmExpr(["array.new", f"${self.name}", *compiled_args])]

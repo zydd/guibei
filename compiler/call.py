@@ -59,4 +59,3 @@ class MethodAccess(AstNode):
 
     def compile(self):
         return [WasmExpr(["struct.get", f"${self.expr.type_.name}", str(self.attr), *self.expr.compile()])]
-

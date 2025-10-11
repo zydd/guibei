@@ -19,18 +19,29 @@ class WhileStatement(AstNode):
         for stmt in self.body:
             body.extend(stmt.compile())
         id = AstNode.next_id()
-        return [WasmExpr(["block", f"$while_block_{id}",
-            WasmExpr(["loop", f"$while_loop_{id}",
-                WasmExpr(["br_if", f"$while_block_{id}",
-                    WasmExpr(["i32.eqz",
-                        *self.condition.compile()
-                    ]),
-                ]),
-
-                *body,
-                WasmExpr(["br", f"$while_loop_{id}"])
-            ])
-        ])]
+        return [
+            WasmExpr(
+                [
+                    "block",
+                    f"$while_block_{id}",
+                    WasmExpr(
+                        [
+                            "loop",
+                            f"$while_loop_{id}",
+                            WasmExpr(
+                                [
+                                    "br_if",
+                                    f"$while_block_{id}",
+                                    WasmExpr(["i32.eqz", *self.condition.compile()]),
+                                ]
+                            ),
+                            *body,
+                            WasmExpr(["br", f"$while_loop_{id}"]),
+                        ]
+                    ),
+                ]
+            )
+        ]
 
 
 class ReturnStatement(AstNode):
@@ -60,4 +71,3 @@ class Assignment(AstNode):
 
     def compile(self):
         return [WasmExpr(["local.set", f"${self.var.name}", *self.expr.compile()])]
-

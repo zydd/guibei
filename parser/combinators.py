@@ -82,6 +82,7 @@ def eof():
             found = repr(input.current()[0])
             raise ValueError(input.context() + f"\nExpected {{eof}}, found {found}")
         return None, input
+
     return parser
 
 
@@ -173,6 +174,7 @@ def backtrack(p):
             raise ValueError("backtrack") from e
 
     return parser
+
 
 def debug_context():
     def parser(input):

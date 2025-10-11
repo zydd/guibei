@@ -37,4 +37,3 @@ class EnumConst(AstNode):
 
     def compile(self):
         return [WasmExpr(["ref.i31", WasmExpr(["i32.const", str(self.idx)])])]
-

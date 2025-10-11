@@ -26,7 +26,7 @@ def asm():
             regex(r'"[^"]*"'),
             regex(r"[$\w]+"),
             parens(wast_expr()),
-            bracers(expr())
+            bracers(expr()),
         )
 
     @generate
@@ -159,7 +159,7 @@ def identifier():
 @generate
 def operator_identifier():
     yield string("(")
-    op = yield regex(fr"[{operator_characters}]+")
+    op = yield regex(rf"[{operator_characters}]+")
     yield string(")")
     return Identifier(op)
 
@@ -206,7 +206,7 @@ def binop(ops, unit):
     operators = []
 
     while True:
-        op = (yield optional(sequence(regex(r"\s*"), ops)))
+        op = yield optional(sequence(regex(r"\s*"), ops))
         if op is None:
             break
         op = op[1]
@@ -306,7 +306,10 @@ op_parser = expr_index()
 for op in operators:
     op_parser = binop(op, op_parser)
 
-def expr(): return op_parser
+
+def expr():
+    return op_parser
+
 
 @generate
 def prog():

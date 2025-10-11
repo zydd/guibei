@@ -1,4 +1,3 @@
-
 class Context:
     def __init__(self, parent=None):
         self.parent: Context = parent
