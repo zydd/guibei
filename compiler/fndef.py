@@ -74,7 +74,7 @@ class FunctionDef(AstNode):
 
         for arg_name, arg_type in self.type_.args:
             if arg_name == "self":
-                arg_type.check_type(context.self_type())
+                arg_type.check_type(context.lookup_type("Self"))
 
             assert arg_name not in context.variables
             context.variables[arg_name] = VarDecl(arg_name, arg_type)

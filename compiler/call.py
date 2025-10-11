@@ -43,19 +43,33 @@ class MethodAccess(AstNode):
     def __init__(self, expr, attr):
         self.expr = expr
         self.attr = attr
-        self.type_ = None
 
     def annotate(self, context, expected_type):
-        self.expr = self.expr.annotate(context, expected_type)
-        self.type_ = self.expr.type_
+        self.expr = self.expr.annotate(context, None)
+
+        if isinstance(self.expr, NewType):
+            assert expected_type is None
+            expr_type = self.expr
+        else:
+            expr_type = self.expr.type_
+
+        type_ = expr_type
         method = None
-        type_ = self.type_
         while type_ and not method:
             method = type_.methods.get(self.attr)
             type_ = type_.super_
+
         if not method:
-            raise TypeError(f"Type '{self.type_.name}' has no method '{self.attr}'")
-        return BoundMethod(method, self.expr)
+            raise TypeError(f"Type '{expr_type.name}' has no method '{self.attr}'")
+
+        match method:
+            case FunctionDef():
+                method.type_.ret_type.check_type(expected_type)
+                return BoundMethod(method, self.expr)
+            case NewType():
+                assert not expected_type
+                return method
+        raise NotImplementedError
 
     def compile(self):
         return [WasmExpr(["struct.get", f"${self.expr.type_.name}", str(self.attr), *self.expr.compile()])]

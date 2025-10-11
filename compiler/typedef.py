@@ -8,12 +8,19 @@ class NewType(AstNode):
         self.super_: NewType = super_
         self.method_defs = list()
         self.methods: dict[str] = dict()
+        self.annotated = False
 
     def annotate(self, context, expected_type):
+        if self.annotated:
+            return self
+
         context = context.new()
-        context._self_type = self
+        context.types["Self"] = self
 
         if self.super_:
+            if not isinstance(self.super_, NewType):
+                self.super_ = self.super_.annotate(context, None)
+
             if self.super_.name is None:
                 self.super_.name = self.name
                 self.super_.method_defs = self.method_defs
@@ -23,25 +30,24 @@ class NewType(AstNode):
                 self.super_ = self.super_.annotate(context, None)
 
         for method in self.method_defs:
+            assert self.name
             method_attr_name = method.name
             method.name = f"{self.name}.{method_attr_name}"
-            method.type_.name = f"__method_{self.name}.{method.name}_t"
+            method.type_.name = f"__method_{self.name}.{method_attr_name}_t"
             method = method.annotate(context, None)
             assert method.name not in self.methods
             self.methods[method_attr_name] = method
             context.register_type(method.type_)
             context.register_func(method)
 
+        self.annotated = True
         return self
 
     def primitive(self):
         return self.super_.primitive()
 
     def declaration(self):
-        method_decls = []
-        # for method in self.methods.values():
-        #     method_decls.extend(method.compile())
-        return self.super_.declaration() + method_decls
+        return []
 
     def instantiate(self, compiled_args):
         return self.super_.instantiate(compiled_args)
@@ -172,6 +178,14 @@ class TypeIdentifier(NewType):
 
     def check_type(self, expected_type):
         return self.type_.check_type(expected_type)
+
+    @property
+    def methods(self):
+        return self.type_.methods
+
+    @property
+    def super_(self):
+        return self.type_.super_
 
 
 class ArrayIndex(AstNode):

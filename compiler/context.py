@@ -9,7 +9,6 @@ class Context:
         self.types: dict[str] = dict()
         self.variables: dict[str] = dict()
         self._current_function = None
-        self._self_type = None
 
     def new(self):
         return Context(self)
@@ -42,9 +41,6 @@ class Context:
 
     def current_function(self):
         return self._current_function or self.parent.current_function()
-
-    def self_type(self):
-        return self._self_type or self.parent.self_type()
 
     def lookup(self, name: str):
         res = []

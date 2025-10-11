@@ -38,14 +38,9 @@ impl Option:
         return 1
     func has_value(self: Multi) -> i32:
         return 2
+    func has_value(self: Option) -> i32:
+        return 4
 
-
-func opt():
-    let optional1: Option = None
-    let optional2: Option = Some(2)
-    asm:
-        (i31.get_u (ref.cast (ref i31) {optional1}))
-        (drop)
 
 :[import("wasi_snapshot_preview1", "fd_write")]
 func __wasi_fd_write(fd: i32, iovs: i32, iovs_len: i32, out_nwritten: i32) -> i32
@@ -110,9 +105,13 @@ asm: (data (i32.const 0) "Hello World!\n")
 asm:
     (table $tb2 funcref (elem $printn $print_bytes))
 
+
+type None_t: Option.None
+
+
 func main():
-    let o: Option = None
-    let txt: pair = pair(97, 97 + Multi(3, 4).has_value())
+    let o: None_t = None
+    let txt: pair = pair(97 + o.has_value(), 97 + Some(3).has_value())
     txt.0
     print_bytes(repeat(txt.0, 10))
     print_bytes(repeat(10, one_one().1))
@@ -121,4 +120,3 @@ func main():
     let first: i32 = newlines[0]
     asm:
         (call_indirect $tb2 (type $__func_print_bytes_t) {newlines} (i32.const 1))
-    opt()

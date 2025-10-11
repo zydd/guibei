@@ -44,7 +44,7 @@ def asm():
 def typed_id_decl():
     name = yield regex(r"\w+")
     yield regex(r"\s*:\s*")
-    type_ = yield type_expr
+    type_ = yield type_expr()
     return (name, type_)
 
 
@@ -69,7 +69,7 @@ def function_def():
     @generate
     def fn_ret_type():
         yield regex(r"\s*->\s*")
-        return (yield type_expr)
+        return (yield type_expr())
 
     yield regex("func +")
     name = yield choice(identifier(), operator_identifier())
@@ -88,7 +88,7 @@ def function_type():
     @generate
     def fn_ret_type():
         yield regex(r"\s*->\s*")
-        return (yield type_expr)
+        return (yield type_expr())
 
     yield regex("func *")
     args = yield parens(sep_by(regex(r"\s*,\s*"), typed_id_decl()))
@@ -98,7 +98,7 @@ def function_type():
 
 @generate
 def tuple_def():
-    fields = yield parens(sep_by(regex(r"\s*,\s*"), type_expr))
+    fields = yield parens(sep_by(regex(r"\s*,\s*"), type_expr()))
     return TupleType(None, fields)
 
 
@@ -118,7 +118,7 @@ def type_def():
     yield regex("type +")
     name = yield regex(r"\w+")
     yield regex(r"\s*:")
-    body = yield indented_block(type_expr)
+    body = yield indented_block(type_expr())
     assert len(body) == 1
     return NewType(name, body[-1])
 
@@ -251,7 +251,7 @@ def enum_def():
     @generate
     def enum_val():
         name = yield regex(r"\w+")
-        fields = yield optional(parens(sep_by(regex(r"\s*,\s*"), type_expr)))
+        fields = yield optional(parens(sep_by(regex(r"\s*,\s*"), type_expr())))
         return name, fields
 
     yield regex("enum +")
@@ -290,7 +290,7 @@ def statement():
     return stmt
 
 
-type_expr = choice(tuple_def(), function_type(), native_type(), type_identifier())
+type_expr_term = choice(tuple_def(), function_type(), native_type(), type_identifier())
 expr_term = choice(function_def(), type_def(), asm(), int_literal(), string_literal(), identifier())
 
 operators = [
@@ -312,9 +312,20 @@ def expr():
 
 
 @generate
+def type_expr():
+    term = yield type_expr_term
+
+    while True:
+        term_ex = yield optional(attr_access(term))
+        if not term_ex:
+            break
+        term = term_ex
+    return term
+
+
+@generate
 def prog():
     yield regex(r"\s*")
     res = yield sep_by(regex(r"\s*"), statement())
     yield regex(r"\s*")
-    yield eof()
     return res

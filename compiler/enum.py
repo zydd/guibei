@@ -19,6 +19,7 @@ class Enum(NewType):
 
             context.register_type(val_type)
             value_types.append(val_type)
+            self.methods[value_name] = val_type
 
         generic_methods = []
         for method in self.method_defs:
@@ -38,7 +39,6 @@ class Enum(NewType):
             val_type.name = f"{self.name}.{val_type.name}"
             val_type.annotate(context, expected_type)
             val_type.super_ = self
-            context.lookup_type("None").methods["has_value"].name
 
         return super().annotate(context, expected_type)
 
