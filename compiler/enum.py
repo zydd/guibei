@@ -3,7 +3,7 @@ from collections import defaultdict
 from compiler.ast import AstNode
 from compiler.typedef import NewType, TupleType, NativeType, TypeIdentifier
 from compiler.fndef import FunctionDef
-from compiler.wast import WasmExpr
+from compiler.wast import WasmExpr, Asm
 
 
 class Enum(NewType):
@@ -93,13 +93,29 @@ class Enum(NewType):
                     self.vtable.append(generic_methods[method_name].name)
 
         # Create dispatch function
-        for method_name in method_overloads:
-            dispatch = [WasmExpr(["unreachable"])]
+        for method_idx, method_name in enumerate(method_overloads):
+            generic_method = generic_methods[method_name]
+            dispatch = WasmExpr(
+                [
+                    *(f"(local.get ${arg})" for arg, _ in generic_method.type_.args),
+                    [
+                        "block",
+                        "(result (ref i31))",
+                        f"(br_on_cast 0 (ref any) (ref i31) (local.get $self))",
+                        f"(ref.cast (ref ${self.name}))",
+                        f"(struct.get ${self.name} 0)",
+                    ],
+                    "(i31.get_u)",
+                    f"(i32.mul (i32.const {len(method_overloads)}))",
+                    f"(i32.add (i32.const {method_idx}))",
+                    f"(return_call_indirect {self.vtable_name} (type ${generic_method.type_.name}))",
+                ]
+            )
             method = FunctionDef(
                 method_name,
                 generic_methods[method_name].type_.args,
                 generic_methods[method_name].type_.ret_type,
-                dispatch,
+                [Asm(dispatch)],
             )
             self.add_method(context, method)
 

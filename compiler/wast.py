@@ -5,7 +5,7 @@ from compiler.ast import AstNode
 
 class WasmExpr(AstNode):
     def __init__(self, terms):
-        self.terms = terms
+        self.terms = [WasmExpr(t) if isinstance(t, list) else t for t in terms]
 
     def __repr__(self):
         return self.repr_indented()

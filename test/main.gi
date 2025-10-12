@@ -5,7 +5,6 @@ asm:
     (memory $memory 1)
     (global $__stackp (mut i32) (i32.const 1024))
 
-
     (func $Option.has_value.dispatch (param $arg (ref any)) (result i32)
         (local.get $arg)
         (block $bl (result (ref i31))
@@ -123,7 +122,7 @@ type None_t: Option.None
 
 func main():
     let o: Option = Option.Some(4)
-    let v: i32 = asm: (call $Option.has_value.dispatch {o})
+    let v: i32 = o.has_value()
     let txt: pair = pair(97, 97 + v)
     txt.0
     print_bytes(repeat(txt.0, 10))
