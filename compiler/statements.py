@@ -57,6 +57,7 @@ class Assignment(AstNode):
     def __init__(self, var, expr):
         self.var = var
         self.expr = expr
+        self.type_ = VoidType()
 
     def annotate(self, context, expected_type):
         self.var = self.var.annotate(context, None)

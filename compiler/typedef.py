@@ -160,7 +160,11 @@ class NativeType(NewType):
         return [self.name]
 
     def instantiate(self, value):
-        return [WasmExpr([f"{self.name}.const", str(value)])]
+        assert len(value) == 1
+        # FIXME: should replace `instantiate` with proper constructors
+        if isinstance(value[0], WasmExpr):
+            return value
+        return [WasmExpr([f"{self.name}.const", str(value[0])])]
 
     def __eq__(self, value):
         if isinstance(value, NativeType):
@@ -247,6 +251,7 @@ class TypeInstantiation(AstNode):
     def annotate(self, context, expected_type):
         self.type_.check_type(expected_type)
 
+        # TODO: invoke constructor
         self.args = [arg.annotate(context, NativeType("i32")) for arg in self.args]
         return self
 

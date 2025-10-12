@@ -4,14 +4,14 @@ from compiler.ast import AstNode
 class IntLiteral(AstNode):
     def __init__(self, value: int):
         self.value = value
-        self.native_type = None
+        self.type_ = None
 
     def annotate(self, context, expected_type):
-        self.native_type = expected_type.primitive()
+        self.type_ = expected_type
         return self
 
     def compile(self):
-        return self.native_type.instantiate(self.value)
+        return self.type_.primitive().instantiate([self.value])
 
     def __repr__(self):
         return repr(self.value)

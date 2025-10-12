@@ -81,6 +81,18 @@ func (<)(a: i32, b: i32) -> i32:
     asm: (i32.lt_s {a} {b})
 
 
+func (/)(a: i32, b: i32) -> i32:
+    asm: (i32.div_s {a} {b})
+
+
+func (%)(a: i32, b: i32) -> i32:
+    asm: (i32.rem_s {a} {b})
+
+
+func (==)(a: i32, b: i32) -> i32:
+    asm: (i32.eq {a} {b})
+
+
 func print_bytes(arr: bytes):
     let i: i32 = 0
     let len: i32 = asm: (array.len (local.get $arr))
@@ -90,6 +102,51 @@ func print_bytes(arr: bytes):
         i = i + 1
 
     printn(0, len)
+
+
+impl i32:
+    func print(self: i32):
+        let n: i32 = self
+        let i: i32 = 20
+        let len: i32 = 0
+
+        asm:
+            (if (i32.eqz {n})
+                (then
+                    (i32.store8 (i32.const 0) (i32.const 48))
+                    {printn(0, 1)}
+                    return
+                )
+            )
+
+            (if {self < 0}
+                (then
+                    (local.set $n {0 - n})
+                )
+            )
+
+        while n:
+            asm: (i32.store8 {i} {n % 10 + 48})
+            i = i - 1
+            len = len + 1
+            n = n / 10
+
+
+        asm:
+            (if {self < 0}
+                (then
+                    (i32.store8 {i} {i32(45)})
+                    (local.set $i {i - 1})
+                    (local.set $len {len + 1})
+                )
+            )
+
+        i = 0
+        while i < len:
+            asm: (i32.store8 {i} (i32.load {21 + i - len}))
+            i = i + 1
+
+        printn(0, len)
 
 
 func printn(addr: i32, count: i32):
@@ -127,7 +184,13 @@ func main():
     txt.0
     print_bytes(repeat(txt.0, 10))
     print_bytes(repeat(10, one_one().1))
-    print_bytes(bytes(txt.1, 10))
+    i32(0).print()
+    print_bytes(repeat(10, 1))
+    i32(10).print()
+    print_bytes(repeat(10, 1))
+    i32(1234567890).print()
+    print_bytes(repeat(10, 1))
+    i32(-1234567890).print()
     let newlines: bytes = repeat(10, 2)
     let first: i32 = newlines[0]
     asm:
