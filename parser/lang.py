@@ -1,7 +1,7 @@
 from parser.combinators import *
 from parser.indent import *
 
-from compiler.call import Call, MethodAccess
+from compiler.call import Call, MemberAccess
 from compiler.enum import Enum
 from compiler.fndef import FunctionDef, FunctionType, VarDecl
 from compiler.identifier import Identifier, operator_characters
@@ -24,7 +24,7 @@ def asm():
             regex(r"[a-z]\w*(\.[a-z]\w*)?"),
             int_literal(),
             regex(r'"[^"]*"'),
-            regex(r"[$\w]+"),
+            regex(r"[$\w.]+"),
             parens(wast_expr()),
             bracers(expr()),
         )
@@ -184,7 +184,7 @@ def attr_access(expr):
     if isinstance(attr, int):
         return TupleIndex(expr, attr)
     else:
-        return MethodAccess(expr, attr)
+        return MemberAccess(expr, attr)
 
 
 @generate

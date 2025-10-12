@@ -6,13 +6,18 @@ asm:
     (global $__stackp (mut i32) (i32.const 1024))
 
 
-    (func $test_br_on_cast (param $arg (ref any)) (result (ref i31))
+    (func $Option.has_value.dispatch (param $arg (ref any)) (result i32)
+        (local.get $arg)
         (block $bl (result (ref i31))
             (br_on_cast $bl (ref any) (ref i31) (local.get $arg))
-            drop
-            (ref.i31 (i32.const 0))
+            (ref.cast (ref $Option))
+            (struct.get $Option 0)
         )
+        (i31.get_u)
+        (call_indirect $Option_vt (type $__method_Option.has_value_t))
     )
+
+    (type $__enum_t (struct (field (ref i31))))
 
 type i32: __native_type<i32>
 type i64: __native_type<i64>
@@ -110,8 +115,9 @@ type None_t: Option.None
 
 
 func main():
-    let o: None_t = None
-    let txt: pair = pair(97 + o.has_value(), 97 + Some(3).has_value())
+    let o: Option = Some(3)
+    let v: i32 = asm: (call $Option.has_value.dispatch {o})
+    let txt: pair = pair(97, 97 + v)
     txt.0
     print_bytes(repeat(txt.0, 10))
     print_bytes(repeat(10, one_one().1))

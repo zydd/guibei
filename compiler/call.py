@@ -1,7 +1,7 @@
-from .wast import WasmExpr
-from .ast import AstNode
-from .fndef import FunctionDef, FunctionCall
-from .typedef import NewType, TypeInstantiation
+from compiler.ast import AstNode
+from compiler.fndef import FunctionDef
+from compiler.typedef import NewType, TypeInstantiation
+from compiler.wast import WasmExpr
 
 
 class Call(AstNode):
@@ -39,7 +39,7 @@ class BoundMethod(AstNode):
         raise NotImplementedError
 
 
-class MethodAccess(AstNode):
+class MemberAccess(AstNode):
     def __init__(self, expr, attr):
         self.expr = expr
         self.attr = attr
@@ -73,3 +73,22 @@ class MethodAccess(AstNode):
 
     def compile(self):
         return [WasmExpr(["struct.get", f"${self.expr.type_.name}", str(self.attr), *self.expr.compile()])]
+
+
+class FunctionCall(AstNode):
+    def __init__(self, func, args):
+        self.func = func
+        self.args = args
+        self.type_ = func.type_.ret_type
+
+    def annotate(self, context, expected_type):
+        self.args = [
+            arg_value.annotate(context, arg_type) for arg_value, (_, arg_type) in zip(self.args, self.func.type_.args)
+        ]
+        return self
+
+    def compile(self):
+        args = []
+        for arg in self.args:
+            args.extend(arg.compile())
+        return [WasmExpr(["call", f"${self.func.name}", *args])]

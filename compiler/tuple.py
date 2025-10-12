@@ -9,8 +9,9 @@ class TupleIndex(AstNode):
         self.type_ = None
 
     def annotate(self, context, expected_type):
-        self.tuple_ = self.tuple_.annotate(context, expected_type)
-        self.type_ = self.tuple_.type_.primitive().field_types[-1]
+        self.tuple_ = self.tuple_.annotate(context, None)
+        self.type_ = self.tuple_.type_.primitive().field_types[self.idx]
+        self.type_.check_type(expected_type)
         return self
 
     def compile(self):

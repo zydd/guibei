@@ -142,22 +142,3 @@ class FunctionDef(AstNode):
                 body.append(WasmExpr(["drop"]))
 
         return [WasmExpr(["func", f"${self.name}", WasmExpr(["type", f"${self.type_.name}"]), *decls, *body])]
-
-
-class FunctionCall(AstNode):
-    def __init__(self, func, args):
-        self.func = func
-        self.args = args
-        self.type_ = func.type_.ret_type
-
-    def annotate(self, context, expected_type):
-        self.args = [
-            arg_value.annotate(context, arg_type) for arg_value, (_, arg_type) in zip(self.args, self.func.type_.args)
-        ]
-        return self
-
-    def compile(self):
-        args = []
-        for arg in self.args:
-            args.extend(arg.compile())
-        return [WasmExpr(["call", f"${self.func.name}", *args])]

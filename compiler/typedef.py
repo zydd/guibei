@@ -1,5 +1,5 @@
-from .ast import AstNode
-from .wast import WasmExpr
+from compiler.ast import AstNode
+from compiler.wast import WasmExpr
 
 
 class NewType(AstNode):
@@ -9,6 +9,8 @@ class NewType(AstNode):
         self.method_defs = list()
         self.methods: dict[str] = dict()
         self.annotated = False
+        self.vtable = list()
+        self.vtable_name = f"${self.name}_vt"
 
     def annotate(self, context, expected_type):
         if self.annotated:
@@ -47,6 +49,10 @@ class NewType(AstNode):
         return self.super_.primitive()
 
     def declaration(self):
+        if self.vtable:
+            return [
+                WasmExpr(["table", self.vtable_name, "funcref", WasmExpr(["elem", *[f"${fn}" for fn in self.vtable]])])
+            ]
         return []
 
     def instantiate(self, compiled_args):
@@ -89,7 +95,10 @@ class TupleType(NewType):
         fields = []
         for type_ in self.field_types:
             fields.append(WasmExpr(["field", *type_.compile()]))
-        return [WasmExpr(["type", f"${self.name}", WasmExpr(["struct", *fields])])]
+        struct = WasmExpr(["struct", *fields])
+        if self.super_:
+            struct = WasmExpr(["sub", f"${self.super_.name}", struct])
+        return [WasmExpr(["type", f"${self.name}", struct])]
 
     def instantiate(self, compiled_args):
         return [WasmExpr(["struct.new", f"${self.name}", *compiled_args])]
@@ -123,7 +132,7 @@ class ArrayType(NewType):
 
 
 class NativeType(NewType):
-    def __init__(self, name):
+    def __init__(self, name: str):
         super().__init__(name, None)
 
     def annotate(self, context, expected_type):
@@ -140,6 +149,12 @@ class NativeType(NewType):
 
     def instantiate(self, value):
         return [WasmExpr([f"{self.name}.const", str(value)])]
+
+    def __eq__(self, value):
+        if isinstance(value, NativeType):
+            return self.name == value.name
+        else:
+            return super().__eq__(value)
 
 
 class VoidType(NewType):
