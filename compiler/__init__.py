@@ -23,7 +23,6 @@ class CompilePass:
                     self.root_context.register_type(expr)
                 case FunctionDef():
                     self.root_context.register_func(expr)
-                    self.root_context.register_type(expr.type_)
                 case TypeImpl():
                     impl_blocks.append(expr)
 
@@ -35,6 +34,11 @@ class CompilePass:
 
         for name, type_ in root_types:
             self.root_context.types[name] = type_.annotate(self.root_context, None)
+
+        for name, func in root_functions:
+            self.root_context.functions[name].type_ = self.root_context.functions[name].type_.annotate(
+                self.root_context, None
+            )
 
         for name, func in root_functions:
             self.root_context.functions[name] = func.annotate(self.root_context, None)
@@ -52,7 +56,7 @@ class CompilePass:
             self.wasm.extend(type_.declaration())
 
         for func in self.root_context.functions.values():
-            self.wasm.extend(func.compile())
+            self.wasm.extend(func.declaration())
 
     def write(self, out: typing.BinaryIO):
         out.write(b"(module\n")

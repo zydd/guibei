@@ -32,28 +32,42 @@ class NewType(AstNode):
                 self.super_ = self.super_.annotate(context, None)
 
         for method in self.method_defs:
-            assert self.name
-            method_attr_name = method.name
-            method.name = f"{self.name}.{method_attr_name}"
-            method.type_.name = f"__method_{self.name}.{method_attr_name}_t"
-            method = method.annotate(context, None)
-            assert method.name not in self.methods
-            self.methods[method_attr_name] = method
-            context.register_type(method.type_)
-            context.register_func(method)
+            self.add_method(context, method)
 
         self.annotated = True
         return self
+
+    def add_method(self, context, method):
+        if type(method).__name__ == "FunctionDef":
+            method_attr_name = method.name
+            method.name = f"{self.name}.{method_attr_name}"
+            method.type_.name = f"__method_{self.name}.{method_attr_name}_t"
+
+            assert method_attr_name not in self.methods
+            self.methods[method_attr_name] = method.annotate(context, None)
+        else:
+            raise NotImplementedError
 
     def primitive(self):
         return self.super_.primitive()
 
     def declaration(self):
+        res = []
+
+        for m in self.methods.values():
+            if isinstance(m, NewType):
+                res.extend(m.declaration())
+
+        for m in self.methods.values():
+            if not isinstance(m, NewType):
+                res.extend(m.declaration())
+
         if self.vtable:
-            return [
+            res.append(
                 WasmExpr(["table", self.vtable_name, "funcref", WasmExpr(["elem", *[f"${fn}" for fn in self.vtable]])])
-            ]
-        return []
+            )
+
+        return res
 
     def instantiate(self, compiled_args):
         return self.super_.instantiate(compiled_args)
@@ -98,7 +112,9 @@ class TupleType(NewType):
         struct = WasmExpr(["struct", *fields])
         if self.super_:
             struct = WasmExpr(["sub", f"${self.super_.name}", struct])
-        return [WasmExpr(["type", f"${self.name}", struct])]
+
+        decl = [WasmExpr(["type", f"${self.name}", struct])]
+        return decl + super().declaration()
 
     def instantiate(self, compiled_args):
         return [WasmExpr(["struct.new", f"${self.name}", *compiled_args])]
@@ -193,6 +209,11 @@ class TypeIdentifier(NewType):
 
     def check_type(self, expected_type):
         return self.type_.check_type(expected_type)
+
+    def __eq__(self, value):
+        while isinstance(value, TypeIdentifier):
+            value = value.type_
+        return self.type_ == value
 
     @property
     def methods(self):

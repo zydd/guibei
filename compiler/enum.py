@@ -1,68 +1,110 @@
+from collections import defaultdict
+
 from compiler.ast import AstNode
-from compiler.typedef import NewType, TupleType, NativeType
+from compiler.typedef import NewType, TupleType, NativeType, TypeIdentifier
+from compiler.fndef import FunctionDef
 from compiler.wast import WasmExpr
 
 
 class Enum(NewType):
     def __init__(self, name, values):
         super().__init__(name, None)
-        self.values = values
+        self.value_defs = values
+        self.value_types = None
 
     def annotate(self, context, expected_type):
-        value_types = []
-        for i, (value_name, fields) in enumerate(self.values):
+        context = context.new()
+        context.types["Self"] = self
+
+        self.value_types = []
+        for i, (value_name, fields) in enumerate(self.value_defs):
+            value_type_name = f"{self.name}.{value_name}"
             if fields:
-                val_type = EnumTupleType(value_name, fields, i)
+                val_type = EnumTupleType(value_type_name, fields, i)
             else:
-                val_type = NewType(value_name, None)
+                val_type = NewType(value_type_name, None)
                 context.register_const(EnumConst(val_type, value_name, i))
 
-            context.register_type(val_type)
-            value_types.append(val_type)
+            val_type.annotate(context, None)
+            val_type.super_ = self
+            self.value_types.append(val_type)
             self.methods[value_name] = val_type
 
+        self._annotate_methods(context)
+
+        return self
+
+    def _annotate_methods(self, context):
+        method_overloads = defaultdict(list)
+        for m in self.method_defs:
+            method_overloads[m.name].append(m)
+
         generic_methods = {}
-        method_names = set()
-        for method in self.method_defs:
-            if method.type_.args:
-                arg_name, self_type = method.type_.args[0]
-                self_type = self_type.annotate(context, None).type_
-                if arg_name == "self" and self_type != self:
-                    assert self_type in value_types
-                    self_type.method_defs.append(method)
-                    continue
 
-            method_names.add(method.name)
-            assert method.name not in generic_methods
-            generic_methods[method.name] = method
+        # Add methods
+        for method_name, overloads in method_overloads.items():
+            overload_arg_names = [[arg_name for arg_name, arg_type in m.type_.args] for m in overloads]
+            overload_arg_types = [
+                [arg_type.annotate(context, None) for arg_name, arg_type in m.type_.args] for m in overloads
+            ]
 
-        self.method_defs = generic_methods.values()
+            if not overload_arg_names or not overload_arg_names[0][0] == "self":
+                raise NotImplementedError("Static methods are not supported, first argument must be 'self'")
 
-        for val_type in value_types:
-            val_type.name = f"{self.name}.{val_type.name}"
-            val_type.annotate(context, expected_type)
-            val_type.super_ = self
+            # Check if all arg_names are the same
+            if not all(overload_arg_names[0] == args for args in overload_arg_names):
+                raise ValueError(f"Argument names for method '{self.name}.{method_name}' overloads do not match")
 
-        res = super().annotate(context, expected_type)
-        for m in method_names:
-            method = self.methods[m]
-            for val_type in value_types:
-                if m in val_type.methods:
-                    self.vtable.append(val_type.methods[m].name)
+            self_arg_types = [args[0] for args in overload_arg_types]
+            if not all(arg_type in self.value_types or arg_type == self for arg_type in self_arg_types):
+                raise ValueError(f"Unexpected 'self' type for method '{self.name}.{method_name}'")
+
+            try:
+                generic_method = overloads[self_arg_types.index(self)]
+                generic_method.name = "__generic." + generic_method.name
+                self.add_method(context, generic_method)
+                generic_methods[method_name] = generic_method
+            except ValueError:
+                generic_method = None
+
+            for enum_val_type in self.value_types:
+                try:
+                    specialized_method = overloads[self_arg_types.index(enum_val_type)]
+                except ValueError:
+                    # No specialization
+                    specialized_method = None
+
+                if specialized_method:
+                    # TODO: should generate new methods?
+                    specialized_method.cast_self_from_any = True
+                    enum_val_type.add_method(context, specialized_method)
+                elif generic_method:
+                    # TODO: Does it make sense to add the generic method to the value types?
+                    pass
                 else:
-                    self.vtable.append(method)
-            # self.methods[m] = EnumVirtualMethod(self.vtable_name, method.type_, )
+                    raise ValueError(f"No implementation for method '{enum_val_type.name}.{method_name}'")
 
-        return res
+        # Create vtable
+        for enum_val_type in self.value_types:
+            for method_name in method_overloads:
+                if method_name in enum_val_type.methods:
+                    self.vtable.append(enum_val_type.methods[method_name].name)
+                else:
+                    self.vtable.append(generic_methods[method_name].name)
+
+        # Create dispatch function
+        for method_name in method_overloads:
+            dispatch = [WasmExpr(["unreachable"])]
+            method = FunctionDef(
+                method_name,
+                generic_methods[method_name].type_.args,
+                generic_methods[method_name].type_.ret_type,
+                dispatch,
+            )
+            self.add_method(context, method)
 
     def declaration(self):
         defs = [WasmExpr(["type", f"${self.name}", "(sub (struct (field (ref i31))))"])]
-        for method_name, method in self.methods.items():
-            if isinstance(method, NewType):
-                continue
-
-            defs.append(WasmExpr(["func", f"$__enum_{method_name}"]))
-            # TODO: dispatch method
         return defs + super().declaration()
 
     def compile(self):
@@ -99,9 +141,6 @@ class EnumTupleType(TupleType):
                 ]
             )
         ]
-
-    def compile(self):
-        return [WasmExpr(["ref any"])]
 
 
 class EnumVirtualMethod(AstNode):

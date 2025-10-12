@@ -1,7 +1,7 @@
 from .wast import Asm, WasmExpr
 from .ast import AstNode
 
-from compiler.typedef import NewType, VoidType
+from compiler.typedef import NewType, VoidType, NativeType
 from compiler.statements import ReturnStatement
 
 
@@ -65,6 +65,7 @@ class FunctionDef(AstNode):
         self.type_ = FunctionType(f"__func_{name}_t", args, ret_type)
         self.body = body
         self.locals = {}
+        self.cast_self_from_any = False
 
     def annotate(self, context, expected_type):
         context = context.new()
@@ -72,9 +73,19 @@ class FunctionDef(AstNode):
 
         self.type_ = self.type_.annotate(context, expected_type)
 
-        for arg_name, arg_type in self.type_.args:
+        for i, (arg_name, arg_type) in enumerate(self.type_.args):
             if arg_name == "self":
                 arg_type.check_type(context.lookup_type("Self"))
+                if self.cast_self_from_any and self.body:
+                    cast_var = VarDecl(
+                        "self",
+                        arg_type,
+                        WasmExpr(["ref.cast", *arg_type.compile(), WasmExpr(["local.get", "$__self"])]),
+                    )
+                    self.body.insert(0, cast_var)
+
+                    arg_name, arg_type = "__self", NativeType("(ref any)")
+                    self.type_.args[i] = (arg_name, arg_type)
 
             assert arg_name not in context.variables
             context.variables[arg_name] = VarDecl(arg_name, arg_type)
@@ -110,10 +121,7 @@ class FunctionDef(AstNode):
 
         return self
 
-    def compile(self):
-        if not self.body:
-            return []
-
+    def declaration(self):
         decls = []
         for arg_name, arg_type in self.type_.args:
             decls.append(WasmExpr(["param", f"${arg_name}", *arg_type.compile()]))
@@ -141,4 +149,10 @@ class FunctionDef(AstNode):
             ):
                 body.append(WasmExpr(["drop"]))
 
-        return [WasmExpr(["func", f"${self.name}", WasmExpr(["type", f"${self.type_.name}"]), *decls, *body])]
+        res = self.type_.declaration()
+        if self.body:
+            res.append(WasmExpr(["func", f"${self.name}", WasmExpr(["type", f"${self.type_.name}"]), *decls, *body]))
+        return res
+
+    def compile(self):
+        raise NotImplementedError

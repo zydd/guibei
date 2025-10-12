@@ -14,10 +14,14 @@ asm:
             (struct.get $Option 0)
         )
         (i31.get_u)
+        (i32.mul (i32.const 2))
         (call_indirect $Option_vt (type $__method_Option.has_value_t))
     )
 
-    (type $__enum_t (struct (field (ref i31))))
+    (func $Option.Some.__cast_has_value (param $arg_base (ref any))
+        (local $arg (ref $Option.Some))
+        (local.set $arg (ref.cast (ref $Option.Some) (local.get $arg_base)))
+    )
 
 type i32: __native_type<i32>
 type i64: __native_type<i64>
@@ -37,14 +41,17 @@ enum Result:
 
 
 impl Option:
-    func has_value(self: None) -> i32:
-        return 0
-    func has_value(self: Some) -> i32:
-        return 1
-    func has_value(self: Multi) -> i32:
+    func has_value(self: Option.Some) -> i32:
+        return self.1
+    func has_value(self: Option.Multi) -> i32:
         return 2
     func has_value(self: Option) -> i32:
-        return 4
+        return 0
+
+    func isnull(self: Option.None) -> i32:
+        return 1
+    func isnull(self: Option) -> i32:
+        return 0
 
 
 :[import("wasi_snapshot_preview1", "fd_write")]
@@ -115,7 +122,7 @@ type None_t: Option.None
 
 
 func main():
-    let o: Option = Some(3)
+    let o: Option = Option.Some(4)
     let v: i32 = asm: (call $Option.has_value.dispatch {o})
     let txt: pair = pair(97, 97 + v)
     txt.0
