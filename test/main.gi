@@ -188,7 +188,7 @@ func main():
     print_bytes(repeat(10, 1))
     i32(10).print()
     print_bytes(repeat(10, 1))
-    i32(1234567890).print()
+    i32.print(1234567890)
     print_bytes(repeat(10, 1))
     i32(-1234567890).print()
     let newlines: bytes = repeat(10, 2)

@@ -65,7 +65,10 @@ class MemberAccess(AstNode):
         match method:
             case FunctionDef():
                 method.type_.ret_type.check_type(expected_type)
-                return BoundMethod(method, self.expr)
+                if isinstance(self.expr, NewType):
+                    return method
+                else:
+                    return BoundMethod(method, self.expr)
             case NewType():
                 assert not expected_type
                 return method
