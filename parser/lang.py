@@ -6,7 +6,7 @@ from compiler.enum import Enum
 from compiler.fndef import FunctionDef, FunctionType, VarDecl
 from compiler.identifier import Identifier, operator_characters
 from compiler.literals import IntLiteral, StringLiteral
-from compiler.statements import Assignment, ReturnStatement, WhileStatement
+from compiler.statements import *
 from compiler.tuple import TupleIndex
 from compiler.typedef import *
 from compiler.wast import Asm, WasmExpr
@@ -233,9 +233,26 @@ def while_block():
 
 
 @generate
+def if_block():
+    @generate
+    def else_block():
+        yield sequence(regex(r"\s*"), same_indent())
+        yield regex(r"else *:\s*")
+        return (yield indented_block(statement()))
+
+    yield regex("if +")
+    condition = yield expr()
+    yield regex(r" *:")
+    body_then = yield indented_block(statement())
+    body_else = yield optional(else_block())
+    return IfStatement(condition, body_then, body_else if body_else is not None else [])
+
+
+@generate
 def return_statement():
-    yield regex("return +")
-    return ReturnStatement((yield expr()))
+    yield regex(r"return\b *")
+    res = yield optional(expr())
+    return ReturnStatement(res if res is not None else VoidType())
 
 
 @generate
@@ -278,6 +295,7 @@ def statement():
     yield same_indent()
     stmt = yield choice(
         while_block(),
+        if_block(),
         return_statement(),
         var_decl(),
         enum_def(),

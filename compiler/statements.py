@@ -3,6 +3,44 @@ from compiler.typedef import NativeType, VoidType
 from compiler.wast import WasmExpr
 
 
+class IfStatement(AstNode):
+    def __init__(self, condition, body_then, body_else):
+        self.condition = condition
+        self.body_then = body_then
+        self.body_else = body_else
+        self.type_ = VoidType()
+
+    def annotate(self, context, expected_type):
+        self.condition = self.condition.annotate(context, NativeType("i32"))
+        self.body_then = [expr.annotate(context, None) for expr in self.body_then]
+        self.body_else = [expr.annotate(context, None) for expr in self.body_else]
+        return self
+
+    def compile(self):
+        body_then = []
+        body_else = []
+
+        for stmt in self.body_then:
+            body_then.extend(stmt.compile())
+
+        for stmt in self.body_else:
+            body_else.extend(stmt.compile())
+
+        res = [
+            "if",
+            *self.condition.compile(),
+            [
+                "then",
+                *body_then,
+            ],
+        ]
+
+        if self.body_else:
+            res.append(["else", *body_else])
+
+        return [WasmExpr(res)]
+
+
 class WhileStatement(AstNode):
     def __init__(self, condition, body):
         self.condition = condition

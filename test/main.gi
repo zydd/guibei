@@ -110,20 +110,13 @@ impl i32:
         let i: i32 = 20
         let len: i32 = 0
 
-        asm:
-            (if (i32.eqz {n})
-                (then
-                    (i32.store8 (i32.const 0) (i32.const 48))
-                    {printn(0, 1)}
-                    return
-                )
-            )
+        if n == 0:
+            asm: (i32.store8 (i32.const 0) (i32.const 48))
+            printn(0, 1)
+            return
 
-            (if {self < 0}
-                (then
-                    (local.set $n {0 - n})
-                )
-            )
+        if self < 0:
+            n = 0 - n
 
         while n:
             asm: (i32.store8 {i} {n % 10 + 48})
@@ -131,17 +124,11 @@ impl i32:
             len = len + 1
             n = n / 10
 
-
-        asm:
-            (if {self < 0}
-                (then
-                    (i32.store8 {i} {i32(45)})
-                    (local.set $i {i - 1})
-                    (local.set $len {len + 1})
-                )
-            )
-
         i = 0
+        if self < 0:
+            asm: (i32.store8 {i32(0)} {i32(45)})
+            i = i + 1
+
         while i < len:
             asm: (i32.store8 {i} (i32.load {21 + i - len}))
             i = i + 1

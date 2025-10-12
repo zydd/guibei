@@ -86,7 +86,8 @@ class FunctionCall(AstNode):
 
     def annotate(self, context, expected_type):
         self.args = [
-            arg_value.annotate(context, arg_type.annotate(context, None)) for arg_value, (_, arg_type) in zip(self.args, self.func.type_.args)
+            arg_value.annotate(context, arg_type.annotate(context, None))
+            for arg_value, (_, arg_type) in zip(self.args, self.func.type_.args)
         ]
         return self
 
