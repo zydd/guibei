@@ -137,7 +137,7 @@ class EnumConst(AstNode):
         return self
 
     def compile(self):
-        return [WasmExpr(["ref.i31", WasmExpr(["i32.const", str(self.idx)])])]
+        return [WasmExpr(["ref.i31", ["i32.const", str(self.idx)]])]
 
 
 class EnumTupleType(TupleType):
@@ -152,21 +152,8 @@ class EnumTupleType(TupleType):
                 [
                     "struct.new",
                     f"${self.name}",
-                    WasmExpr(["ref.i31", WasmExpr(["i32.const", self.idx])]),
+                    ["ref.i31", ["i32.const", self.idx]],
                     *compiled_args,
                 ]
             )
         ]
-
-
-class EnumVirtualMethod(AstNode):
-    def __init__(self, table, func_type):
-        self.table = table
-        self.func_type = func_type
-
-    def annotate(self, context, expected_type):
-        raise NotImplementedError
-
-    def compile(self):
-        # return [WasmExpr(["table.get", self.table, *self.func_type.compile(), WasmExpr("i32.const", self.index)])]
-        raise NotImplementedError

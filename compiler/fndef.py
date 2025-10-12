@@ -80,7 +80,7 @@ class FunctionDef(AstNode):
                     cast_var = VarDecl(
                         "self",
                         arg_type,
-                        WasmExpr(["ref.cast", *arg_type.compile(), WasmExpr(["local.get", "$__self"])]),
+                        WasmExpr(["ref.cast", *arg_type.compile(), ["local.get", "$__self"]]),
                     )
                     self.body.insert(0, cast_var)
 
@@ -113,8 +113,8 @@ class FunctionDef(AstNode):
                     [
                         "func",
                         f"${self.name}",
-                        WasmExpr([self.annotations[0].callee, *self.annotations[0].args]),
-                        WasmExpr(["type", f"${self.type_.name}"]),
+                        [self.annotations[0].callee, *self.annotations[0].args],
+                        ["type", f"${self.type_.name}"],
                     ]
                 )
             )
@@ -151,7 +151,7 @@ class FunctionDef(AstNode):
 
         res = self.type_.declaration()
         if self.body:
-            res.append(WasmExpr(["func", f"${self.name}", WasmExpr(["type", f"${self.type_.name}"]), *decls, *body]))
+            res.append(WasmExpr(["func", f"${self.name}", ["type", f"${self.type_.name}"], *decls, *body]))
         return res
 
     def compile(self):

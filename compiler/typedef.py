@@ -63,9 +63,7 @@ class NewType(AstNode):
                 res.extend(m.declaration())
 
         if self.vtable:
-            res.append(
-                WasmExpr(["table", self.vtable_name, "funcref", WasmExpr(["elem", *[f"${fn}" for fn in self.vtable]])])
-            )
+            res.append(WasmExpr(["table", self.vtable_name, "funcref", ["elem", *[f"${fn}" for fn in self.vtable]]]))
 
         return res
 
@@ -136,9 +134,7 @@ class ArrayType(NewType):
         return self
 
     def declaration(self):
-        return [
-            WasmExpr(["type", f"${self.name}", WasmExpr(["array", WasmExpr(["mut", *self.element_type.compile()])])])
-        ]
+        return [WasmExpr(["type", f"${self.name}", ["array", ["mut", *self.element_type.compile()]]])]
 
     def instantiate(self, compiled_args):
         return [WasmExpr(["array.new", f"${self.name}", *compiled_args])]

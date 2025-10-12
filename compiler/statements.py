@@ -24,21 +24,17 @@ class WhileStatement(AstNode):
                 [
                     "block",
                     f"$while_block_{id}",
-                    WasmExpr(
+                    [
+                        "loop",
+                        f"$while_loop_{id}",
                         [
-                            "loop",
-                            f"$while_loop_{id}",
-                            WasmExpr(
-                                [
-                                    "br_if",
-                                    f"$while_block_{id}",
-                                    WasmExpr(["i32.eqz", *self.condition.compile()]),
-                                ]
-                            ),
-                            *body,
-                            WasmExpr(["br", f"$while_loop_{id}"]),
-                        ]
-                    ),
+                            "br_if",
+                            f"$while_block_{id}",
+                            ["i32.eqz", *self.condition.compile()],
+                        ],
+                        *body,
+                        ["br", f"$while_loop_{id}"],
+                    ],
                 ]
             )
         ]
