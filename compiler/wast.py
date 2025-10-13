@@ -31,7 +31,12 @@ class WasmExpr(AstNode):
                     else str(self.terms[0])
                 )
                 n = 1
-                if len(self.terms) > 1 and isinstance(self.terms[1], str) and self.terms[1].startswith("$"):
+                if (
+                    len(self.terms) > 1
+                    and self.terms[0] != "elem"
+                    and isinstance(self.terms[1], str)
+                    and self.terms[1].startswith("$")
+                ):
                     terms[0] += " " + self.terms[1]
                     n += 1
                 for term in self.terms[n:]:
