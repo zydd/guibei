@@ -1,7 +1,7 @@
 from collections import defaultdict
 
 from compiler.ast import AstNode
-from compiler.typedef import NewType, TupleType, NativeType, TypeIdentifier
+from compiler.typedef import NewType, TupleType, NativeType
 from compiler.fndef import FunctionDef
 from compiler.wast import WasmExpr, Asm
 

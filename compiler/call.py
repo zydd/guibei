@@ -96,3 +96,15 @@ class FunctionCall(AstNode):
         for arg in self.args:
             args.extend(arg.compile())
         return [WasmExpr(["call", f"${self.func.name}", *args])]
+
+
+class CastExpr(AstNode):
+    def __init__(self, type_, expr):
+        self.type_ = type_
+        self.expr = expr
+
+    def annotate(self, context, expected_type):
+        # self.type_ = self.type_.annotate(context, None)
+        # self.expr = self.type_.annotate(context, None)
+        # TODO: only allow primitive type -> NewType instantiation
+        return Call(self.type_, [self.expr]).annotate(context, expected_type)

@@ -113,7 +113,7 @@ class FunctionDef(AstNode):
                     [
                         "func",
                         f"${self.name}",
-                        [self.annotations[0].callee, *self.annotations[0].args],
+                        [self.annotations[0].callee.name, *self.annotations[0].args],
                         ["type", f"${self.type_.name}"],
                     ]
                 )

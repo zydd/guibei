@@ -39,4 +39,4 @@ class Identifier(AstNode):
         return [WasmExpr(["local.get", f"${self.name}"])]
 
     def __repr__(self):
-        return self.name
+        return f"Id({self.name})"

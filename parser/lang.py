@@ -1,7 +1,7 @@
 from parser.combinators import *
 from parser.indent import *
 
-from compiler.call import Call, MemberAccess
+from compiler.call import Call, MemberAccess, CastExpr
 from compiler.enum import Enum
 from compiler.fndef import FunctionDef, FunctionType, VarDecl
 from compiler.identifier import Identifier, operator_characters
@@ -80,7 +80,7 @@ def function_def():
         body = yield indented_block(statement())
     else:
         body = []
-    return FunctionDef(str(name), args, ret_type or VoidType(), body)
+    return FunctionDef(name.name, args, ret_type or VoidType(), body)
 
 
 @generate
@@ -161,7 +161,7 @@ def call(callee):
 
 @generate
 def array_index(array):
-    idx = yield brackets(expr())
+    idx = yield brackets(optional(expr()))
     return ArrayIndex(array, idx)
 
 
@@ -278,12 +278,22 @@ def statement():
         enum_def(),
         impl(),
         type_def(),
+        function_def(),
         backtrack(assignment()),
         expr(),
     )
     if annotations:
         stmt.annotations = annotations
     return stmt
+
+
+@generate
+def cast_expr():
+    cast = yield optional(backtrack(sequence(type_name(), regex(" *"), expr_index())))
+    if cast:
+        type_, _, expr = cast
+        return CastExpr(type_, expr)
+    return (yield expr_index())
 
 
 @generate
@@ -309,7 +319,7 @@ operators = [
     regex(r"\|"),
 ]
 
-op_parser = expr_index()
+op_parser = cast_expr()
 for op in operators:
     op_parser = binop(op, op_parser)
 
@@ -319,22 +329,34 @@ def expr():
 
 
 @generate
-def type_identifier():
-    name = yield regex(r"[_a-zA-Z0-9]\w*")
-    type_ = TypeIdentifier(name)
-    array = yield optional(regex(r"\s*\[\s*\]"))
-    if array:
-        return ArrayType(None, type_)
-    else:
-        return type_
+def type_name():
+    term = yield identifier()
+    term = TypeIdentifier(term.name)
+
+    while True:
+        term_ex = yield optional(choice(call(term), attr_access(term)))
+        if not term_ex:
+            break
+        term = term_ex
+
+    while True:
+        term_ex = yield optional(array_type_index(term))
+        if not term_ex:
+            break
+        term = term_ex
+
+    return term
 
 
-type_expr_term = choice(tuple_def(), function_type(), native_type(), type_identifier())
+@generate
+def array_type_index(array):
+    idx = yield brackets(regex(r" *"))
+    return ArrayType(array)
 
 
 @generate
 def type_expr():
-    term = yield type_expr_term
+    term = yield choice(tuple_def(), function_type(), native_type(), type_name())
 
     while True:
         term_ex = yield optional(attr_access(term))

@@ -43,7 +43,7 @@ def test_type_def(code):
     ],
 )
 def test_type_identifier(code):
-    assert parser.run_parser(type_identifier(), code)
+    assert parser.run_parser(type_name(), code)
 
 
 # expr
@@ -202,3 +202,48 @@ def test_func_def_fail(code):
 )
 def test_impl_parser(code):
     assert parser.run_parser(impl(), code)
+
+
+# cast_expr
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        "i32 3",
+        "i32[] 3",
+        "i32[][] 3",
+        "i32[ ] 3",
+        "tuple_type.1 3",
+        "tuple_type.1[] 3",
+        "struct.subtype.attr.1[] 3",
+        "type1 value",
+    ],
+)
+def test_cast_expr(code):
+    assert parser.run_parser(cast_expr(), code)
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        "i32[].1 3",
+        "type1 type2 3",
+    ],
+)
+def test_cast_expr_fail(code):
+    with pytest.raises(ValueError):
+        parser.run_parser(cast_expr(), code)
+
+
+# statement
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        "func a()",
+    ],
+)
+def test_statement(code):
+    assert parser.run_parser(statement(), code)

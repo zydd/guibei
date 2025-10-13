@@ -19,6 +19,7 @@ def generate(f):
                 while True:
                     p = gen.send(result)
                     prev_pos = input.pos
+                    # print("PARSER", getattr(p, "parser_debug", p))
                     result, input = p(input)
                     # if input.pos > prev_pos:
                     #     print("CONSUMED", repr(input.text[prev_pos:input.pos]), "CUR", repr(input.current()[:10]), gen, getattr(p, "parser_debug", p))

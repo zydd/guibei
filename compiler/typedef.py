@@ -122,8 +122,8 @@ class TupleType(NewType):
 
 
 class ArrayType(NewType):
-    def __init__(self, name, element_type):
-        super().__init__(name, None)
+    def __init__(self, element_type):
+        super().__init__(None, None)
         self.element_type = element_type
 
     def annotate(self, context, expected_type):
@@ -231,7 +231,8 @@ class ArrayIndex(AstNode):
 
     def annotate(self, context, expected_type):
         self.array = self.array.annotate(context, None)
-        self.idx = self.idx.annotate(context, NativeType("i32"))
+        if self.idx:
+            self.idx = self.idx.annotate(context, NativeType("i32"))
         return self
 
     def compile(self):

@@ -110,7 +110,7 @@ impl i32:
 
         i = 0
         if self < 0:
-            asm: (i32.store8 {i32(0)} {i32(45)})
+            asm: (i32.store8 {i32(0)} {i32 45})
             i = i + 1
 
         while i < len:
