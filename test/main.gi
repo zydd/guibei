@@ -5,22 +5,6 @@ asm:
     (memory $memory 1)
     (global $__stackp (mut i32) (i32.const 1024))
 
-    (func $Option.has_value.dispatch (param $arg (ref any)) (result i32)
-        (local.get $arg)
-        (block $bl (result (ref i31))
-            (br_on_cast $bl (ref any) (ref i31) (local.get $arg))
-            (ref.cast (ref $Option))
-            (struct.get $Option 0)
-        )
-        (i31.get_u)
-        (i32.mul (i32.const 2))
-        (call_indirect $Option_vt (type $__method_Option.has_value_t))
-    )
-
-    (func $Option.Some.__cast_has_value (param $arg_base (ref any))
-        (local $arg (ref $Option.Some))
-        (local.set $arg (ref.cast (ref $Option.Some) (local.get $arg_base)))
-    )
 
 type i32: __native_type<i32>
 type i64: __native_type<i64>

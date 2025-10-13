@@ -130,17 +130,6 @@ def native_type():
 
 
 @generate
-def type_identifier():
-    name = yield regex(r"[_a-zA-Z0-9]\w*")
-    type_ = TypeIdentifier(name)
-    array = yield optional(regex(r"\s*\[\s*\]"))
-    if array:
-        return ArrayType(None, type_)
-    else:
-        return type_
-
-
-@generate
 def int_literal():
     return IntLiteral(int((yield regex(r"-?\d+"))))
 
@@ -185,18 +174,6 @@ def attr_access(expr):
         return TupleIndex(expr, attr)
     else:
         return MemberAccess(expr, attr)
-
-
-@generate
-def expr_index():
-    term = yield expr_term
-
-    while True:
-        term_ex = yield optional(choice(call(term), attr_access(term), array_index(term)))
-        if not term_ex:
-            break
-        term = term_ex
-    return term
 
 
 @generate
@@ -300,6 +277,7 @@ def statement():
         var_decl(),
         enum_def(),
         impl(),
+        type_def(),
         backtrack(assignment()),
         expr(),
     )
@@ -308,8 +286,19 @@ def statement():
     return stmt
 
 
-type_expr_term = choice(tuple_def(), function_type(), native_type(), type_identifier())
-expr_term = choice(function_def(), type_def(), asm(), int_literal(), string_literal(), identifier())
+@generate
+def expr_index():
+    term = yield expr_term
+
+    while True:
+        term_ex = yield optional(choice(call(term), attr_access(term), array_index(term)))
+        if not term_ex:
+            break
+        term = term_ex
+    return term
+
+
+expr_term = choice(function_def(), asm(), int_literal(), string_literal(), identifier())
 
 operators = [
     regex(r"\*|/|%"),
@@ -327,6 +316,20 @@ for op in operators:
 
 def expr():
     return op_parser
+
+
+@generate
+def type_identifier():
+    name = yield regex(r"[_a-zA-Z0-9]\w*")
+    type_ = TypeIdentifier(name)
+    array = yield optional(regex(r"\s*\[\s*\]"))
+    if array:
+        return ArrayType(None, type_)
+    else:
+        return type_
+
+
+type_expr_term = choice(tuple_def(), function_type(), native_type(), type_identifier())
 
 
 @generate
