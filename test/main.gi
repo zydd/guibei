@@ -77,6 +77,10 @@ func (==)(a: i32, b: i32) -> i32:
     asm: (i32.eq {a} {b})
 
 
+func (!=)(a: i32, b: i32) -> i32:
+    asm: (i32.ne {a} {b})
+
+
 func print_bytes(arr: bytes):
     let i: i32 = 0
     let len: i32 = asm: (array.len (local.get $arr))
@@ -89,7 +93,11 @@ func print_bytes(arr: bytes):
 
 
 impl i32:
-    func print(self: i32):
+    # func __from_literal(i: __int_literal):
+    #     asm:
+    #         (i32.const {i})
+
+    func print(self: Self):
         let n: i32 = self
         let i: i32 = 20
         let len: i32 = 0
@@ -140,22 +148,10 @@ func readn(addr: i32, count: i32) -> i32:
         (i32.load (global.get $__stackp))
 
 
-asm: (data (i32.const 0) "Hello World!\n")
-
-asm:
-    (table $tb2 funcref (elem $printn $print_bytes))
-
-
 type None_t: Option.None
 
 
 func main():
-    let o: Option = Option.Some(4)
-    let v: i32 = o.has_value()
-    let txt: pair = pair(97, 97 + v)
-    txt.0
-    print_bytes(repeat(txt.0, 10))
-    print_bytes(repeat(10, one_one().1))
     i32(0).print()
     print_bytes(repeat(10, 1))
     i32(10).print()
@@ -163,7 +159,4 @@ func main():
     i32.print(1234567890)
     print_bytes(repeat(10, 1))
     i32(-1234567890).print()
-    let newlines: bytes = repeat(10, 2)
-    let first: i32 = newlines[0]
-    asm:
-        (call_indirect $tb2 (type $__func_print_bytes_t) {newlines} (i32.const 1))
+    print_bytes("\nHello world!\n")

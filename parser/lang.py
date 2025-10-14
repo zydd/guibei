@@ -12,8 +12,9 @@ from compiler.typedef import *
 from compiler.wast import Asm, WasmExpr
 
 
+@generate
 def comment():
-    return regex(r"#[^\n]*\n")
+    yield regex(r"#[^\n]*\n(\s*#[^\n]*\n)*")
 
 
 @generate
@@ -142,7 +143,7 @@ def int_literal():
 
 @generate
 def string_literal():
-    value = yield regex(r'"([^"\\]|\\.)*"')
+    value = yield regex(r'"(([^"\\]|\\.)*)"', group=1)
     return StringLiteral(value)
 
 
@@ -266,7 +267,8 @@ def impl():
     yield regex("impl +")
     name = yield regex(r"\w+")
     yield regex(r" *:")
-    values = yield indented_block(function_def())
+    values = yield indented_block(choice(comment(), function_def()))
+    values = [stmt for stmt in values if stmt is not None]
     return TypeImpl(name, values)
 
 

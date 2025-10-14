@@ -8,6 +8,7 @@ class Context:
         self.imports = list()
         self.types: dict[str] = dict()
         self.variables: dict[str] = dict()
+        self.data: list[bytes] = list()
         self._current_function = None
 
     def new(self):
@@ -38,6 +39,11 @@ class Context:
         func = self.current_function()
         assert var.name not in func.locals
         func.locals[var.name] = var
+
+    def add_data(self, val):
+        i = len(self.root.data)
+        self.root.data.append(val)
+        return i
 
     def current_function(self):
         return self._current_function or self.parent.current_function()
