@@ -93,31 +93,32 @@ impl i32:
         let n: i32 = self
         let i: i32 = 20
         let len: i32 = 0
+        let buffer: i32 = 5
 
         if n == 0:
-            asm: (i32.store8 (i32.const 0) (i32.const 48))
-            printn(0, 1)
+            asm: (i32.store8 {buffer} (i32.const 48))
+            printn(buffer, 1)
             return
 
         if self < 0:
             n = 0 - n
 
         while n:
-            asm: (i32.store8 {i} {n % 10 + 48})
+            asm: (i32.store8 {buffer + i} {n % 10 + 48})
             i = i - 1
             len = len + 1
             n = n / 10
 
         i = 0
         if self < 0:
-            asm: (i32.store8 {i32(0)} {i32 45})
+            asm: (i32.store8 {buffer + i} {i32 45})
             i = i + 1
 
         while i < len:
-            asm: (i32.store8 {i} (i32.load {21 + i - len}))
+            asm: (i32.store8 {buffer + i} (i32.load {buffer + 21 + i - len}))
             i = i + 1
 
-        printn(0, len)
+        printn(buffer, len)
 
 
 func printn(addr: i32, count: i32):

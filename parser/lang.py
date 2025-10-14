@@ -12,14 +12,19 @@ from compiler.typedef import *
 from compiler.wast import Asm, WasmExpr
 
 
+def comment():
+    return regex(r"#[^\n]*\n")
+
+
 @generate
 def asm():
+    @generate
     def wast_term():
         @generate
         def int_literal():
             return int((yield regex(r"-?\d+")))
 
-        return choice(
+        term = yield choice(
             regex(r"[a-z]+=\d+"),
             regex(r"[a-z]\w*(\.[a-z]\w*)?"),
             int_literal(),
@@ -28,6 +33,7 @@ def asm():
             parens(wast_expr()),
             bracers(expr()),
         )
+        return term
 
     @generate
     def wast_expr():
@@ -266,9 +272,11 @@ def impl():
 
 @generate
 def statement():
+    yield optional(comment())
     yield same_indent()
     annotations = yield optional(compiler_annotation())
 
+    yield optional(comment())
     yield same_indent()
     stmt = yield choice(
         while_block(),
@@ -284,6 +292,7 @@ def statement():
     )
     if annotations:
         stmt.annotations = annotations
+    yield optional(comment())
     return stmt
 
 
