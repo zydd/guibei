@@ -6,55 +6,14 @@ asm:
     (global $__stackp (mut i32) (i32.const 1024))
 
 
+# i32
+
+
 type i32: __native_type<i32>
-type i64: __native_type<i64>
-type i8: __native_type<i8>
-type bytes: i8[]
-type pair: (i32, i32)
-type mat2x2: (pair, pair)
-
-enum Option:
-    None
-    Some(i32)
-    Multi(i32, i32)
-
-enum Result:
-    Ok(i32)
-    Error(bytes)
-
-
-impl Option:
-    func has_value(self: Option.Some) -> i32:
-        return self.1
-    func has_value(self: Option.Multi) -> i32:
-        return 2
-    func has_value(self: Option) -> i32:
-        return 0
-
-    func isnull(self: Option.None) -> i32:
-        return 1
-    func isnull(self: Option) -> i32:
-        return 0
-
-
-:[import("wasi_snapshot_preview1", "fd_write")]
-func __wasi_fd_write(fd: i32, iovs: i32, iovs_len: i32, out_nwritten: i32) -> i32
-
-:[import("wasi_snapshot_preview1", "fd_read")]
-func __wasi_fd_read(fd: i32, iovs: i32, iovs_len: i32, out_nread: i32) -> i32
-
-
-func one_one() -> pair:
-    pair(1, 1)
-
-
-func repeat(byte: i32, count: i32) -> bytes:
-    bytes(byte, count)
 
 
 func (+)(a: i32, b: i32) -> i32:
-    return asm: (i32.add {a} {b})
-    asm: (i32.sub {a} {b})
+    asm: (i32.add {a} {b})
 
 
 func (-)(a: i32, b: i32) -> i32:
@@ -81,17 +40,6 @@ func (!=)(a: i32, b: i32) -> i32:
     asm: (i32.ne {a} {b})
 
 
-func print_bytes(arr: bytes):
-    let i: i32 = 0
-    let len: i32 = asm: (array.len (local.get $arr))
-
-    while i < len:
-        asm: (i32.store8 {i} {arr[i]})
-        i = i + 1
-
-    printn(0, len)
-
-
 impl i32:
     # func __from_literal(i: __int_literal):
     #     asm:
@@ -105,7 +53,7 @@ impl i32:
 
         if n == 0:
             asm: (i32.store8 {buffer} (i32.const 48))
-            printn(buffer, 1)
+            __print_n(buffer, 1)
             return
 
         if self < 0:
@@ -126,10 +74,62 @@ impl i32:
             asm: (i32.store8 {buffer + i} (i32.load {buffer + 21 + i - len}))
             i = i + 1
 
-        printn(buffer, len)
+        __print_n(buffer, len)
 
 
-func printn(addr: i32, count: i32):
+# bytes
+
+
+type i8: __native_type<i8>
+type bytes: i8[]
+
+
+impl bytes:
+    func print(self: Self):
+        let i: i32 = 0
+        let len: i32 = asm: (array.len (local.get $self))
+
+        while i < len:
+            asm: (i32.store8 {i} {self[i]})
+            i = i + 1
+
+        __print_n(0, len)
+
+
+# Option
+
+
+enum Option:
+    None
+    Some(i32)
+
+
+impl Option:
+    func is_some(self: Option.Some) -> i32:
+        return 1
+    func is_some(self: Option) -> i32:
+        return 0
+
+
+# Result
+
+
+enum Result:
+    Ok(i32)
+    Error(bytes)
+
+
+# WASI
+
+
+:[import("wasi_snapshot_preview1", "fd_write")]
+func __wasi_fd_write(fd: i32, iovs: i32, iovs_len: i32, out_nwritten: i32) -> i32
+
+:[import("wasi_snapshot_preview1", "fd_read")]
+func __wasi_fd_read(fd: i32, iovs: i32, iovs_len: i32, out_nread: i32) -> i32
+
+
+func __print_n(addr: i32, count: i32):
     asm:
         (i32.store offset=4 (global.get $__stackp) {addr})
         (i32.store offset=8 (global.get $__stackp) {count})
@@ -137,7 +137,7 @@ func printn(addr: i32, count: i32):
     __wasi_fd_write(1, asm: (global.get $__stackp) + 4, 1, asm: (global.get $__stackp))
 
 
-func readn(addr: i32, count: i32) -> i32:
+func __read_n(addr: i32, count: i32) -> i32:
     asm:
         (i32.store offset=4 (global.get $__stackp) {addr})
         (i32.store offset=8 (global.get $__stackp) {count - 1})
@@ -148,15 +148,12 @@ func readn(addr: i32, count: i32) -> i32:
         (i32.load (global.get $__stackp))
 
 
-type None_t: Option.None
-
-
 func main():
     i32(0).print()
-    print_bytes(repeat(10, 1))
+    bytes.print(bytes(10, 1))
     i32(10).print()
-    print_bytes(repeat(10, 1))
+    bytes.print(bytes(10, 1))
     i32.print(1234567890)
-    print_bytes(repeat(10, 1))
+    bytes.print(bytes(10, 1))
     i32(-1234567890).print()
-    print_bytes("\nHello world!\n")
+    bytes.print("\nHello world!\n")

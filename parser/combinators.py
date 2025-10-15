@@ -192,6 +192,14 @@ def debug_current(n):
     return parser
 
 
+def debug_parser(p):
+    def parser(input):
+        try:
+            return p(input)
+        except:
+            breakpoint()
+    return parser
+
 @generate
 def between(open, close, content):
     yield open

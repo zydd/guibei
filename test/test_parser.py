@@ -196,6 +196,7 @@ def test_func_def_fail(code):
     "code",
     [
         "impl Type: func fn() -> i32: 0",
+        "impl Type:\n\n # func fn() -> i32: 0\n\n func fn() -> i32: 0",
         "impl Type:\n func fn() -> i32:\n  0",
         "impl Type:\n func fn1() -> i32:\n  0\n func fn2() -> i32:\n  0",
     ],
@@ -247,3 +248,34 @@ def test_cast_expr_fail(code):
 )
 def test_statement(code):
     assert parser.run_parser(statement(), code)
+
+
+# comment
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        # "# comment1\n# comment2",
+        "# this is a comment",
+        "#this is a comment",
+        "###",
+        "#",
+    ],
+)
+def test_comment(code):
+    parser.run_parser(comment(), code)
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        " #\n",
+        " #",
+        "# tailing newline\n",
+        " # indented",
+        " # indented + tailing\n",
+    ],
+)
+def test_comment_fail(code):
+    with pytest.raises(ValueError):
+        parser.run_parser(comment(), code)

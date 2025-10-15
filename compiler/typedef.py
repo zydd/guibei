@@ -128,13 +128,13 @@ class ArrayType(NewType):
 
     def annotate(self, context, expected_type):
         self.element_type = self.element_type.annotate(context, None)
-        return self
+        return super().annotate(context, expected_type)
 
     def primitive(self):
         return self
 
     def declaration(self):
-        return [WasmExpr(["type", f"${self.name}", ["array", ["mut", *self.element_type.compile()]]])]
+        return [WasmExpr(["type", f"${self.name}", ["array", ["mut", *self.element_type.compile()]]])] + super().declaration()
 
     def instantiate(self, compiled_args):
         return [WasmExpr(["array.new", f"${self.name}", *compiled_args])]
@@ -199,6 +199,7 @@ class TypeIdentifier(NewType):
         while isinstance(type_, TypeIdentifier):
             type_ = context.lookup_type(type_.name)
         self.type_ = type_
+        self.name = type_.name
         return self
 
     def primitive(self):

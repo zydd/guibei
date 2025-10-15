@@ -14,7 +14,7 @@ from compiler.wast import Asm, WasmExpr
 
 @generate
 def comment():
-    yield regex(r"#[^\n]*\n(\s*#[^\n]*\n)*")
+    yield regex(r"#[^\n]*(\s*#[^\n]*)*")
 
 
 @generate
@@ -274,11 +274,11 @@ def impl():
 
 @generate
 def statement():
-    yield optional(comment())
+    yield optional(sequence(comment(), regex(r"\s*")))
     yield same_indent()
     annotations = yield optional(compiler_annotation())
 
-    yield optional(comment())
+    yield optional(sequence(comment(), regex(r"\s*")))
     yield same_indent()
     stmt = yield choice(
         while_block(),
@@ -294,7 +294,6 @@ def statement():
     )
     if annotations:
         stmt.annotations = annotations
-    yield optional(comment())
     return stmt
 
 
