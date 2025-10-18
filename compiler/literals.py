@@ -31,7 +31,7 @@ class StringLiteral(AstNode):
         self.addr = context.add_data(self.value)
         self.type_ = expected_type
         self.temp_var_name = f"__local_{self.next_id()}"
-        context.register_variable(VarDecl(self.temp_var_name, self.type_))
+        context.register_variable(VarDecl(self.temp_var_name, self.type_, annotated=True))
         return self
 
     def compile(self):

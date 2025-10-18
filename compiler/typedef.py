@@ -15,6 +15,7 @@ class NewType(AstNode):
     def annotate(self, context, expected_type):
         if self.annotated:
             return self
+        self.annotated = True
 
         context = context.new()
         context.types["Self"] = self
@@ -34,7 +35,6 @@ class NewType(AstNode):
         for method in self.method_defs:
             self.add_method(context, method)
 
-        self.annotated = True
         return self
 
     def add_method(self, context, method):
@@ -134,7 +134,9 @@ class ArrayType(NewType):
         return self
 
     def declaration(self):
-        return [WasmExpr(["type", f"${self.name}", ["array", ["mut", *self.element_type.compile()]]])] + super().declaration()
+        return [
+            WasmExpr(["type", f"${self.name}", ["array", ["mut", *self.element_type.compile()]]])
+        ] + super().declaration()
 
     def instantiate(self, compiled_args):
         return [WasmExpr(["array.new", f"${self.name}", *compiled_args])]
@@ -188,6 +190,9 @@ class VoidType(NewType):
     def compile(self):
         return []
 
+    def primitive(self):
+        return self
+
 
 class TypeIdentifier(NewType):
     def __init__(self, name):
@@ -229,20 +234,30 @@ class ArrayIndex(AstNode):
     def __init__(self, array, idx):
         self.array = array
         self.idx = idx
+        self.type_ = None
 
     def annotate(self, context, expected_type):
         self.array = self.array.annotate(context, None)
         if self.idx:
             self.idx = self.idx.annotate(context, NativeType("i32"))
+        self.type_ = self.array.type_.primitive().element_type
+        self.type_.check_type(expected_type)
         return self
 
     def compile(self):
-        match self.array.type_.primitive().element_type.primitive():
+        match self.type_.primitive():
             case NativeType(name="i8"):
                 instr = "array.get_s"
             case _:
                 instr = "array.get"
         return [WasmExpr([instr, f"${self.array.type_.name}", *self.array.compile(), *self.idx.compile()])]
+
+    def assign(self, compiled_expr):
+        return [
+            WasmExpr(
+                ["array.set", f"${self.array.type_.name}", *self.array.compile(), *self.idx.compile(), *compiled_expr]
+            )
+        ]
 
 
 class TypeInstantiation(AstNode):

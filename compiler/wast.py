@@ -55,12 +55,14 @@ class WasmExpr(AstNode):
 class Asm(AstNode):
     def __init__(self, expr):
         self.expr = expr
+        self.type_ = None
 
     def repr_indented(self, level=0):
         return "\n".join(term.repr_indented(level) for term in self.expr.terms)
 
     def annotate(self, context, expected_type):
         self.expr = self.expr.annotate(context, None)
+        self.type_ = expected_type
         return self
 
     def compile(self) -> list[WasmExpr]:

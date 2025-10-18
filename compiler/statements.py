@@ -1,6 +1,7 @@
 from compiler.ast import AstNode
-from compiler.typedef import NativeType, VoidType
+from compiler.typedef import NativeType, VoidType, ArrayIndex
 from compiler.wast import WasmExpr
+from compiler.identifier import Identifier
 
 
 class IfStatement(AstNode):
@@ -84,7 +85,8 @@ class ReturnStatement(AstNode):
         self.type_ = VoidType()
 
     def annotate(self, context, expected_type):
-        self.expr = self.expr.annotate(context, expected_type)
+        # self.type_.check_type(expected_type)
+        self.expr = self.expr.annotate(context, context.current_function().type_.ret_type)
         return self
 
     def compile(self):
@@ -92,17 +94,17 @@ class ReturnStatement(AstNode):
 
 
 class Assignment(AstNode):
-    def __init__(self, var, expr):
-        self.var = var
+    def __init__(self, lvalue, expr):
+        self.lvalue = lvalue
         self.expr = expr
         self.type_ = VoidType()
 
     def annotate(self, context, expected_type):
-        self.var = self.var.annotate(context, None)
-        self.expr = self.expr.annotate(context, self.var.type_)
-        if self.var.type_ and self.expr.type_:
-            self.var.type_.check_type(self.expr.type_)
+        self.lvalue = self.lvalue.annotate(context, None)
+        self.expr = self.expr.annotate(context, self.lvalue.type_)
+        if self.lvalue.type_ and self.expr.type_:
+            self.lvalue.type_.check_type(self.expr.type_)
         return self
 
     def compile(self):
-        return [WasmExpr(["local.set", f"${self.var.name}", *self.expr.compile()])]
+        return self.lvalue.assign(self.expr.compile())

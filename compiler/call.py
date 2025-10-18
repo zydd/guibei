@@ -28,7 +28,7 @@ class Call(AstNode):
 
 
 class BoundMethod(AstNode):
-    def __init__(self, func, obj):
+    def __init__(self, obj, func):
         self.func: FunctionDef = func
         self.obj = obj
 
@@ -68,7 +68,7 @@ class MemberAccess(AstNode):
                 if isinstance(self.expr, NewType):
                     return method
                 else:
-                    return BoundMethod(method, self.expr)
+                    return BoundMethod(self.expr, method)
             case NewType():
                 assert not expected_type
                 return method

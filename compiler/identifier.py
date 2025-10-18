@@ -1,6 +1,4 @@
 from compiler.ast import AstNode
-from compiler.enum import EnumConst
-from compiler.fndef import VarDecl, FunctionDef
 from compiler.typedef import NewType
 from compiler.wast import WasmExpr
 
@@ -18,22 +16,9 @@ class Identifier(AstNode):
 
     def annotate(self, context, expected_type):
         if expected_type:
-            val = context.lookup_var(self.name)
+            return context.lookup_var(self.name)
         else:
-            val = context.lookup(self.name)
-
-        match val:
-            case VarDecl():
-                self.type_ = val.var_type
-                return self
-            case FunctionDef():
-                self.type_ = val.type_
-                return val
-            case _ if isinstance(val, NewType):
-                return val
-            case EnumConst():
-                return val
-        raise NotImplementedError(self)
+            return context.lookup(self.name)
 
     def compile(self):
         return [WasmExpr(["local.get", f"${self.name}"])]

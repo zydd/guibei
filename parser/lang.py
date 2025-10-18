@@ -65,10 +65,10 @@ def var_decl():
 
 @generate
 def assignment():
-    name = yield identifier()
+    lvalue = yield cast_expr()
     yield regex(r"\s*=\s*")
     value = yield expr()
-    return Assignment(name, value)
+    return Assignment(lvalue, value)
 
 
 @generate

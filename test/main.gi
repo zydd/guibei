@@ -4,7 +4,8 @@ asm:
     (export "_start" (func $main))
     (memory $memory 1)
     (global $__stackp (mut i32) (i32.const 1024))
-
+    (type $vtd (array (mut funcref)))
+    (global (ref $vtd) (array.new_default $vtd (i32.const 13)))
 
 # i32
 
@@ -49,7 +50,7 @@ impl i32:
         let n: i32 = self
         let i: i32 = 20
         let len: i32 = 0
-        let buffer: i32 = 5
+        let buffer: i32 = asm: (global.get $__stackp) + 16
 
         if n == 0:
             asm: (i32.store8 {buffer} (i32.const 48))
@@ -85,6 +86,10 @@ type bytes: i8[]
 
 
 impl bytes:
+    # func __from_literal(i: __int_literal):
+    #     asm:
+    #         (i32.const {i})
+
     func print(self: Self):
         let i: i32 = 0
         let len: i32 = asm: (array.len (local.get $self))
@@ -94,6 +99,34 @@ impl bytes:
             i = i + 1
 
         __print_n(0, len)
+
+    func len(self: Self) -> i32:
+        asm: (array.len (local.get $self))
+
+    func eq(self: Self, other: Self) -> i32:
+        if self.len() != other.len():
+            return 0
+
+        let i: i32 = 0
+        while i < self.len():
+            if self[i] != other[i]:
+                return 0
+            i = i + 1
+
+        return 1
+
+    # func slice(self: Self, start: i32, end: i32) -> Self:
+    #     let len: i32 = self.len()
+    #     # if start < 0 or end < 0 or start > len or end > len or start > end:
+    #     #     unreachable
+
+    #     let result: bytes = bytes(end - start, 0)
+    #     let i: i32 = start
+    #     # while i < end:
+    #     #     result[i - start] = self[i]
+    #     #     i = i + 1
+
+    #     return result
 
 
 # Option
@@ -148,6 +181,18 @@ func __read_n(addr: i32, count: i32) -> i32:
         (i32.load (global.get $__stackp))
 
 
+func read_bytes(count: i32) -> bytes:
+    let buffer: i32 = asm: (global.get $__stackp) + 16
+    let read_count: i32 = __read_n(buffer, count)
+    let result: bytes = bytes(0, read_count)
+    let i: i32 = 0
+
+    while i < read_count:
+        result[i] = asm: (i32.load {buffer + i})
+        i = i + 1
+    return result
+
+
 func main():
     i32(0).print()
     bytes.print(bytes(10, 1))
@@ -157,3 +202,7 @@ func main():
     bytes.print(bytes(10, 1))
     i32(-1234567890).print()
     bytes.print("\nHello world!\n")
+    i32.print(bytes.eq("abc", "abc"))
+    bytes.print("\n")
+    bytes.print(read_bytes(100))
+    bytes.print(bytes(10, 1))

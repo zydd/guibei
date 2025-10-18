@@ -2,30 +2,33 @@ from .wast import Asm, WasmExpr
 from .ast import AstNode
 
 from compiler.typedef import NewType, VoidType, NativeType
-from compiler.statements import ReturnStatement
+from compiler.statements import ReturnStatement, Assignment
 
 
 class VarDecl(AstNode):
-    def __init__(self, name, var_type, init=None, mutable=False):
+    def __init__(self, name, type_, init=None, mutable=False, annotated=False):
         self.name = name
-        self.var_type = var_type
-        self.type_ = VoidType()
+        self.type_ = type_
         self.init = init
         self.mutable = mutable
+        self.annotated = annotated
 
     def annotate(self, context, expected_type):
-        self.var_type = self.var_type.annotate(context, None)
-        if self.init:
-            self.init = self.init.annotate(context, self.var_type)
+        if self.annotated:
+            return self
+        self.annotated = True
+        self.type_ = self.type_.annotate(context, None)
         context.register_variable(self)
+        if self.init:
+            self.init = self.init.annotate(context, self.type_)
+            return Assignment(self, self.init)
+        return VoidType()
 
-        return self
+    def assign(self, compiled_expr):
+        return [WasmExpr(["local.set", f"${self.name}", *compiled_expr])]
 
     def compile(self):
-        res = []
-        if self.init:
-            res.extend([WasmExpr(["local.set", f"${self.name}", *self.init.compile()])])
-        return res
+        return [WasmExpr(["local.get", f"${self.name}"])]
 
 
 class FunctionType(NewType):
@@ -81,6 +84,7 @@ class FunctionDef(AstNode):
                         "self",
                         arg_type,
                         WasmExpr(["ref.cast", *arg_type.compile(), ["local.get", "$__self"]]),
+                        annotated=False,
                     )
                     self.body.insert(0, cast_var)
 
@@ -88,7 +92,7 @@ class FunctionDef(AstNode):
                     self.type_.args[i] = (arg_name, arg_type)
 
             assert arg_name not in context.variables
-            context.variables[arg_name] = VarDecl(arg_name, arg_type)
+            context.variables[arg_name] = VarDecl(arg_name, arg_type, annotated=True)
 
         for i, expr in enumerate(self.body[:-1]):
             if isinstance(expr, ReturnStatement):
@@ -130,7 +134,7 @@ class FunctionDef(AstNode):
             decls.append(WasmExpr(["result", *self.type_.ret_type.compile()]))
 
         for name, var in self.locals.items():
-            decls.append(WasmExpr(["local", f"${name}", *var.var_type.compile()]))
+            decls.append(WasmExpr(["local", f"${name}", *var.type_.compile()]))
 
         body = []
         for expr in self.body[:-1]:
