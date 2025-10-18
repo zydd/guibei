@@ -1,10 +1,7 @@
 import typing
 
-from .fndef import *
-from .typedef import *
-from .wast import *
-from .enum import Enum
 from .context import Context
+from .ast import *
 
 
 class CompilePass:

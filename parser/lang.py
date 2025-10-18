@@ -1,15 +1,7 @@
 from parser.combinators import *
 from parser.indent import *
 
-from compiler.call import Call, MemberAccess, CastExpr
-from compiler.enum import Enum
-from compiler.fndef import FunctionDef, FunctionType, VarDecl
-from compiler.identifier import Identifier, operator_characters
-from compiler.literals import IntLiteral, StringLiteral
-from compiler.statements import *
-from compiler.tuple import TupleIndex
-from compiler.typedef import *
-from compiler.wast import Asm, WasmExpr
+from compiler.ast import *
 
 
 @generate
