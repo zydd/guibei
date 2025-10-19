@@ -10,11 +10,42 @@ from . import ast
 
 
 @dataclass
-class Scope:
-    parent: Scope | None = None
+class Node:
+    ast_node: ast.Node | None
+
+    def __iter__(self):
+        return iter(self.__dataclass_fields__.keys())
+
+    def __getitem__(self, i):
+        return getattr(self, i)
+
+    def __setitem__(self, i, value):
+        return setattr(self, i, value)
+
+    def __repr__(self):
+        return f"ast.{self.__class__.__name__}"
+
+    # def __repr__(self):
+    #     fields = ", ".join(
+    #         f"{f.name}={getattr(self, f.name)}" for f in dataclasses.fields(self) if f.name != "ast_node"
+    #     )
+    #     return f"ir.{self.__class__.__name__}({fields})"
+
+
+@dataclass(init=False)
+class Scope(Node):
+    # Do not annotate parent scope to avoid infinite loops when traversing tree
+    # parent: Scope | None
     vars: dict[str, Node] = field(default_factory=dict)
     types: dict[str, Type] = field(default_factory=dict)
     stmts: list[Node] = field(default_factory=list)
+
+    def __init__(self, parent: Scope | None = None, stmts=None):
+        super().__init__(None)
+        self.parent = parent
+        self.vars = dict()
+        self.types = dict()
+        self.stmts = stmts or list()
 
     def register_var(self, name: str, func: Node):
         assert not self.has_member(name)
@@ -35,28 +66,13 @@ class Scope:
         else:
             raise KeyError(f"Type '{name}' not found")
 
-
-@dataclass
-class Node:
-    ast_node: ast.Node | None
-
-    def __iter__(self):
-        return iter(self.__dict__.keys())
-
-    def __getitem__(self, i):
-        return getattr(self, i)
-
-    def __setitem__(self, i, value):
-        return setattr(self, i, value)
-
-    def __repr__(self):
-        return f"ast.{self.__class__.__name__}"
-
-    # def __repr__(self):
-    #     fields = ", ".join(
-    #         f"{f.name}={getattr(self, f.name)}" for f in dataclasses.fields(self) if f.name != "ast_node"
-    #     )
-    #     return f"ir.{self.__class__.__name__}({fields})"
+    def lookup_var(self, name: str) -> Node:
+        if name in self.vars:
+            return self.vars[name]
+        elif self.parent:
+            return self.parent.lookup_var(name)
+        else:
+            raise KeyError(f"Variable '{name}' not found")
 
 
 @dataclass
@@ -84,38 +100,24 @@ class Type(Node):
     pass
 
 
-@dataclass
+@dataclass(init=False)
 class TypeDef(Type):
     super_: Type | None
     name: str
-    attributes: dict[str, Node] = field(default_factory=dict)
-    methods: dict[str, Node] = field(default_factory=dict)
-    types: dict[str, Node] = field(default_factory=dict)
+    scope: Scope
 
-    def add_attribute(self, name: str, attr: Node):
-        assert not self.has_member(name)
-        self.attributes[name] = attr
+    def __init__(self, ast_node: ast.Node | None, super_: Type | None, name: str, scope: Scope):
+        super().__init__(ast_node)
+        self.super_ = super_
+        self.name = name
+        self.scope = scope
+        self_ref = TypeRef(None, name, self)
+        self.scope.register_type("Self", self_ref)
+        # self.scope.register_type(name, self_ref)
 
     def add_method(self, name: str, method: Node):
-        if self.has_member(name):
-            # TODO: ensure all overloaded functions/methods are defined together
-            assert name in self.methods
-            match self.methods[name]:
-                case FunctionDef() as fn:
-                    self.methods[name] = OverloadedFunction(None, name, [fn, method])
-                case OverloadedFunction() as overloads:
-                    overloads.overloads.append(method)
-                case _:
-                    raise NotImplementedError
-        else:
-            self.methods[name] = method
-
-    def add_type(self, name: str, type_: Node):
-        assert not self.has_member(name)
-        self.types[name] = type_
-
-    def has_member(self, name: str) -> bool:
-        return name in self.attributes or name in self.methods
+        assert not self.scope.has_member(name)
+        self.scope.register_var(name, method)
 
 
 @dataclass
@@ -135,14 +137,32 @@ class UntranslatedType(Type):
         raise NotImplementedError(type_name)
 
 
-@dataclass(kw_only=True)
+@dataclass(init=False)
 class EnumType(TypeDef):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
     @staticmethod
-    def translate(node: ast.EnumType):
-        enum_type = EnumType(node, None, name=node.name)
+    def translate(node: ast.EnumType, scope: Scope):
+        enum_type = EnumType(node, None, node.name, Scope(scope))
         for i, val in enumerate(node.values):
-            enum_type.add_type(val.name, EnumValueType.translate(enum_type, i, val))
+            enum_type.scope.register_type(val.name, EnumValueType.translate(enum_type, i, val))
         return enum_type
+
+    def add_method(self, name: str, method: Node):
+        if self.scope.has_member(name):
+            # TODO: ensure all overloaded functions/methods are defined together
+            assert name in self.scope.vars
+            # Look up only in current scope
+            match self.scope.vars[name]:
+                case FunctionDef() as fn:
+                    self.scope.vars[name] = OverloadedFunction(None, name, [fn, method])
+                case OverloadedFunction() as overloads:
+                    overloads.overloads.append(method)
+                case _:
+                    raise NotImplementedError
+        else:
+            self.scope.register_var(name, method)
 
 
 @dataclass(kw_only=True)
@@ -154,7 +174,9 @@ class EnumValueType(TypeDef):
     def translate(enum: EnumType, discr: int, node: ast.EnumValueType):
         assert isinstance(node, ast.EnumValueType)
         field_types: list = [UntranslatedType(t) for t in node.field_types]
-        return EnumValueType(node, TypeRef(None, enum.name, enum), node.name, discr=discr, field_types=field_types)
+        return EnumValueType(
+            node, TypeRef(None, enum.name, enum), node.name, Scope(enum.scope), discr=discr, field_types=field_types
+        )
 
 
 @dataclass
@@ -167,9 +189,22 @@ class ArrayType(Type):
 
 
 @dataclass
+class VoidType(Type):
+    @staticmethod
+    def translate(node: ast.VoidType, _scope):
+        return VoidType(node)
+
+
+@dataclass
 class TypeRef(Type):
     name: str
-    type_: Type
+    # Do not annotate type reference to avoid infinite loops when traversing tree
+    # type_: Type
+
+    def __init__(self, ast_node: ast.Node | None, name: str, type_: Type):
+        super().__init__(ast_node)
+        self.name = name
+        self.type_ = type_
 
     def __repr__(self):
         return f"TypeRef({self.name})"
@@ -210,13 +245,13 @@ class ArgDecl(Node):
 @dataclass
 class FunctionDef(Node):
     type_: Node
-    scope: Scope = field(default_factory=Scope)
+    scope: Scope
 
     @staticmethod
-    def translate(node: ast.FunctionDef):
+    def translate(node: ast.FunctionDef, scope: Scope):
         func_type = FunctionType.translate(node.type_)
         body: list = [Untranslated(stmt) for stmt in node.body]
-        return FunctionDef(node, func_type, Scope(stmts=body))
+        return FunctionDef(node, func_type, Scope(scope, body))
 
 
 @dataclass

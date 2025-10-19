@@ -30,8 +30,6 @@ def traverse(func, node: ir.Node, *args, **kwargs):
         match attr:
             # case ir.WasmExpr():
             #     traverse_wasm(func, attr, *args, **kwargs)
-            case ir.TypeRef():
-                pass
             case ir.Node():
                 node[attr_name] = func(attr, *args, **kwargs)
                 assert node[attr_name] is not None

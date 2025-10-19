@@ -9,11 +9,13 @@ def register_toplevel_decls(node: ast.Node, module: ir.Module):
         case ast.Module():
             traverse_ast.traverse(register_toplevel_decls, node, module)
         case ast.TypeDef():
-            module.scope.register_type(node.name, ir.TypeDef(node, ir.UntranslatedType(node.super_), node.name))
+            module.scope.register_type(
+                node.name, ir.TypeDef(node, ir.UntranslatedType(node.super_), node.name, ir.Scope(module.scope))
+            )
         case ast.EnumType():
-            module.scope.register_type(node.name, ir.EnumType.translate(node))
+            module.scope.register_type(node.name, ir.EnumType.translate(node, module.scope))
         case ast.FunctionDef():
-            module.scope.register_var(node.name, ir.FunctionDef.translate(node))
+            module.scope.register_var(node.name, ir.FunctionDef.translate(node, module.scope))
         case ast.Asm():
             module.add_asm(ir.Untranslated(node))
         case _:
@@ -29,7 +31,7 @@ def register_toplevel_methods(node: ast.Node, module: ir.Module):
             assert isinstance(type_, ir.TypeDef)
             for method in node.methods:
                 assert isinstance(method, ast.FunctionDef)
-                type_.add_method(method.name, ir.FunctionDef.translate(method))
+                type_.add_method(method.name, ir.FunctionDef.translate(method, type_.scope))
         case _:
             return node
 
@@ -45,14 +47,29 @@ def translate_toplevel_type_decls(node: ir.Node, scope=None) -> ir.Node:
             node.scope.types = traverse_ir.traverse_dict(
                 translate_toplevel_type_decls, node.scope.types, scope=node.scope
             )
-            return node
+            node.scope.vars = traverse_ir.traverse_dict(
+                translate_toplevel_type_decls, node.scope.vars, scope=node.scope
+            )
         case ir.UntranslatedType():
             return node.translate(scope)
+        case ir.TypeRef():
+            pass
+        case ir.TypeDef():
+            return traverse_ir.traverse(translate_toplevel_type_decls, node, node.scope)
         case ir.FunctionDef():
-            return node
+            node.type_ = translate_toplevel_type_decls(node.type_, scope)
         case _:
             return traverse_ir.traverse(translate_toplevel_type_decls, node, scope)
+    return node
 
+
+def check_no_untranslated_types(node: ir.Node, _scope=None) -> ir.Node:
+    match node:
+        case ir.UntranslatedType():
+            raise Exception(f"Untranslated type: {node}")
+        case _:
+            return traverse_ir.traverse(check_no_untranslated_types, node, _scope)
+    return node
 
 # def local_decls(node, ctx: ir.Module):
 #     match node:
@@ -74,6 +91,7 @@ toplevel_ast_passes: list = [
 
 ir_passes: list = [
     translate_toplevel_type_decls,
+    check_no_untranslated_types,
 ]
 
 

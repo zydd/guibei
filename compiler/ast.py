@@ -20,33 +20,33 @@ class Node:
 
 
 @dataclass(repr=False)
-class NewType(Node):
+class Type(Node):
     pass
 
 
 @dataclass(repr=False)
 class TypeDef(Node):
     name: str
-    super_: NewType
+    super_: Type
 
 
 @dataclass(repr=False)
-class TupleType(NewType):
-    field_types: list[NewType]
+class TupleType(Type):
+    field_types: list[Type]
 
 
 @dataclass(repr=False)
-class ArrayType(NewType):
-    element_type: NewType
+class ArrayType(Type):
+    element_type: Type
 
 
 @dataclass(repr=False)
-class NativeType(NewType):
+class NativeType(Type):
     args: list[str]
 
 
 @dataclass(repr=False)
-class VoidType(NewType):
+class VoidType(Type):
     pass
 
 
@@ -66,7 +66,7 @@ class ArrayIndex(Node):
 
 @dataclass(repr=False)
 class TypeInstantiation(Node):
-    type_: NewType
+    type_: Type
     args: list[Node]
 
 
@@ -127,14 +127,14 @@ class EnumValueType(TupleType):
 
 
 @dataclass(repr=False)
-class EnumType(NewType):
+class EnumType(Type):
     name: str
     values: list[EnumValueType]
 
 
 @dataclass(repr=False)
 class EnumConst(Node):
-    type_: NewType
+    type_: Type
     name: str
     idx: int
 
@@ -157,20 +157,20 @@ class WasmExpr(Node):
 @dataclass(repr=False)
 class VarDecl(Node):
     name: str
-    type_: NewType
+    type_: Type
     init: Node
 
 
 @dataclass(repr=False)
 class ArgDecl(Node):
     name: str
-    type_: NewType
+    type_: Type
 
 
 @dataclass(repr=False)
-class FunctionType(NewType):
+class FunctionType(Type):
     args: list[ArgDecl]
-    ret_type: NewType
+    ret_type: Type
 
 
 @dataclass(repr=False)
@@ -206,7 +206,7 @@ class FunctionCall(Node):
 
 @dataclass(repr=False)
 class CastExpr(Node):
-    type_: NewType
+    type_: Type
     expr: Node
 
 

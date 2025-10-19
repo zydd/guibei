@@ -138,8 +138,8 @@ enum Option:
 
 
 impl Option:
-    func is_some(self: Option.Some) -> i32:
-        return 1
+    # func is_some(self: Option.Some) -> i32:
+    #     return 1
     func is_some(self: Option) -> i32:
         return 0
 
