@@ -1,70 +1,71 @@
 import typing
 
-from .context import Context
 from .ast import *
 
+from .passes import run as semantic_pass
 
-class CompilePass:
-    def __init__(self):
-        self.wasm = []
-        self.root_context = Context()
 
-    def annotate(self, prog: list):
-        impl_blocks = []
-        root_types = []
-        root_functions = []
+# class CompilePass:
+#     def __init__(self):
+#         self.wasm = []
+#         self.root_context = Context()
 
-        for expr in prog:
-            match expr:
-                case _ if isinstance(expr, NewType):
-                    self.root_context.register_type(expr)
-                case FunctionDef():
-                    self.root_context.register_func(expr)
-                case TypeImpl():
-                    impl_blocks.append(expr)
+#     def annotate(self, prog: list):
+#         impl_blocks = []
+#         root_types = []
+#         root_functions = []
 
-        root_types = list(self.root_context.types.items())
-        root_functions = list(self.root_context.functions.items())
+#         for expr in prog:
+#             match expr:
+#                 case _ if isinstance(expr, NewType):
+#                     self.root_context.register_type(expr)
+#                 case FunctionDef():
+#                     self.root_context.register_func(expr)
+#                 case TypeImpl():
+#                     impl_blocks.append(expr)
 
-        for impl in impl_blocks:
-            impl.register_methods(self.root_context)
+#         root_types = list(self.root_context.types.items())
+#         root_functions = list(self.root_context.functions.items())
 
-        for name, type_ in root_types:
-            self.root_context.types[name] = type_.annotate(self.root_context, None)
+#         for impl in impl_blocks:
+#             impl.register_methods(self.root_context)
 
-        for name, func in root_functions:
-            self.root_context.functions[name].type_ = self.root_context.functions[name].type_.annotate(
-                self.root_context, None
-            )
+#         for name, type_ in root_types:
+#             self.root_context.types[name] = type_.annotate(self.root_context, None)
 
-        for name, func in root_functions:
-            self.root_context.functions[name] = func.annotate(self.root_context, None)
+#         for name, func in root_functions:
+#             self.root_context.functions[name].type_ = self.root_context.functions[name].type_.annotate(
+#                 self.root_context, None
+#             )
 
-        for expr in prog:
-            match expr:
-                case Asm():
-                    expr.annotate(self.root_context, None)
-                    self.wasm.extend(expr.compile())
+#         for name, func in root_functions:
+#             self.root_context.functions[name] = func.annotate(self.root_context, None)
 
-    def compile(self, prog: list):
-        self.annotate(prog)
+#         for expr in prog:
+#             match expr:
+#                 case Asm():
+#                     expr.annotate(self.root_context, None)
+#                     self.wasm.extend(expr.compile())
 
-        for type_ in self.root_context.types.values():
-            self.wasm.extend(type_.declaration())
+#     def compile(self, prog: list):
+#         self.annotate(prog)
 
-        for func in self.root_context.functions.values():
-            self.wasm.extend(func.declaration())
+#         for type_ in self.root_context.types.values():
+#             self.wasm.extend(type_.declaration())
 
-    def write(self, out: typing.BinaryIO):
-        out.write(b"(module\n")
+#         for func in self.root_context.functions.values():
+#             self.wasm.extend(func.declaration())
 
-        for w in self.root_context.imports:
-            out.write(w.repr_indented(1).encode())
-            out.write(b"\n")
+#     def write(self, out: typing.BinaryIO):
+#         out.write(b"(module\n")
 
-        for w in self.wasm:
-            out.write(w.repr_indented(1).encode())
-            out.write(b"\n")
+#         for w in self.root_context.imports:
+#             out.write(w.repr_indented(1).encode())
+#             out.write(b"\n")
 
-        out.write(b")\n")
-        out.flush()
+#         for w in self.wasm:
+#             out.write(w.repr_indented(1).encode())
+#             out.write(b"\n")
+
+#         out.write(b")\n")
+#         out.flush()

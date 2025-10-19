@@ -83,7 +83,7 @@ impl i32:
 
 type i8: __native_type<i8>
 type bytes: i8[]
-
+type str: bytes
 
 impl bytes:
     # func __from_literal(i: __int_literal):
