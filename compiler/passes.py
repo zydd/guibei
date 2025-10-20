@@ -57,30 +57,42 @@ def translate_toplevel_type_decls(node: ir.Node, scope=None) -> ir.Node:
         case ir.TypeDef():
             return traverse_ir.traverse(translate_toplevel_type_decls, node, node.scope)
         case ir.FunctionDef():
-            node.type_ = translate_toplevel_type_decls(node.type_, scope)
+            type_ = translate_toplevel_type_decls(node.type_, scope)
+            assert isinstance(type_, ir.FunctionType)
+            node.type_ = type_
         case _:
             return traverse_ir.traverse(translate_toplevel_type_decls, node, scope)
     return node
 
 
-def check_no_untranslated_types(node: ir.Node, _scope=None) -> ir.Node:
+def check_no_untranslated_types(node: ir.Node, scope=None) -> ir.Node:
     match node:
         case ir.UntranslatedType():
             raise Exception(f"Untranslated type: {node}")
         case _:
-            return traverse_ir.traverse(check_no_untranslated_types, node, _scope)
+            return traverse_ir.traverse(check_no_untranslated_types, node, scope)
     return node
 
 
-# def local_decls(node, ctx: ir.Module):
-#     match node:
-#         case ast.FunctionDef():
-#             return traverse_ast.traverse(local_decls, node, ctx.new())
-#         case ast.ArgDecl():
-#             ctx.variables[node.name] = node
-#         case ast.Identifier():
-#             return ("ArgRef", node.name)
-#     return traverse_ast.traverse(local_decls, node, ctx)
+def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
+    match node:
+        case ir.FunctionDef():
+            for arg in node.type_.args:
+                node.scope.register_var(arg.name, arg)
+            node.scope = traverse_ir.traverse(translate_function_defs, node.scope, node.scope)
+        case ir.Untranslated(ast.VarDecl() as var):
+            var_type = ir.UntranslatedType(var.type_).translate(scope)
+            var_decl = ir.VarDecl(var, var.name, var_type)
+            scope.register_var(var_decl.name, var_decl)
+            if var.init:
+                var_init = ir.SetLocal(var.init, ir.VarRef(None, var_decl), ir.Untranslated(var.init))
+                return translate_function_defs(var_init, scope)
+            else:
+                return ir.VoidType(None)
+        # TODO: translate all statements
+        case _:
+            return traverse_ir.traverse(translate_function_defs, node, scope)
+    return node
 
 
 toplevel_ast_passes: list = [
@@ -93,6 +105,7 @@ toplevel_ast_passes: list = [
 ir_passes: list = [
     translate_toplevel_type_decls,
     check_no_untranslated_types,
+    translate_function_defs,
 ]
 
 

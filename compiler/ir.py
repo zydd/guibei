@@ -47,9 +47,9 @@ class Scope(Node):
         self.types = dict()
         self.stmts = stmts or list()
 
-    def register_var(self, name: str, func: Node):
+    def register_var(self, name: str, var: Node):
         assert not self.has_member(name)
-        self.vars[name] = func
+        self.vars[name] = var
 
     def register_type(self, name: str, type_: Type):
         assert not self.has_member(name)
@@ -79,6 +79,13 @@ class Scope(Node):
 class Untranslated(Node):
     def __repr__(self):
         return f"Untranslated({self.ast_node})"
+
+    def translate(self, scope: Scope):
+        type_name = type(self.ast_node).__name__
+        ir_type = globals().get(type_name)
+        if ir_type:
+            return ir_type.translate(self.ast_node, scope)
+        raise NotImplementedError
 
 
 @dataclass
@@ -125,7 +132,7 @@ class UntranslatedType(Type):
     def __repr__(self):
         return f"UntranslatedType({self.ast_node})"
 
-    def translate(self, scope: Scope):
+    def translate(self, scope: Scope) -> Type:
         type_name = type(self.ast_node).__name__
         ir_type = globals().get(type_name)
         if ir_type:
@@ -249,8 +256,33 @@ class ArgDecl(Node):
 
 
 @dataclass
+class VarDecl(Node):
+    name: str
+    type_: Type
+
+
+@dataclass
+class VarRef(Node):
+    # Do not annotate type reference to avoid infinite loops when traversing tree
+    # var: Node
+
+    def __init__(self, ast_node: ast.Node | None, var: ArgDecl | VarDecl):
+        super().__init__(ast_node)
+        self.var = var
+
+    def __repr__(self):
+        return f"VarRef({self.var.name})"
+
+
+@dataclass
+class SetLocal(Node):
+    var: VarRef
+    expr: Node
+
+
+@dataclass
 class FunctionDef(Node):
-    type_: Node
+    type_: FunctionType
     scope: Scope
 
     @staticmethod
