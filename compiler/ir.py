@@ -36,39 +36,39 @@ class Node:
 class Scope(Node):
     # Do not annotate parent scope to avoid infinite loops when traversing tree
     # parent: Scope | None
-    vars: dict[str, Node] = field(default_factory=dict)
-    types: dict[str, Type] = field(default_factory=dict)
+    attrs: dict[str, Node] = field(default_factory=dict)
     body: list[Node] = field(default_factory=list)
 
     def __init__(self, parent: Scope | None = None, body=None):
         super().__init__(None)
         self.parent = parent
-        self.vars = dict()
-        self.types = dict()
+        self.attrs = dict()
         self.body = body or list()
 
     def register_var(self, name: str, var: Node):
         assert not self.has_member(name)
-        self.vars[name] = var
+        self.attrs[name] = var
 
     def register_type(self, name: str, type_: Type):
         assert not self.has_member(name)
-        self.types[name] = type_
+        self.attrs[name] = type_
 
     def has_member(self, name: str) -> bool:
-        return name in self.vars or name in self.types
+        return name in self.attrs
 
     def lookup_type(self, name: str) -> Type:
-        if name in self.types:
-            return self.types[name]
+        if name in self.attrs:
+            res = self.attrs[name]
+            assert isinstance(res, Type)
+            return res
         elif self.parent:
             return self.parent.lookup_type(name)
         else:
             raise KeyError(f"Type '{name}' not found")
 
     def lookup_var(self, name: str) -> Node:
-        if name in self.vars:
-            return self.vars[name]
+        if name in self.attrs:
+            return self.attrs[name]
         elif self.parent:
             return self.parent.lookup_var(name)
         else:
@@ -144,7 +144,7 @@ class UntranslatedType(Type):
             case ast.MemberAccess(expr=ast.TypeIdentifier() as expr, attr=str()):
                 type_ = scope.lookup_type(expr.name)
                 assert isinstance(type_, TypeDef)
-                member = type_.scope.types[self.ast_node.attr]
+                member = type_.scope.attrs[self.ast_node.attr]
                 assert isinstance(member, TypeDef)
                 return TypeRef(self.ast_node, member.name, member)
         raise NotImplementedError(type_name)
@@ -165,11 +165,11 @@ class EnumType(TypeDef):
     def add_method(self, name: str, method: Node):
         if self.scope.has_member(name):
             # TODO: ensure all overloaded functions/methods are defined together
-            assert name in self.scope.vars
+            assert name in self.scope.attrs
             # Look up only in current scope
-            match self.scope.vars[name]:
+            match self.scope.attrs[name]:
                 case FunctionDef() as fn:
-                    self.scope.vars[name] = OverloadedFunction(None, name, [fn, method])
+                    self.scope.attrs[name] = OverloadedFunction(None, name, [fn, method])
                 case OverloadedFunction() as overloads:
                     overloads.overloads.append(method)
                 case _:

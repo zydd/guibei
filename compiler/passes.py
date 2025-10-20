@@ -44,11 +44,8 @@ def check_unallowed_toplevel_decls(node: ast.Node, module: ir.Module):
 def translate_toplevel_type_decls(node: ir.Node, scope=None) -> ir.Node:
     match node:
         case ir.Module():
-            node.scope.types = traverse_ir.traverse_dict(
-                translate_toplevel_type_decls, node.scope.types, scope=node.scope
-            )
-            node.scope.vars = traverse_ir.traverse_dict(
-                translate_toplevel_type_decls, node.scope.vars, scope=node.scope
+            node.scope.attrs = traverse_ir.traverse_dict(
+                translate_toplevel_type_decls, node.scope.attrs, scope=node.scope
             )
         case ir.UntranslatedType():
             return node.translate(scope)
