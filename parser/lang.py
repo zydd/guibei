@@ -197,7 +197,7 @@ def binop(ops, unit):
 
     # TODO: right-association
     for op, rhs in zip(operators, terms):
-        res = ast.Call(ast.Identifier(op), [res, rhs])
+        res = ast.Call(ast.Identifier(f"({op})"), [res, rhs])
 
     return res
 

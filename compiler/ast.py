@@ -3,8 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from collections import defaultdict
 
+_ast_repr = False
 
-@dataclass(repr=False)
+
+@dataclass(repr=_ast_repr)
 class Node:
     def __iter__(self):
         return iter(self.__dict__.keys())
@@ -19,38 +21,38 @@ class Node:
         return f"ast.{self.__class__.__name__}"
 
 
-@dataclass(repr=False)
+@dataclass(repr=_ast_repr)
 class Type(Node):
     pass
 
 
-@dataclass(repr=False)
+@dataclass(repr=_ast_repr)
 class TypeDef(Node):
     name: str
     super_: Type
 
 
-@dataclass(repr=False)
+@dataclass(repr=_ast_repr)
 class TupleType(Type):
     field_types: list[Type]
 
 
-@dataclass(repr=False)
+@dataclass(repr=_ast_repr)
 class ArrayType(Type):
     element_type: Type
 
 
-@dataclass(repr=False)
+@dataclass(repr=_ast_repr)
 class NativeType(Type):
     args: list[str]
 
 
-@dataclass(repr=False)
+@dataclass(repr=_ast_repr)
 class VoidType(Type):
     pass
 
 
-@dataclass(repr=False)
+@dataclass(repr=_ast_repr)
 class TypeIdentifier(Node):
     name: str
 
@@ -58,159 +60,162 @@ class TypeIdentifier(Node):
         return f"TypeIdentifier({self.name})"
 
 
-@dataclass(repr=False)
+@dataclass(repr=_ast_repr)
 class ArrayIndex(Node):
     array: Node
     idx: Node
 
 
-@dataclass(repr=False)
+@dataclass(repr=_ast_repr)
 class TypeInstantiation(Node):
     type_: Type
     args: list[Node]
 
 
-@dataclass(repr=False)
+@dataclass(repr=_ast_repr)
 class TypeImpl(Node):
     type_name: str
     methods: list[Node]
 
 
-@dataclass(repr=False)
+@dataclass(repr=_ast_repr)
 class TupleIndex(Node):
     tuple_: Node
     idx: int
 
 
-@dataclass(repr=False)
+@dataclass(repr=_ast_repr)
 class IfStatement(Node):
     condition: Node
     body_then: list[Node]
     body_else: list[Node]
 
 
-@dataclass(repr=False)
+@dataclass(repr=_ast_repr)
 class WhileStatement(Node):
     condition: Node
     body: list[Node]
 
 
-@dataclass(repr=False)
+@dataclass(repr=_ast_repr)
 class ReturnStatement(Node):
     expr: Node
 
 
-@dataclass(repr=False)
+@dataclass(repr=_ast_repr)
 class Assignment(Node):
     lvalue: Node
     expr: Node
 
 
-@dataclass(repr=False)
+@dataclass(repr=_ast_repr)
 class IntLiteral(Node):
     value: int
 
 
-@dataclass(repr=False)
+@dataclass(repr=_ast_repr)
 class StringLiteral(Node):
     value_str: str
 
 
-@dataclass(repr=False)
+@dataclass(repr=_ast_repr)
 class Identifier(Node):
     name: str
 
+    def __repr__(self):
+        return f"Identifier({self.name})"
 
-@dataclass(repr=False)
+
+@dataclass(repr=_ast_repr)
 class EnumValueType(TupleType):
     name: str
 
 
-@dataclass(repr=False)
+@dataclass(repr=_ast_repr)
 class EnumType(Type):
     name: str
     values: list[EnumValueType]
 
 
-@dataclass(repr=False)
+@dataclass(repr=_ast_repr)
 class EnumConst(Node):
     type_: Type
     name: str
     idx: int
 
 
-@dataclass(repr=False)
+@dataclass(repr=_ast_repr)
 class EnumTupleType(TupleType):
     idx: int
 
 
-@dataclass(repr=False)
+@dataclass(repr=_ast_repr)
 class Asm(Node):
     expr: list[WasmExpr]
 
 
-@dataclass(repr=False)
+@dataclass(repr=_ast_repr)
 class WasmExpr(Node):
     terms: list[WasmExpr]
 
 
-@dataclass(repr=False)
+@dataclass(repr=_ast_repr)
 class VarDecl(Node):
     name: str
     type_: Type
     init: Node
 
 
-@dataclass(repr=False)
+@dataclass(repr=_ast_repr)
 class ArgDecl(Node):
     name: str
     type_: Type
 
 
-@dataclass(repr=False)
+@dataclass(repr=_ast_repr)
 class FunctionType(Type):
     args: list[ArgDecl]
     ret_type: Type
 
 
-@dataclass(repr=False)
+@dataclass(repr=_ast_repr)
 class FunctionDef(Node):
     name: str
     type_: FunctionType
     body: list[Node]
 
 
-@dataclass(repr=False)
+@dataclass(repr=_ast_repr)
 class Call(Node):
     callee: Node
     args: list[Node]
 
 
-@dataclass(repr=False)
+@dataclass(repr=_ast_repr)
 class BoundMethod(Node):
     obj: Node
     func: FunctionDef
 
 
-@dataclass(repr=False)
+@dataclass(repr=_ast_repr)
 class MemberAccess(Node):
     expr: Node
     attr: str
 
 
-@dataclass(repr=False)
+@dataclass(repr=_ast_repr)
 class FunctionCall(Node):
     func: FunctionDef
     args: list[Node]
 
 
-@dataclass(repr=False)
+@dataclass(repr=_ast_repr)
 class CastExpr(Node):
     type_: Type
     expr: Node
 
 
-@dataclass(repr=False)
+@dataclass(repr=_ast_repr)
 class Module(Node):
     stmts: list[Node]
 

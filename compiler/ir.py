@@ -38,14 +38,14 @@ class Scope(Node):
     # parent: Scope | None
     vars: dict[str, Node] = field(default_factory=dict)
     types: dict[str, Type] = field(default_factory=dict)
-    stmts: list[Node] = field(default_factory=list)
+    body: list[Node] = field(default_factory=list)
 
-    def __init__(self, parent: Scope | None = None, stmts=None):
+    def __init__(self, parent: Scope | None = None, body=None):
         super().__init__(None)
         self.parent = parent
         self.vars = dict()
         self.types = dict()
-        self.stmts = stmts or list()
+        self.body = body or list()
 
     def register_var(self, name: str, var: Node):
         assert not self.has_member(name)
@@ -296,3 +296,22 @@ class FunctionDef(Node):
 class OverloadedFunction(Node):
     name: str
     overloads: list[Node]
+
+
+@dataclass
+class Loop(Node):
+    pre_condition: Node
+    scope: Scope
+    post_condition: Node | None = None
+
+
+@dataclass
+class IfElse(Node):
+    condition: Node
+    scope_then: Scope
+    scope_else: Scope
+
+
+@dataclass
+class FunctionReturn(Node):
+    expr: Node
