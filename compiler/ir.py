@@ -134,6 +134,12 @@ class UntranslatedType(Type):
             case ast.TypeIdentifier():
                 type_ = scope.lookup_type(self.ast_node.name)
                 return TypeRef(self.ast_node, self.ast_node.name, type_)
+            case ast.MemberAccess(expr=ast.TypeIdentifier() as expr, attr=str()):
+                type_ = scope.lookup_type(expr.name)
+                assert isinstance(type_, TypeDef)
+                member = type_.scope.types[self.ast_node.attr]
+                assert isinstance(member, TypeDef)
+                return TypeRef(self.ast_node, member.name, member)
         raise NotImplementedError(type_name)
 
 

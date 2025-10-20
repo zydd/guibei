@@ -71,6 +71,7 @@ def check_no_untranslated_types(node: ir.Node, _scope=None) -> ir.Node:
             return traverse_ir.traverse(check_no_untranslated_types, node, _scope)
     return node
 
+
 # def local_decls(node, ctx: ir.Module):
 #     match node:
 #         case ast.FunctionDef():
