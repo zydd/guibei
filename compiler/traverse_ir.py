@@ -2,15 +2,15 @@ from . import ast
 from . import ir
 
 
-# def traverse_wasm(func, node, *args, **kwargs):
-#     node.terms = [
-#         (
-#             traverse_wasm(func, a, *args, **kwargs)
-#             if isinstance(a, ir.WasmExpr)
-#             else func(a, *args, **kwargs) if isinstance(a, ir.Node) else a
-#         )
-#         for a in node.terms
-#     ]
+def traverse_wasm(func, node, *args, **kwargs):
+    node.terms = [
+        (
+            traverse_wasm(func, a, *args, **kwargs)
+            if isinstance(a, ir.WasmExpr)
+            else func(a, *args, **kwargs) if isinstance(a, ir.Node) else a
+        )
+        for a in node.terms
+    ]
 
 
 def traverse_dict(func, attr: dict, *args, **kwargs):
@@ -28,8 +28,8 @@ def traverse(func, node: ir.Node, *args, **kwargs):
         if attr_name == "ast_node":
             continue
         match attr:
-            # case ir.WasmExpr():
-            #     traverse_wasm(func, attr, *args, **kwargs)
+            case ir.WasmExpr():
+                traverse_wasm(func, attr, *args, **kwargs)
             case ir.Node():
                 node[attr_name] = func(attr, *args, **kwargs)
                 assert node[attr_name] is not None

@@ -318,6 +318,16 @@ class StringLiteral(Expr):
         return StringLiteral(node, node.value)
 
 
+@dataclass
+class WasmExpr(Node):
+    terms: list[WasmExpr | str | int]
+
+    @staticmethod
+    def translate(node: ast.WasmExpr, _scope: Scope) -> Node:
+        terms: list = [Untranslated(term) if isinstance(term, ast.Node) else term for term in node.terms]
+        return WasmExpr(node, terms)
+
+
 # ----------------------------------------------------------------------
 # References
 # ----------------------------------------------------------------------

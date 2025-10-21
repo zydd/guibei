@@ -77,6 +77,8 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
             for arg in node.type_.args:
                 node.scope.register_var(arg.name, arg)
             node.scope = traverse_ir.traverse(translate_function_defs, node.scope, node.scope)
+            return node
+
         case ir.Untranslated(ast.VarDecl() as var):
             var_type = ir.UntranslatedType(var.type_).translate(scope)
             var_decl = ir.VarDecl(var, var.name, var_type)
@@ -87,8 +89,25 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
             else:
                 return ir.VoidType(None)
 
-        case ir.Untranslated(ast.Identifier() | ast.TypeIdentifier() | ast.WasmExpr()):
-            pass
+        case ir.Untranslated(ast.Identifier() | ast.TypeIdentifier() as id):
+            attr = scope.lookup(id.name)
+            if isinstance(id, ast.TypeIdentifier):
+                assert isinstance(attr, ir.Type)
+
+            match attr:
+                case ir.VarDecl() | ir.ArgDecl():
+                    return ir.VarRef(id, attr)
+                case ir.FunctionDef():
+                    return ir.FunctionRef(id, id.name, attr)
+                case ir.TypeDef():
+                    return ir.TypeRef(id, id.name, attr)
+                case _:
+                    raise NotImplementedError(attr)
+
+        case ir.WasmExpr():
+            terms: list = [translate_function_defs(a, scope) if isinstance(a, ir.Node) else a for a in node.terms]
+            node.terms = terms
+            return node
 
         case ir.Untranslated(ast.While() as while_stmt):
             pre_condition = ir.Untranslated(while_stmt.condition)
@@ -101,6 +120,16 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
 
         case _:
             return traverse_ir.traverse(translate_function_defs, node, scope)
+
+    raise NotImplementedError(node)
+
+
+def check_no_untranslated_nodes(node: ir.Node) -> ir.Node:
+    match node:
+        case ir.Untranslated():
+            raise Exception(f"Untranslated node: {node}")
+        case _:
+            return traverse_ir.traverse(check_no_untranslated_nodes, node)
     return node
 
 
