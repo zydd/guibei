@@ -87,12 +87,8 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
             else:
                 return ir.VoidType(None)
 
-        case ir.Untranslated(ast.IfStatement() as if_stmt):
-            condition = ir.Untranslated(if_stmt.condition)
-            scope_then = ir.Scope(scope, body=[ir.Untranslated(stmt) for stmt in if_stmt.body_then])
-            scope_else = ir.Scope(scope, body=[ir.Untranslated(stmt) for stmt in if_stmt.body_else])
-            if_else = ir.IfElse(if_stmt, condition, scope_then, scope_else)
-            return translate_function_defs(if_else, scope)
+        case ir.Untranslated(ast.Identifier() | ast.TypeIdentifier() | ast.WasmExpr()):
+            pass
 
         case ir.Untranslated(ast.WhileStatement() as while_stmt):
             pre_condition = ir.Untranslated(while_stmt.condition)
@@ -100,17 +96,8 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
             loop = ir.Loop(while_stmt, pre_condition, loop_scope)
             return translate_function_defs(loop, scope)
 
-        case ir.Untranslated(ast.ReturnStatement() as return_stmt):
-            expr = ir.Untranslated(return_stmt.expr)
-            return ir.FunctionReturn(return_stmt, expr)
-
-        # TODO: translate all statements
-        case ir.Untranslated(ast.Call() as call):
-            pass
-        case ir.Untranslated(ast.Assignment() as assign):
-            pass
-        case ir.Untranslated(ast.Asm() as asm):
-            pass
+        case ir.Untranslated():
+            return translate_function_defs(node.translate(scope), scope)
 
         case _:
             return traverse_ir.traverse(translate_function_defs, node, scope)

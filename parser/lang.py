@@ -165,7 +165,7 @@ def call(callee):
 @generate
 def array_index(array):
     idx = yield brackets(optional(expr()))
-    return ast.ArrayIndex(array, idx)
+    return ast.GetItem(array, idx)
 
 
 @generate
@@ -176,7 +176,7 @@ def attr_access(expr):
     if isinstance(attr, int):
         return ast.TupleIndex(expr, attr)
     else:
-        return ast.MemberAccess(expr, attr)
+        return ast.GetAttr(expr, attr)
 
 
 @generate
@@ -225,14 +225,14 @@ def if_block():
     yield regex(r" *:")
     body_then = yield indented_block(statement())
     body_else = yield optional(else_block())
-    return ast.IfStatement(condition, body_then, body_else if body_else is not None else [])
+    return ast.IfElse(condition, body_then, body_else if body_else is not None else [])
 
 
 @generate
 def return_statement():
     yield regex(r"return\b *")
     res = yield optional(expr())
-    return ast.ReturnStatement(res if res is not None else ast.VoidType())
+    return ast.FunctionReturn(res if res is not None else ast.VoidType())
 
 
 @generate

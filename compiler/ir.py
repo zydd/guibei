@@ -66,13 +66,13 @@ class Scope(Node):
         else:
             raise KeyError(f"Type '{name}' not found")
 
-    def lookup_var(self, name: str) -> Node:
+    def lookup(self, name: str) -> Node:
         if name in self.attrs:
             return self.attrs[name]
         elif self.parent:
-            return self.parent.lookup_var(name)
+            return self.parent.lookup(name)
         else:
-            raise KeyError(f"Variable '{name}' not found")
+            raise KeyError(f"Attribute '{name}' not found")
 
 
 @dataclass
@@ -85,7 +85,7 @@ class Untranslated(Node):
         ir_type = globals().get(type_name)
         if ir_type:
             return ir_type.translate(self.ast_node, scope)
-        raise NotImplementedError
+        raise NotImplementedError(self)
 
 
 @dataclass
@@ -141,7 +141,7 @@ class UntranslatedType(Type):
             case ast.TypeIdentifier():
                 type_ = scope.lookup_type(self.ast_node.name)
                 return TypeRef(self.ast_node, self.ast_node.name, type_)
-            case ast.MemberAccess(expr=ast.TypeIdentifier() as expr, attr=str()):
+            case ast.GetAttr(obj=ast.TypeIdentifier() as expr, attr=str()):
                 type_ = scope.lookup_type(expr.name)
                 assert isinstance(type_, TypeDef)
                 member = type_.scope.attrs[self.ast_node.attr]
@@ -311,7 +311,110 @@ class IfElse(Node):
     scope_then: Scope
     scope_else: Scope
 
+    @staticmethod
+    def translate(node: ast.IfElse, scope: Scope):
+        condition = Untranslated(node.condition)
+        scope_then = Scope(scope, body=[Untranslated(stmt) for stmt in node.body_then])
+        scope_else = Scope(scope, body=[Untranslated(stmt) for stmt in node.body_else])
+        return IfElse(node, condition, scope_then, scope_else)
+
 
 @dataclass
 class FunctionReturn(Node):
     expr: Node
+
+    @staticmethod
+    def translate(node: ast.FunctionReturn, _scope: Scope):
+        return FunctionReturn(node, Untranslated(node.expr))
+
+
+@dataclass
+class Call(Node):
+    callee: Node
+    args: list[Node]
+
+    @staticmethod
+    def translate(node: ast.Call, _scope: Scope):
+        callee = Untranslated(node.callee)
+        args: list = [Untranslated(arg) for arg in node.args]
+        return Call(node, callee, args)
+
+
+@dataclass
+class BoundMethod(Node):
+    instance: Node
+    method: Node
+
+
+@dataclass
+class GetAttr(Node):
+    obj: Node
+    attr: str
+
+    @staticmethod
+    def translate(node: ast.GetAttr, _scope: Scope):
+        obj = Untranslated(node.obj)
+        return GetAttr(node, obj, node.attr)
+
+
+@dataclass
+class Assignment(Node):
+    lvalue: Node
+    expr: Node
+
+    @staticmethod
+    def translate(node: ast.Assignment, _scope: Scope):
+        lvalue = Untranslated(node.lvalue)
+        expr = Untranslated(node.expr)
+        return Assignment(node, lvalue, expr)
+
+
+@dataclass
+class IntLiteral(Node):
+    value: int
+
+    @staticmethod
+    def translate(node: ast.IntLiteral, _scope: Scope):
+        return IntLiteral(node, node.value)
+
+
+@dataclass
+class StringLiteral(Node):
+    value: str
+
+    @staticmethod
+    def translate(node: ast.StringLiteral, _scope: Scope):
+        return StringLiteral(node, node.value)
+
+
+@dataclass
+class Asm(Node):
+    terms: Node
+
+    @staticmethod
+    def translate(node: ast.Asm, _scope: Scope):
+        terms = Untranslated(node.terms)
+        return Asm(node, terms)
+
+
+@dataclass
+class GetItem(Node):
+    expr: Node
+    idx: Node
+
+    @staticmethod
+    def translate(node: ast.GetItem, _scope: Scope):
+        expr = Untranslated(node.expr)
+        idx = Untranslated(node.idx)
+        return GetItem(node, expr, idx)
+
+
+@dataclass
+class FunctionRef(Node):
+    name: str
+    # function: FunctionDef
+
+    def __init__(self, ast_node: ast.Node | None, name: str, function: FunctionDef):
+        super().__init__(ast_node)
+        self.name = name
+        self.function = function
