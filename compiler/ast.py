@@ -21,15 +21,14 @@ class Node:
         return f"ast.{self.__class__.__name__}"
 
 
+# ----------------------------------------------------------------------
+# Types
+# ----------------------------------------------------------------------
+
+
 @dataclass(repr=_ast_repr)
 class Type(Node):
     pass
-
-
-@dataclass(repr=_ast_repr)
-class TypeDef(Node):
-    name: str
-    super_: Type
 
 
 @dataclass(repr=_ast_repr)
@@ -53,11 +52,39 @@ class VoidType(Type):
 
 
 @dataclass(repr=_ast_repr)
-class TypeIdentifier(Node):
+class FunctionType(Type):
+    args: list[ArgDecl]
+    ret_type: Type
+
+
+@dataclass(repr=_ast_repr)
+class TypeDef(Type):
+    name: str
+    super_: Type
+
+
+@dataclass(repr=_ast_repr)
+class TypeIdentifier(Type):
     name: str
 
     def __repr__(self):
         return f"TypeIdentifier({self.name})"
+
+
+@dataclass(repr=_ast_repr)
+class EnumType(Type):
+    name: str
+    values: list[EnumValueType]
+
+
+@dataclass(repr=_ast_repr)
+class EnumValueType(TupleType):
+    name: str
+
+
+# ----------------------------------------------------------------------
+# Expressions
+# ----------------------------------------------------------------------
 
 
 @dataclass(repr=_ast_repr)
@@ -73,9 +100,82 @@ class GetTupleItem(Node):
 
 
 @dataclass(repr=_ast_repr)
+class IntLiteral(Node):
+    value: int
+
+
+@dataclass(repr=_ast_repr)
+class StringLiteral(Node):
+    value: str
+
+
+@dataclass(repr=_ast_repr)
+class Identifier(Node):
+    name: str
+
+    def __repr__(self):
+        return f"Identifier({self.name})"
+
+
+@dataclass(repr=_ast_repr)
+class Asm(Node):
+    terms: WasmExpr
+
+
+@dataclass(repr=_ast_repr)
+class WasmExpr(Node):
+    terms: list[WasmExpr]
+
+
+@dataclass(repr=_ast_repr)
+class Call(Node):
+    callee: Node
+    args: list[Node]
+
+
+@dataclass(repr=_ast_repr)
+class GetAttr(Node):
+    obj: Node
+    attr: str
+
+
+# ----------------------------------------------------------------------
+# Statements
+# ----------------------------------------------------------------------
+
+
+@dataclass(repr=_ast_repr)
+class Module(Node):
+    stmts: list[Node]
+
+    def __init__(self, stmts: list[Node]):
+        self.stmts = stmts
+
+
+@dataclass(repr=_ast_repr)
+class FunctionDef(Node):
+    name: str
+    type_: FunctionType
+    body: list[Node]
+
+
+@dataclass(repr=_ast_repr)
 class TypeImpl(Node):
     type_name: str
     methods: list[Node]
+
+
+@dataclass(repr=_ast_repr)
+class VarDecl(Node):
+    name: str
+    type_: Type
+    init: Node
+
+
+@dataclass(repr=_ast_repr)
+class ArgDecl(Node):
+    name: str
+    type_: Type
 
 
 @dataclass(repr=_ast_repr)
@@ -100,88 +200,3 @@ class FunctionReturn(Node):
 class Assignment(Node):
     lvalue: Node
     expr: Node
-
-
-@dataclass(repr=_ast_repr)
-class IntLiteral(Node):
-    value: int
-
-
-@dataclass(repr=_ast_repr)
-class StringLiteral(Node):
-    value: str
-
-
-@dataclass(repr=_ast_repr)
-class Identifier(Node):
-    name: str
-
-    def __repr__(self):
-        return f"Identifier({self.name})"
-
-
-@dataclass(repr=_ast_repr)
-class EnumValueType(TupleType):
-    name: str
-
-
-@dataclass(repr=_ast_repr)
-class EnumType(Type):
-    name: str
-    values: list[EnumValueType]
-
-
-@dataclass(repr=_ast_repr)
-class Asm(Node):
-    terms: WasmExpr
-
-
-@dataclass(repr=_ast_repr)
-class WasmExpr(Node):
-    terms: list[WasmExpr]
-
-
-@dataclass(repr=_ast_repr)
-class VarDecl(Node):
-    name: str
-    type_: Type
-    init: Node
-
-
-@dataclass(repr=_ast_repr)
-class ArgDecl(Node):
-    name: str
-    type_: Type
-
-
-@dataclass(repr=_ast_repr)
-class FunctionType(Type):
-    args: list[ArgDecl]
-    ret_type: Type
-
-
-@dataclass(repr=_ast_repr)
-class FunctionDef(Node):
-    name: str
-    type_: FunctionType
-    body: list[Node]
-
-
-@dataclass(repr=_ast_repr)
-class Call(Node):
-    callee: Node
-    args: list[Node]
-
-
-@dataclass(repr=_ast_repr)
-class GetAttr(Node):
-    obj: Node
-    attr: str
-
-
-@dataclass(repr=_ast_repr)
-class Module(Node):
-    stmts: list[Node]
-
-    def __init__(self, stmts: list[Node]):
-        self.stmts = stmts

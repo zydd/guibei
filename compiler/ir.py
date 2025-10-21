@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import copy
-import dataclasses
-from collections import OrderedDict
+# from collections import OrderedDict
 from dataclasses import dataclass, field
 
 
@@ -36,7 +34,7 @@ class Node:
 class Scope(Node):
     # Do not annotate parent scope to avoid infinite loops when traversing tree
     # parent: Scope | None
-    attrs: dict[str, Node] = field(default_factory=dict)
+    attrs: dict[str, Node] = field(default_factory=dict)  # OrderedDict
     body: list[Node] = field(default_factory=list)
 
     def __init__(self, parent: Scope | None = None, body=None):
@@ -76,19 +74,6 @@ class Scope(Node):
 
 
 @dataclass
-class Untranslated(Node):
-    def __repr__(self):
-        return f"Untranslated({self.ast_node})"
-
-    def translate(self, scope: Scope):
-        type_name = type(self.ast_node).__name__
-        ir_type = globals().get(type_name)
-        if ir_type:
-            return ir_type.translate(self.ast_node, scope)
-        raise NotImplementedError(self)
-
-
-@dataclass
 class Module(Node):
     scope: Scope = field(default_factory=Scope)
     asm: list[Node] = field(default_factory=list)
@@ -103,28 +88,26 @@ class Module(Node):
 
 
 @dataclass
+class Untranslated(Node):
+    def __repr__(self):
+        return f"Untranslated({self.ast_node})"
+
+    def translate(self, scope: Scope):
+        type_name = type(self.ast_node).__name__
+        ir_type = globals().get(type_name)
+        if ir_type:
+            return ir_type.translate(self.ast_node, scope)
+        raise NotImplementedError(self)
+
+
+# ----------------------------------------------------------------------
+# Types
+# ----------------------------------------------------------------------
+
+
+@dataclass
 class Type(Node):
     pass
-
-
-@dataclass(init=False)
-class TypeDef(Type):
-    super_: Type | None
-    name: str
-    scope: Scope
-
-    def __init__(self, ast_node: ast.Node | None, super_: Type | None, name: str, scope: Scope):
-        super().__init__(ast_node)
-        self.super_ = super_
-        self.name = name
-        self.scope = scope
-        self_ref = TypeRef(None, name, self)
-        self.scope.register_type("Self", self_ref)
-        # self.scope.register_type(name, self_ref)
-
-    def add_method(self, name: str, method: Node):
-        assert not self.scope.has_member(name)
-        self.scope.register_var(name, method)
 
 
 @dataclass
@@ -148,6 +131,68 @@ class UntranslatedType(Type):
                 assert isinstance(member, TypeDef)
                 return TypeRef(self.ast_node, member.name, member)
         raise NotImplementedError(type_name)
+
+
+@dataclass(init=False)
+class TypeDef(Type):
+    super_: Type | None
+    name: str
+    scope: Scope
+
+    def __init__(self, ast_node: ast.Node | None, super_: Type | None, name: str, scope: Scope):
+        super().__init__(ast_node)
+        self.super_ = super_
+        self.name = name
+        self.scope = scope
+        self_ref = TypeRef(None, name, self)
+        self.scope.register_type("Self", self_ref)
+        # self.scope.register_type(name, self_ref)
+
+    def add_method(self, name: str, method: Node):
+        assert not self.scope.has_member(name)
+        self.scope.register_var(name, method)
+
+
+@dataclass
+class ArrayType(Type):
+    element_type: Type
+
+    @staticmethod
+    def translate(node: ast.ArrayType, scope: Scope):
+        return ArrayType(node, UntranslatedType(node.element_type).translate(scope))
+
+
+@dataclass
+class VoidType(Type):
+    @staticmethod
+    def translate(node: ast.VoidType, _scope):
+        return VoidType(node)
+
+
+@dataclass
+class FunctionType(Type):
+    args: list[ArgDecl]
+    ret_type: Type
+
+    @staticmethod
+    def translate(node: ast.FunctionType):
+        args = [ArgDecl(arg, arg.name, UntranslatedType(arg.type_)) for arg in node.args]
+        ret_type = UntranslatedType(node.ret_type)
+        return FunctionType(node, args, ret_type)
+
+
+@dataclass
+class NativeType(Type):
+    name: str
+    array_packed: str
+    signed: bool | None = None
+
+    @staticmethod
+    def translate(node: ast.NativeType, _scope):
+        name = node.args[0]
+        packed = node.args[1] if len(node.args) > 1 else name
+        signed = bool(node.args[2]) if len(node.args) > 2 else None
+        return NativeType(node, name, packed, signed)
 
 
 @dataclass(init=False)
@@ -192,26 +237,108 @@ class EnumValueType(TypeDef):
         )
 
 
+# ----------------------------------------------------------------------
+# Expressions
+# ----------------------------------------------------------------------
+
+
+@dataclass(init=False)
+class Expr(Node):
+    # TODO: Implement __init__ for subtypes of Expr
+    # type_: TypeRef | None = None
+    pass
+
+
 @dataclass
-class ArrayType(Type):
-    element_type: Type
+class Call(Expr):
+    callee: Node
+    args: list[Node]
 
     @staticmethod
-    def translate(node: ast.ArrayType, scope: Scope):
-        return ArrayType(node, UntranslatedType(node.element_type).translate(scope))
+    def translate(node: ast.Call, _scope: Scope):
+        callee = Untranslated(node.callee)
+        args: list = [Untranslated(arg) for arg in node.args]
+        return Call(node, callee, args)
+
+
+# @dataclass
+# class BoundMethod(Expr):
+#     instance: Node
+#     method: Node
 
 
 @dataclass
-class VoidType(Type):
+class GetAttr(Expr):
+    obj: Node
+    attr: str
+
     @staticmethod
-    def translate(node: ast.VoidType, _scope):
-        return VoidType(node)
+    def translate(node: ast.GetAttr, _scope: Scope):
+        obj = Untranslated(node.obj)
+        return GetAttr(node, obj, node.attr)
+
+
+@dataclass
+class GetItem(Expr):
+    expr: Node
+    idx: Node
+
+    @staticmethod
+    def translate(node: ast.GetItem, _scope: Scope):
+        expr = Untranslated(node.expr)
+        idx = Untranslated(node.idx)
+        return GetItem(node, expr, idx)
+
+
+@dataclass
+class Asm(Expr):
+    terms: Node
+
+    @staticmethod
+    def translate(node: ast.Asm, _scope: Scope):
+        terms = Untranslated(node.terms)
+        return Asm(node, terms)
+
+
+@dataclass
+class IntLiteral(Expr):
+    value: int
+
+    @staticmethod
+    def translate(node: ast.IntLiteral, _scope: Scope):
+        return IntLiteral(node, node.value)
+
+
+@dataclass
+class StringLiteral(Expr):
+    value: str
+
+    @staticmethod
+    def translate(node: ast.StringLiteral, _scope: Scope):
+        return StringLiteral(node, node.value)
+
+
+# ----------------------------------------------------------------------
+# References
+# ----------------------------------------------------------------------
+
+# Do not annotate referenced objects to avoid infinite loops when traversing tree
+
+
+@dataclass
+class FunctionRef(Expr):
+    name: str
+    # function: FunctionDef
+
+    def __init__(self, ast_node: ast.Node | None, name: str, function: FunctionDef):
+        super().__init__(ast_node)
+        self.name = name
+        self.function = function
 
 
 @dataclass
 class TypeRef(Type):
     name: str
-    # Do not annotate type reference to avoid infinite loops when traversing tree
     # type_: Type
 
     def __init__(self, ast_node: ast.Node | None, name: str, type_: Type):
@@ -224,46 +351,7 @@ class TypeRef(Type):
 
 
 @dataclass
-class FunctionType(Type):
-    args: list[ArgDecl]
-    ret_type: Type
-
-    @staticmethod
-    def translate(node: ast.FunctionType):
-        args = [ArgDecl(arg, arg.name, UntranslatedType(arg.type_)) for arg in node.args]
-        ret_type = UntranslatedType(node.ret_type)
-        return FunctionType(node, args, ret_type)
-
-
-@dataclass
-class NativeType(Type):
-    name: str
-    array_packed: str
-    signed: bool | None = None
-
-    @staticmethod
-    def translate(node: ast.NativeType, _scope):
-        name = node.args[0]
-        packed = node.args[1] if len(node.args) > 1 else name
-        signed = bool(node.args[2]) if len(node.args) > 2 else None
-        return NativeType(node, name, packed, signed)
-
-
-@dataclass
-class ArgDecl(Node):
-    name: str
-    type_: Type
-
-
-@dataclass
-class VarDecl(Node):
-    name: str
-    type_: Type
-
-
-@dataclass
-class VarRef(Node):
-    # Do not annotate type reference to avoid infinite loops when traversing tree
+class VarRef(Expr):
     # var: Node
 
     def __init__(self, ast_node: ast.Node | None, var: ArgDecl | VarDecl):
@@ -274,10 +362,11 @@ class VarRef(Node):
         return f"VarRef({self.var.name})"
 
 
-@dataclass
-class SetLocal(Node):
-    var: VarRef
-    expr: Node
+# ----------------------------------------------------------------------
+# Statements
+# ----------------------------------------------------------------------
+
+# TODO: Convert as much as possible into expressions
 
 
 @dataclass
@@ -293,9 +382,36 @@ class FunctionDef(Node):
 
 
 @dataclass
+class ArgDecl(Node):
+    name: str
+    type_: Type
+
+
+@dataclass
+class VarDecl(Node):
+    name: str
+    type_: Type
+
+
+@dataclass
+class SetLocal(Node):
+    var: VarRef
+    expr: Node
+
+
+@dataclass
 class OverloadedFunction(Node):
     name: str
     overloads: list[Node]
+
+
+@dataclass
+class FunctionReturn(Node):
+    expr: Node
+
+    @staticmethod
+    def translate(node: ast.FunctionReturn, _scope: Scope):
+        return FunctionReturn(node, Untranslated(node.expr))
 
 
 @dataclass
@@ -320,44 +436,6 @@ class IfElse(Node):
 
 
 @dataclass
-class FunctionReturn(Node):
-    expr: Node
-
-    @staticmethod
-    def translate(node: ast.FunctionReturn, _scope: Scope):
-        return FunctionReturn(node, Untranslated(node.expr))
-
-
-@dataclass
-class Call(Node):
-    callee: Node
-    args: list[Node]
-
-    @staticmethod
-    def translate(node: ast.Call, _scope: Scope):
-        callee = Untranslated(node.callee)
-        args: list = [Untranslated(arg) for arg in node.args]
-        return Call(node, callee, args)
-
-
-@dataclass
-class BoundMethod(Node):
-    instance: Node
-    method: Node
-
-
-@dataclass
-class GetAttr(Node):
-    obj: Node
-    attr: str
-
-    @staticmethod
-    def translate(node: ast.GetAttr, _scope: Scope):
-        obj = Untranslated(node.obj)
-        return GetAttr(node, obj, node.attr)
-
-
-@dataclass
 class Assignment(Node):
     lvalue: Node
     expr: Node
@@ -367,54 +445,3 @@ class Assignment(Node):
         lvalue = Untranslated(node.lvalue)
         expr = Untranslated(node.expr)
         return Assignment(node, lvalue, expr)
-
-
-@dataclass
-class IntLiteral(Node):
-    value: int
-
-    @staticmethod
-    def translate(node: ast.IntLiteral, _scope: Scope):
-        return IntLiteral(node, node.value)
-
-
-@dataclass
-class StringLiteral(Node):
-    value: str
-
-    @staticmethod
-    def translate(node: ast.StringLiteral, _scope: Scope):
-        return StringLiteral(node, node.value)
-
-
-@dataclass
-class Asm(Node):
-    terms: Node
-
-    @staticmethod
-    def translate(node: ast.Asm, _scope: Scope):
-        terms = Untranslated(node.terms)
-        return Asm(node, terms)
-
-
-@dataclass
-class GetItem(Node):
-    expr: Node
-    idx: Node
-
-    @staticmethod
-    def translate(node: ast.GetItem, _scope: Scope):
-        expr = Untranslated(node.expr)
-        idx = Untranslated(node.idx)
-        return GetItem(node, expr, idx)
-
-
-@dataclass
-class FunctionRef(Node):
-    name: str
-    # function: FunctionDef
-
-    def __init__(self, ast_node: ast.Node | None, name: str, function: FunctionDef):
-        super().__init__(ast_node)
-        self.name = name
-        self.function = function
