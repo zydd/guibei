@@ -90,7 +90,7 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
         case ir.Untranslated(ast.Identifier() | ast.TypeIdentifier() | ast.WasmExpr()):
             pass
 
-        case ir.Untranslated(ast.WhileStatement() as while_stmt):
+        case ir.Untranslated(ast.While() as while_stmt):
             pre_condition = ir.Untranslated(while_stmt.condition)
             loop_scope = ir.Scope(scope, body=[ir.Untranslated(stmt) for stmt in while_stmt.body])
             loop = ir.Loop(while_stmt, pre_condition, loop_scope)

@@ -96,7 +96,7 @@ def function_type():
     yield regex("func *")
     args = yield parens(sep_by(regex(r"\s*,\s*"), typed_id_decl()))
     ret_type = yield optional(fn_ret_type())
-    return ast.FunctionType(None, args, ret_type or VoidType())
+    return ast.FunctionType(None, args, ret_type or ast.VoidType())
 
 
 @generate
@@ -174,7 +174,7 @@ def attr_access(expr):
     yield string(".")
     attr = yield choice(number(), regex(r"\w+"))
     if isinstance(attr, int):
-        return ast.TupleIndex(expr, attr)
+        return ast.GetTupleItem(expr, attr)
     else:
         return ast.GetAttr(expr, attr)
 
@@ -209,7 +209,7 @@ def while_block():
     yield regex(r" *:\s*")
     yield indented()
     body = yield with_pos(sep_by(regex(r"\s*"), statement()))
-    return ast.WhileStatement(condition, body)
+    return ast.While(condition, body)
 
 
 @generate
@@ -300,7 +300,7 @@ def cast_expr():
     cast = yield optional(backtrack(sequence(type_name(), regex(" *"), expr_index())))
     if cast:
         type_, _, expr = cast
-        return ast.CastExpr(type_, expr)
+        return ast.Call(type_, [expr])
     return (yield expr_index())
 
 

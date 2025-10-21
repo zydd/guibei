@@ -67,21 +67,15 @@ class GetItem(Node):
 
 
 @dataclass(repr=_ast_repr)
-class TypeInstantiation(Node):
-    type_: Type
-    args: list[Node]
+class GetTupleItem(Node):
+    expr: Node
+    idx: int
 
 
 @dataclass(repr=_ast_repr)
 class TypeImpl(Node):
     type_name: str
     methods: list[Node]
-
-
-@dataclass(repr=_ast_repr)
-class TupleIndex(Node):
-    tuple_: Node
-    idx: int
 
 
 @dataclass(repr=_ast_repr)
@@ -92,7 +86,7 @@ class IfElse(Node):
 
 
 @dataclass(repr=_ast_repr)
-class WhileStatement(Node):
+class While(Node):
     condition: Node
     body: list[Node]
 
@@ -138,18 +132,6 @@ class EnumType(Type):
 
 
 @dataclass(repr=_ast_repr)
-class EnumConst(Node):
-    type_: Type
-    name: str
-    idx: int
-
-
-@dataclass(repr=_ast_repr)
-class EnumTupleType(TupleType):
-    idx: int
-
-
-@dataclass(repr=_ast_repr)
 class Asm(Node):
     terms: WasmExpr
 
@@ -192,27 +174,9 @@ class Call(Node):
 
 
 @dataclass(repr=_ast_repr)
-class BoundMethod(Node):
-    obj: Node
-    func: FunctionDef
-
-
-@dataclass(repr=_ast_repr)
 class GetAttr(Node):
     obj: Node
     attr: str
-
-
-@dataclass(repr=_ast_repr)
-class FunctionCall(Node):
-    func: FunctionDef
-    args: list[Node]
-
-
-@dataclass(repr=_ast_repr)
-class CastExpr(Node):
-    type_: Type
-    expr: Node
 
 
 @dataclass(repr=_ast_repr)
