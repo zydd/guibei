@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import itertools
+
 # from collections import OrderedDict
 from dataclasses import dataclass, field
 
@@ -34,18 +36,51 @@ class Node:
 class Scope(Node):
     # Do not annotate parent scope to avoid infinite loops when traversing tree
     # parent: Scope | None
+    name: str
     attrs: dict[str, Node] = field(default_factory=dict)  # OrderedDict
     body: list[Node] = field(default_factory=list)
+    func: FunctionRef | None = None
 
-    def __init__(self, parent: Scope | None = None, body=None):
+    def __init__(
+        self, parent: Scope | None, name: str, body: list[Node] | None = None, func: FunctionRef | None = None
+    ):
         super().__init__(None)
         self.parent = parent
+        self.name = f"{parent.name}.{name}" if parent else name
         self.attrs = dict()
         self.body = body or list()
+        self.func = func
 
     def register_var(self, name: str, var: Node):
         assert not self.has_member(name)
         self.attrs[name] = var
+
+    def register_local(self, name: str, var: ArgDecl | VarDecl):
+        if name in self.attrs:
+            # Shadow previously declared local var
+            for i in itertools.count():
+                if f"__local.{name}.{i}" not in self.attrs:
+                    self.attrs[f"__local.{name}.{i}"] = self.attrs[name]
+                    break
+
+        if self.func:
+            self.attrs[name] = var
+        else:
+            func_scope = self.parent
+            while func_scope and not func_scope.func:
+                func_scope = func_scope.parent
+            if not func_scope:
+                raise RuntimeError("Not in function scope")
+
+            local_name = f"__local{self.name[len(func_scope.name):]}.{name}"
+            for i in itertools.count():
+                if f"{local_name}.{i}" not in func_scope.attrs:
+                    local_name = f"{local_name}.{i}"
+                    break
+
+            var.name = local_name
+            func_scope.attrs[local_name] = var
+            self.attrs[name] = VarRef(None, var)
 
     def register_type(self, name: str, type_: Type):
         assert not self.has_member(name)
@@ -75,7 +110,7 @@ class Scope(Node):
 
 @dataclass
 class Module(Node):
-    scope: Scope = field(default_factory=Scope)
+    scope: Scope
     asm: list[Node] = field(default_factory=list)
     id_count: int = 0
 
@@ -202,7 +237,7 @@ class EnumType(TypeDef):
 
     @staticmethod
     def translate(node: ast.EnumType, scope: Scope):
-        enum_type = EnumType(node, None, node.name, Scope(scope))
+        enum_type = EnumType(node, None, node.name, Scope(scope, node.name))
         for i, val in enumerate(node.values):
             enum_type.scope.register_type(val.name, EnumValueType.translate(enum_type, i, val))
         return enum_type
@@ -233,7 +268,12 @@ class EnumValueType(TypeDef):
         assert isinstance(node, ast.EnumValueType)
         field_types: list = [UntranslatedType(t) for t in node.field_types]
         return EnumValueType(
-            node, TypeRef(None, enum.name, enum), node.name, Scope(enum.scope), discr=discr, field_types=field_types
+            node,
+            TypeRef(None, enum.name, enum),
+            node.name,
+            Scope(enum.scope, node.name),
+            discr=discr,
+            field_types=field_types,
         )
 
 
@@ -308,6 +348,9 @@ class IntLiteral(Expr):
     def translate(node: ast.IntLiteral, _scope: Scope):
         return IntLiteral(node, node.value)
 
+    def __repr__(self):
+        return f"IntLiteral({self.value})"
+
 
 @dataclass
 class StringLiteral(Expr):
@@ -316,6 +359,9 @@ class StringLiteral(Expr):
     @staticmethod
     def translate(node: ast.StringLiteral, _scope: Scope):
         return StringLiteral(node, node.value)
+
+    def __repr__(self):
+        return f"StringLiteral({self.value})"
 
 
 @dataclass
@@ -344,6 +390,9 @@ class FunctionRef(Expr):
         super().__init__(ast_node)
         self.name = name
         self.function = function
+
+    def __repr__(self):
+        return f"FunctionRef({self.name})"
 
 
 @dataclass
@@ -388,7 +437,9 @@ class FunctionDef(Node):
     def translate(node: ast.FunctionDef, scope: Scope):
         func_type = FunctionType.translate(node.type_)
         body: list = [Untranslated(stmt) for stmt in node.body]
-        return FunctionDef(node, func_type, Scope(scope, body))
+        func = FunctionDef(node, func_type, Scope(scope, node.name, body))
+        func.scope.func = FunctionRef(None, node.name, func)
+        return func
 
 
 @dataclass
@@ -440,8 +491,8 @@ class IfElse(Node):
     @staticmethod
     def translate(node: ast.IfElse, scope: Scope):
         condition = Untranslated(node.condition)
-        scope_then = Scope(scope, body=[Untranslated(stmt) for stmt in node.body_then])
-        scope_else = Scope(scope, body=[Untranslated(stmt) for stmt in node.body_else])
+        scope_then = Scope(scope, "__if", body=[Untranslated(stmt) for stmt in node.body_then])
+        scope_else = Scope(scope, "__else", body=[Untranslated(stmt) for stmt in node.body_else])
         return IfElse(node, condition, scope_then, scope_else)
 
 

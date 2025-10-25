@@ -10,7 +10,8 @@ def register_toplevel_decls(node: ast.Node, module: ir.Module):
             traverse_ast.traverse(register_toplevel_decls, node, module)
         case ast.TypeDef():
             module.scope.register_type(
-                node.name, ir.TypeDef(node, ir.UntranslatedType(node.super_), node.name, ir.Scope(module.scope))
+                node.name,
+                ir.TypeDef(node, ir.UntranslatedType(node.super_), node.name, ir.Scope(module.scope, node.name)),
             )
         case ast.EnumType():
             module.scope.register_type(node.name, ir.EnumType.translate(node, module.scope))
@@ -44,9 +45,7 @@ def check_unallowed_toplevel_decls(node: ast.Node, module: ir.Module):
 def translate_toplevel_type_decls(node: ir.Node, scope=None) -> ir.Node:
     match node:
         case ir.Module():
-            node.scope.attrs = traverse_ir.traverse_dict(
-                translate_toplevel_type_decls, node.scope.attrs, scope=node.scope
-            )
+            node.scope.attrs = traverse_ir.traverse_dict(translate_toplevel_type_decls, node.scope.attrs, node.scope)
         case ir.UntranslatedType():
             return node.translate(scope)
         case ir.TypeRef():
@@ -75,14 +74,14 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
     match node:
         case ir.FunctionDef():
             for arg in node.type_.args:
-                node.scope.register_var(arg.name, arg)
+                node.scope.register_var(arg.name, ir.VarRef(None, arg))
             node.scope = traverse_ir.traverse(translate_function_defs, node.scope, node.scope)
             return node
 
         case ir.Untranslated(ast.VarDecl() as var):
             var_type = ir.UntranslatedType(var.type_).translate(scope)
             var_decl = ir.VarDecl(var, var.name, var_type)
-            scope.register_var(var_decl.name, var_decl)
+            scope.register_local(var_decl.name, var_decl)
             if var.init:
                 var_init = ir.SetLocal(var.init, ir.VarRef(None, var_decl), ir.Untranslated(var.init))
                 return translate_function_defs(var_init, scope)
@@ -95,6 +94,8 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
                 assert isinstance(attr, ir.Type)
 
             match attr:
+                case ir.VarRef():
+                    return attr
                 case ir.VarDecl() | ir.ArgDecl():
                     return ir.VarRef(id, attr)
                 case ir.FunctionDef():
@@ -111,9 +112,14 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
 
         case ir.Untranslated(ast.While() as while_stmt):
             pre_condition = ir.Untranslated(while_stmt.condition)
-            loop_scope = ir.Scope(scope, body=[ir.Untranslated(stmt) for stmt in while_stmt.body])
+            loop_scope = ir.Scope(scope, "__while", body=[ir.Untranslated(stmt) for stmt in while_stmt.body])
             loop = ir.Loop(while_stmt, pre_condition, loop_scope)
-            return translate_function_defs(loop, scope)
+            return translate_function_defs(loop, loop_scope)
+
+        case ir.Scope():
+            node.attrs = traverse_ir.traverse_dict(translate_function_defs, node.attrs, node)
+            node.body = traverse_ir.traverse_list(translate_function_defs, node.body, node)
+            return node
 
         case ir.Untranslated():
             return translate_function_defs(node.translate(scope), scope)
@@ -148,7 +154,7 @@ ir_passes: list = [
 
 
 def run(prog: ast.Module):
-    module = ir.Module(prog)
+    module = ir.Module(prog, ir.Scope(None, "module"))
     for pass_ in toplevel_ast_passes:
         print("Pass:", pass_.__name__)
         pass_(prog, module)
