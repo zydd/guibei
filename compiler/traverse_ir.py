@@ -11,6 +11,7 @@ def traverse_wasm(func, node, *args, **kwargs):
         )
         for a in node.terms
     ]
+    return node
 
 
 def traverse_dict(func, attr: dict, *args, **kwargs):
@@ -29,7 +30,7 @@ def traverse(func, node: ir.Node, *args, **kwargs):
             continue
         match attr:
             case ir.WasmExpr():
-                traverse_wasm(func, attr, *args, **kwargs)
+                node[attr_name] = traverse_wasm(func, attr, *args, **kwargs)
             case ir.Node():
                 node[attr_name] = func(attr, *args, **kwargs)
                 assert node[attr_name] is not None

@@ -142,7 +142,8 @@ class Untranslated(Node):
 
 @dataclass
 class Type(Node):
-    pass
+    def primitive(self):
+        return self
 
 
 @dataclass
@@ -170,12 +171,13 @@ class UntranslatedType(Type):
 
 @dataclass(init=False)
 class TypeDef(Type):
-    super_: Type | None
+    super_: Type
     name: str
     scope: Scope
 
-    def __init__(self, ast_node: ast.Node | None, super_: Type | None, name: str, scope: Scope):
+    def __init__(self, ast_node: ast.Node | None, super_: Type, name: str, scope: Scope):
         super().__init__(ast_node)
+        assert not isinstance(super_, TypeDef)
         self.super_ = super_
         self.name = name
         self.scope = scope
@@ -187,6 +189,9 @@ class TypeDef(Type):
         assert not self.scope.has_member(name)
         self.scope.register_var(name, method)
 
+    def primitive(self):
+        return self.super_.primitive()
+
 
 @dataclass
 class ArrayType(Type):
@@ -195,6 +200,15 @@ class ArrayType(Type):
     @staticmethod
     def translate(node: ast.ArrayType, scope: Scope):
         return ArrayType(node, UntranslatedType(node.element_type).translate(scope))
+
+
+@dataclass
+class TupleType(Type):
+    fields: list[Type]
+
+    @staticmethod
+    def translate(node: ast.TupleType, scope: Scope):
+        return TupleType(node, [UntranslatedType(t).translate(scope) for t in node.field_types])
 
 
 @dataclass
@@ -256,6 +270,9 @@ class EnumType(TypeDef):
                     raise NotImplementedError
         else:
             self.scope.register_var(name, method)
+
+    def primitive(self):
+        return self
 
 
 @dataclass(kw_only=True)
@@ -364,9 +381,13 @@ class StringLiteral(Expr):
         return f"StringLiteral({self.value})"
 
 
-@dataclass
+@dataclass(init=False)
 class WasmExpr(Node):
     terms: list[WasmExpr | str | int]
+
+    def __init__(self, ast_node: ast.Node | None, terms):
+        self.ast_node = ast_node
+        self.terms = [WasmExpr(None, t) if isinstance(t, list) else t for t in terms]
 
     @staticmethod
     def translate(node: ast.WasmExpr, _scope: Scope) -> Node:
@@ -407,6 +428,9 @@ class TypeRef(Type):
 
     def __repr__(self):
         return f"TypeRef({self.name})"
+
+    def primitive(self):
+        return self.type_.primitive()
 
 
 @dataclass

@@ -10,6 +10,7 @@ def traverse_wasm(func, node, *args, **kwargs):
         )
         for a in node.terms
     ]
+    return node
 
 
 def traverse(func, node: ast.Node, *args, **kwargs):

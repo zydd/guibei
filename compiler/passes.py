@@ -139,6 +139,74 @@ def check_no_untranslated_nodes(node: ir.Node) -> ir.Node:
     return node
 
 
+def type_declaration(node: ir.Node) -> list:
+    match node:
+        case ir.NativeType():
+            return [node.name]
+
+        case ir.EnumType():
+            # TODO: __enum base type
+            decls = [ir.WasmExpr(node.ast_node, ["type", f"${node.name}", "(sub (struct (field (ref i31))))"])]
+            return decls
+
+        case ir.TypeDef():
+            primitive = node.primitive()
+            if isinstance(primitive, ir.NativeType):
+                return []
+            decl = type_declaration(primitive)
+
+            if isinstance(node.super_, ir.TypeRef) and isinstance(node.super_.primitive(), ir.TupleType):
+                decl = [["sub", f"${node.super_.name}", *decl]]
+
+            return [ir.WasmExpr(None, ["type", f"${node.name}", *decl])]
+
+        case ir.ArrayType():
+            element_primitive = node.element_type.primitive()
+            if isinstance(element_primitive, ir.NativeType) and element_primitive.array_packed:
+                return [ir.WasmExpr(node.ast_node, ["array", ["mut", element_primitive.array_packed]])]
+            else:
+                return [ir.WasmExpr(node.ast_node, ["array", ["mut", *type_declaration(element_primitive)]])]
+
+        case ir.TypeRef():
+            return type_declaration(node.type_)
+
+    raise NotImplementedError(type(node))
+
+
+def translate_wasm(node: ir.Node, terms=None) -> ir.WasmExpr:
+    match node:
+        case ir.Module():
+            terms = ["module"]
+            # asm_wasm = [translate_wasm(asm) for asm in node.asm]
+            # for expr in asm_wasm:
+            #     if isinstance(expr, ir.WasmExpr):
+            #         terms.extend(expr.terms)
+            #     else:
+            #         terms.append(expr)
+
+            # breakpoint()
+            for type_ in node.scope.attrs.values():
+                if not isinstance(type_, ir.Type):
+                    continue
+                terms.extend(type_declaration(type_))
+
+            return ir.WasmExpr(node.ast_node, terms)
+
+        # case ir.Asm():
+        #     assert isinstance(node.terms, ir.WasmExpr)
+        #     node.terms = translate_wasm(node.terms)
+        #     return node
+
+        case ir.WasmExpr():
+            node.terms = [translate_wasm(term) if isinstance(term, ir.Node) else term for term in node.terms]
+            return node
+
+        case _:
+            return traverse_ir.traverse(translate_wasm, node)
+
+    raise NotImplementedError(node)
+
+
 toplevel_ast_passes: list = [
     register_toplevel_decls,
     register_toplevel_methods,
@@ -150,6 +218,8 @@ ir_passes: list = [
     translate_toplevel_type_decls,
     check_no_untranslated_types,
     translate_function_defs,
+    # check_no_untranslated_nodes,
+    translate_wasm,
 ]
 
 
