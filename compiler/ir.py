@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import itertools
 
-# from collections import OrderedDict
+from collections import OrderedDict
 from dataclasses import dataclass, field
 
 
@@ -37,7 +37,7 @@ class Scope(Node):
     # Do not annotate parent scope to avoid infinite loops when traversing tree
     # parent: Scope | None
     name: str
-    attrs: dict[str, Node] = field(default_factory=dict)  # OrderedDict
+    attrs: OrderedDict[str, Node] = field(default_factory=OrderedDict)
     body: list[Node] = field(default_factory=list)
     func: FunctionRef | None = None
 
@@ -46,8 +46,9 @@ class Scope(Node):
     ):
         super().__init__(None)
         self.parent = parent
+        self.root: Scope = parent.root if parent else self
         self.name = f"{parent.name}.{name}" if parent else name
-        self.attrs = dict()
+        self.attrs = OrderedDict()
         self.body = body or list()
         self.func = func
 
@@ -84,7 +85,20 @@ class Scope(Node):
 
     def register_type(self, name: str, type_: Type):
         assert not self.has_member(name)
-        self.attrs[name] = type_
+
+        if isinstance(type_, TypeRef):
+            self.attrs[name] = type_
+        else:
+            global_name = f"__global{self.name[len(self.root.name):]}.{name}"
+            for i in itertools.count():
+                if f"{global_name}.{i}" not in self.root.attrs:
+                    global_name = f"{global_name}.{i}"
+                    break
+
+            if isinstance(type_, TypeDef):
+                type_.name = global_name
+            self.root.attrs[global_name] = type_
+            self.attrs[name] = TypeRef(None, global_name, type_)
 
     def has_member(self, name: str) -> bool:
         return name in self.attrs
@@ -93,6 +107,8 @@ class Scope(Node):
         if name in self.attrs:
             res = self.attrs[name]
             assert isinstance(res, Type)
+            if isinstance(res, TypeRef):
+                res = res.type_
             return res
         elif self.parent:
             return self.parent.lookup_type(name)
@@ -251,10 +267,7 @@ class EnumType(TypeDef):
 
     @staticmethod
     def translate(node: ast.EnumType, scope: Scope):
-        enum_type = EnumType(node, None, node.name, Scope(scope, node.name))
-        for i, val in enumerate(node.values):
-            enum_type.scope.register_type(val.name, EnumValueType.translate(enum_type, i, val))
-        return enum_type
+        return EnumType(node, None, node.name, Scope(scope, node.name))
 
     def add_method(self, name: str, method: Node):
         if self.scope.has_member(name):
@@ -423,6 +436,7 @@ class TypeRef(Type):
 
     def __init__(self, ast_node: ast.Node | None, name: str, type_: Type):
         super().__init__(ast_node)
+        assert not isinstance(type_, TypeRef)
         self.name = name
         self.type_ = type_
 

@@ -1,3 +1,5 @@
+from collections import OrderedDict
+
 from . import ast
 from . import ir
 
@@ -15,7 +17,7 @@ def traverse_wasm(func, node, *args, **kwargs):
 
 
 def traverse_dict(func, attr: dict, *args, **kwargs):
-    return dict(filter(lambda x: x[1] is not None, ((k, func(v, *args, **kwargs)) for k, v in attr.items())))
+    return OrderedDict(filter(lambda x: x[1] is not None, ((k, func(v, *args, **kwargs)) for k, v in attr.items())))
 
 
 def traverse_list(func, attr: list[ir.Node], *args, **kwargs):

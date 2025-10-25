@@ -6,6 +6,7 @@ asm:
     (global $__stackp (mut i32) (i32.const 1024))
     (type $vtd (array (mut funcref)))
     (global (ref $vtd) (array.new_default $vtd (i32.const 13)))
+    (type $__enum (sub (struct (field (ref i31)))))
 
 # i32
 

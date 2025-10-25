@@ -14,7 +14,10 @@ def register_toplevel_decls(node: ast.Node, module: ir.Module):
                 ir.TypeDef(node, ir.UntranslatedType(node.super_), node.name, ir.Scope(module.scope, node.name)),
             )
         case ast.EnumType():
-            module.scope.register_type(node.name, ir.EnumType.translate(node, module.scope))
+            enum_type = ir.EnumType.translate(node, module.scope)
+            module.scope.register_type(node.name, enum_type)
+            for i, val in enumerate(node.values):
+                enum_type.scope.register_type(val.name, ir.EnumValueType.translate(enum_type, i, val))
         case ast.FunctionDef():
             module.scope.register_var(node.name, ir.FunctionDef.translate(node, module.scope))
         case ast.Asm():
@@ -94,7 +97,7 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
                 assert isinstance(attr, ir.Type)
 
             match attr:
-                case ir.VarRef():
+                case ir.VarRef() | ir.TypeRef():
                     return attr
                 case ir.VarDecl() | ir.ArgDecl():
                     return ir.VarRef(id, attr)
@@ -139,15 +142,45 @@ def check_no_untranslated_nodes(node: ir.Node) -> ir.Node:
     return node
 
 
+def type_reference(node: ir.Node) -> list:
+    match node:
+        case ir.NativeType():
+            return [node.name]
+
+        case ir.TypeDef():
+            primitive = node.primitive()
+            if isinstance(primitive, ir.NativeType):
+                return type_reference(primitive)
+            return [ir.WasmExpr(None, ["ref", f"${node.name}"])]
+
+        case ir.TypeRef():
+            return type_reference(node.type_)
+
+    raise NotImplementedError(type(node))
+
+
 def type_declaration(node: ir.Node) -> list:
     match node:
         case ir.NativeType():
             return [node.name]
 
         case ir.EnumType():
-            # TODO: __enum base type
-            decls = [ir.WasmExpr(node.ast_node, ["type", f"${node.name}", "(sub (struct (field (ref i31))))"])]
+            decls = [ir.WasmExpr(node.ast_node, ["type", f"${node.name}", "(sub $__enum (struct (field (ref i31))))"])]
             return decls
+
+        case ir.EnumValueType():
+            fields = [["field", *type_reference(type_)] for type_ in node.field_types]
+            assert isinstance(node.super_, ir.TypeRef)
+            return [
+                ir.WasmExpr(
+                    None,
+                    [
+                        "type",
+                        f"${node.name}",
+                        ["sub", f"${node.super_.name}", ["struct", "(field (ref i31))", *fields]],
+                    ],
+                )
+            ]
 
         case ir.TypeDef():
             primitive = node.primitive()
@@ -168,7 +201,7 @@ def type_declaration(node: ir.Node) -> list:
                 return [ir.WasmExpr(node.ast_node, ["array", ["mut", *type_declaration(element_primitive)]])]
 
         case ir.TypeRef():
-            return type_declaration(node.type_)
+            return []
 
     raise NotImplementedError(type(node))
 
@@ -177,14 +210,13 @@ def translate_wasm(node: ir.Node, terms=None) -> ir.WasmExpr:
     match node:
         case ir.Module():
             terms = ["module"]
-            # asm_wasm = [translate_wasm(asm) for asm in node.asm]
-            # for expr in asm_wasm:
-            #     if isinstance(expr, ir.WasmExpr):
-            #         terms.extend(expr.terms)
-            #     else:
-            #         terms.append(expr)
+            asm_wasm = [translate_wasm(asm) for asm in node.asm]
+            for expr in asm_wasm:
+                if isinstance(expr, ir.WasmExpr):
+                    terms.extend(expr.terms)
+                else:
+                    terms.append(expr)
 
-            # breakpoint()
             for type_ in node.scope.attrs.values():
                 if not isinstance(type_, ir.Type):
                     continue
