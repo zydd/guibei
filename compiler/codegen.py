@@ -58,6 +58,9 @@ def type_reference(node: ir.Node) -> list:
         case ir.TypeRef():
             return type_reference(node.type_)
 
+        case ir.VoidType():
+            return []
+
     raise NotImplementedError(type(node))
 
 
@@ -67,8 +70,7 @@ def type_declaration(node: ir.Node) -> list:
             return [node.name]
 
         case ir.EnumType():
-            decls = [ir.WasmExpr(node.ast_node, ["type", f"${node.name}", "(sub $__enum (struct (field (ref i31))))"])]
-            return decls
+            return [ir.WasmExpr(node.ast_node, ["type", f"${node.name}", "(sub $__enum (struct (field (ref i31))))"])]
 
         case ir.EnumValueType():
             fields = [["field", *type_reference(type_)] for type_ in node.field_types]
@@ -105,6 +107,12 @@ def type_declaration(node: ir.Node) -> list:
         case ir.TypeRef():
             return []
 
+        case ir.FunctionDef():
+            decls: list = [["param", f"${arg.name}", *type_reference(arg.type_)] for arg in node.type_.args]
+            if not isinstance(node.type_.ret_type, ir.VoidType):
+                decls.append(["result", *type_reference(node.type_.ret_type)])
+            return [ir.WasmExpr(None, ["type", f"${node.name}.__type", ["func", *decls]])]
+
     raise NotImplementedError(type(node))
 
 
@@ -119,10 +127,8 @@ def translate_wasm(node: ir.Node, terms=None) -> ir.WasmExpr:
                 else:
                     terms.append(expr)
 
-            for type_ in node.scope.attrs.values():
-                if not isinstance(type_, ir.Type):
-                    continue
-                terms.extend(type_declaration(type_))
+            for attr in node.scope.attrs.values():
+                terms.extend(type_declaration(attr))
 
             return ir.WasmExpr(node.ast_node, terms)
 

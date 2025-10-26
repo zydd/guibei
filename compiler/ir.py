@@ -88,8 +88,9 @@ class Scope(Node):
 
         if isinstance(type_, TypeRef):
             self.attrs[name] = type_
+            return type_
         else:
-            global_name = f"__global{self.name[len(self.root.name):]}.{name}"
+            global_name = f"{self.name}.{name}"
             for i in itertools.count():
                 if f"{global_name}.{i}" not in self.root.attrs:
                     global_name = f"{global_name}.{i}"
@@ -97,8 +98,10 @@ class Scope(Node):
 
             if isinstance(type_, TypeDef):
                 type_.name = global_name
+
             self.root.attrs[global_name] = type_
-            self.attrs[name] = TypeRef(None, global_name, type_)
+            self.attrs[name] = ref = TypeRef(None, global_name, type_)
+            return ref
 
     def has_member(self, name: str) -> bool:
         return name in self.attrs
@@ -468,15 +471,41 @@ class VarRef(Expr):
 
 @dataclass
 class FunctionDef(Node):
+    name: str
     type_: FunctionType
     scope: Scope
+
+    operators = {
+        "-": "minus",
+        ";": "semi",
+        ":": "col",
+        "!": "ex",
+        "?": "qu",
+        "@": "at",
+        "*": "star",
+        "/": "slash",
+        "%": "perc",
+        "`": "bt",
+        "+": "plus",
+        "<": "lt",
+        "=": "eq",
+        ">": "gt",
+        "~": "til",
+    }
 
     @staticmethod
     def translate(node: ast.FunctionDef, scope: Scope):
         func_type = FunctionType.translate(node.type_)
         body: list = [Untranslated(stmt) for stmt in node.body]
-        func = FunctionDef(node, func_type, Scope(scope, node.name, body))
-        func.scope.func = FunctionRef(None, node.name, func)
+
+        func_name = node.name
+        if func_name.startswith("("):
+            func_name = "__operator"
+            for c in node.name[1:-1]:
+                func_name += "$" + FunctionDef.operators[c]
+
+        func = FunctionDef(node, f"{scope.name}.{func_name}", func_type, Scope(scope, node.name, body))
+        func.scope.func = FunctionRef(None, func.name, func)
         return func
 
 

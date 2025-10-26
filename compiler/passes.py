@@ -75,6 +75,12 @@ def check_no_untranslated_types(node: ir.Node, scope=None) -> ir.Node:
 
 def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
     match node:
+        # case ir.Module():
+        #     for attr in list(node.scope.attrs.values()):
+        #         translate_function_defs(attr)
+        #     node.asm = traverse_ir.traverse_list(translate_function_defs, node.asm)
+        #     return node
+
         case ir.FunctionDef():
             for arg in node.type_.args:
                 node.scope.register_var(arg.name, ir.VarRef(None, arg))
@@ -130,7 +136,7 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
         case _:
             return traverse_ir.traverse(translate_function_defs, node, scope)
 
-    raise NotImplementedError(node)
+    raise NotImplementedError(type(node))
 
 
 def check_no_untranslated_nodes(node: ir.Node) -> ir.Node:
