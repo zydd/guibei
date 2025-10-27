@@ -1,7 +1,7 @@
 
 asm:
     (export "memory" (memory $memory))
-    (export "_start" (func $main))
+    (export "_start" (func $module.main))
     (memory $memory 1)
     (global $__stackp (mut i32) (i32.const 1024))
     (type $vtd (array (mut funcref)))

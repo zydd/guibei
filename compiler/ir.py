@@ -36,7 +36,7 @@ class Node:
 class Scope(Node):
     # Do not annotate parent scope to avoid infinite loops when traversing tree
     # parent: Scope | None
-    name: str
+    # name: str
     attrs: OrderedDict[str, Node] = field(default_factory=OrderedDict)
     body: list[Node] = field(default_factory=list)
     func: FunctionRef | None = None
@@ -47,10 +47,22 @@ class Scope(Node):
         super().__init__(None)
         self.parent = parent
         self.root: Scope = parent.root if parent else self
-        self.name = f"{parent.name}.{name}" if parent else name
+        self.name: str = f"{parent.name}.{name}" if parent else name
         self.attrs = OrderedDict()
         self.body = body or list()
         self.func = func
+        self.children_names: set[str] = set()
+
+        if parent:
+            self.name = f"{parent.name}.{name}"
+            if self.name in parent.children_names:
+                for i in itertools.count(1):
+                    if f"{self.name}${i}" not in parent.children_names:
+                        self.name = f"{self.name}${i}"
+                        break
+            parent.children_names.add(self.name)
+        else:
+            self.name = name
 
     def register_var(self, name: str, var: Node):
         assert not self.has_member(name)
@@ -60,8 +72,8 @@ class Scope(Node):
         if name in self.attrs:
             # Shadow previously declared local var
             for i in itertools.count():
-                if f"__local.{name}.{i}" not in self.attrs:
-                    self.attrs[f"__local.{name}.{i}"] = self.attrs[name]
+                if f"__local.{name}${i}" not in self.attrs:
+                    self.attrs[f"__local.{name}${i}"] = self.attrs[name]
                     break
 
         if self.func:
@@ -73,11 +85,12 @@ class Scope(Node):
             if not func_scope:
                 raise RuntimeError("Not in function scope")
 
-            local_name = f"__local{self.name[len(func_scope.name):]}.{name}"
-            for i in itertools.count():
-                if f"{local_name}.{i}" not in func_scope.attrs:
-                    local_name = f"{local_name}.{i}"
-                    break
+            local_name = f"{func_scope.name}.{name}"
+            if local_name in func_scope.attrs:
+                for i in itertools.count(1):
+                    if f"{local_name}${i}" not in func_scope.attrs:
+                        local_name = f"{local_name}${i}"
+                        break
 
             var.name = local_name
             func_scope.attrs[local_name] = var
@@ -91,10 +104,11 @@ class Scope(Node):
             return type_
         else:
             global_name = f"{self.name}.{name}"
-            for i in itertools.count():
-                if f"{global_name}.{i}" not in self.root.attrs:
-                    global_name = f"{global_name}.{i}"
-                    break
+            if global_name in self.root.attrs:
+                for i in itertools.count(1):
+                    if f"{global_name}${i}" not in self.root.attrs:
+                        global_name = f"{global_name}${i}"
+                        break
 
             if isinstance(type_, TypeDef):
                 type_.name = global_name
@@ -420,16 +434,14 @@ class WasmExpr(Node):
 
 @dataclass
 class FunctionRef(Expr):
-    name: str
     # function: FunctionDef
 
-    def __init__(self, ast_node: ast.Node | None, name: str, function: FunctionDef):
+    def __init__(self, ast_node: ast.Node | None, function: FunctionDef):
         super().__init__(ast_node)
-        self.name = name
         self.function = function
 
     def __repr__(self):
-        return f"FunctionRef({self.name})"
+        return f"FunctionRef({self.function.name})"
 
 
 @dataclass
@@ -505,7 +517,7 @@ class FunctionDef(Node):
                 func_name += "$" + FunctionDef.operators[c]
 
         func = FunctionDef(node, f"{scope.name}.{func_name}", func_type, Scope(scope, node.name, body))
-        func.scope.func = FunctionRef(None, func.name, func)
+        func.scope.func = FunctionRef(None, func)
         return func
 
 

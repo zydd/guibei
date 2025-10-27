@@ -108,7 +108,7 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
                 case ir.VarDecl() | ir.ArgDecl():
                     return ir.VarRef(id, attr)
                 case ir.FunctionDef():
-                    return ir.FunctionRef(id, id.name, attr)
+                    return ir.FunctionRef(id, attr)
                 case ir.TypeDef():
                     return ir.TypeRef(id, id.name, attr)
                 case _:
