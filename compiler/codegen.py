@@ -2,46 +2,31 @@ from . import ir
 from . import traverse_ir
 
 
-def wasm_repr_indented(expr: ir.WasmExpr | ir.Asm, level=0) -> str:
-    if isinstance(expr, ir.Asm):
-        assert isinstance(expr.terms, ir.WasmExpr)
-        return "\n".join(wasm_repr_indented(term, level) for term in expr.terms.terms)  # type: ignore[arg-type]
-
+def wasm_repr_indented(expr: list[str | int | list], level=0) -> str:
     indent = "    " * level
-    if len(expr.terms) == 1 and not isinstance(expr.terms[0], ir.Node):
-        return f"{indent}({expr.terms[0]})"
+    if len(expr) == 1 and not isinstance(expr[0], list):
+        return f"{indent}({expr[0]})"
     else:
         terms = []
-        if expr.terms:
-            terms.append(
-                "\n" + wasm_repr_indented(expr.terms[0], level + 1)
-                if isinstance(expr.terms[0], ir.Node)
-                else str(expr.terms[0])
-            )
+        if expr:
+            terms.append("\n" + wasm_repr_indented(expr[0], level + 1) if isinstance(expr[0], list) else str(expr[0]))
             n = 1
-            if (
-                len(expr.terms) > 1
-                and expr.terms[0] != "elem"
-                and isinstance(expr.terms[1], str)
-                and expr.terms[1].startswith("$")
-            ):
-                terms[0] += " " + expr.terms[1]
+            if len(expr) > 1 and expr[0] != "elem" and isinstance(expr[1], str) and expr[1].startswith("$"):
+                terms[0] += " " + expr[1]
                 n += 1
-            for term in expr.terms[n:]:
+            for term in expr[n:]:
                 terms.append(
-                    wasm_repr_indented(term, level + 1)
-                    if isinstance(term, ir.Node)
-                    else f"{'    ' * (level + 1)}{term}"
+                    wasm_repr_indented(term, level + 1) if isinstance(term, list) else f"{'    ' * (level + 1)}{term}"
                 )
         inner = "\n".join(terms)
-        if len(inner) < 100:
+        if len(inner) < 80:
             return indent + _wasm_repr_flat(expr)
         return f"{indent}({inner}\n{indent})"
 
 
 def _wasm_repr_flat(expr):
-    format = lambda term: _wasm_repr_flat(term) if isinstance(term, ir.WasmExpr) else str(term)
-    return f"({' '.join(map(format, expr.terms))})"
+    format = lambda term: _wasm_repr_flat(term) if isinstance(term, list) else str(term)
+    return f"({' '.join(map(format, expr))})"
 
 
 def type_reference(node: ir.Node) -> list:
@@ -53,7 +38,7 @@ def type_reference(node: ir.Node) -> list:
             primitive = node.primitive()
             if isinstance(primitive, ir.NativeType):
                 return type_reference(primitive)
-            return [ir.WasmExpr(None, ["ref", f"${node.name}"])]
+            return [["ref", f"${node.name}"]]
 
         case ir.TypeRef():
             return type_reference(node.type_)
@@ -70,20 +55,17 @@ def type_declaration(node: ir.Node) -> list:
             return [node.name]
 
         case ir.EnumType():
-            return [ir.WasmExpr(node.ast_node, ["type", f"${node.name}", "(sub $__enum (struct (field (ref i31))))"])]
+            return [["type", f"${node.name}", "(sub $__enum (struct (field (ref i31))))"]]
 
         case ir.EnumValueType():
             fields = [["field", *type_reference(type_)] for type_ in node.field_types]
             assert isinstance(node.super_, ir.TypeRef)
             return [
-                ir.WasmExpr(
-                    None,
-                    [
-                        "type",
-                        f"${node.name}",
-                        ["sub", f"${node.super_.name}", ["struct", "(field (ref i31))", *fields]],
-                    ],
-                )
+                [
+                    "type",
+                    f"${node.name}",
+                    ["sub", f"${node.super_.name}", ["struct", "(field (ref i31))", *fields]],
+                ],
             ]
 
         case ir.TypeDef():
@@ -95,14 +77,14 @@ def type_declaration(node: ir.Node) -> list:
             if isinstance(node.super_, ir.TypeRef) and isinstance(node.super_.primitive(), ir.TupleType):
                 decl = [["sub", f"${node.super_.name}", *decl]]
 
-            return [ir.WasmExpr(None, ["type", f"${node.name}", *decl])]
+            return [["type", f"${node.name}", *decl]]
 
         case ir.ArrayType():
             element_primitive = node.element_type.primitive()
             if isinstance(element_primitive, ir.NativeType) and element_primitive.array_packed:
-                return [ir.WasmExpr(node.ast_node, ["array", ["mut", element_primitive.array_packed]])]
+                return [["array", ["mut", element_primitive.array_packed]]]
             else:
-                return [ir.WasmExpr(node.ast_node, ["array", ["mut", *type_declaration(element_primitive)]])]
+                return [["array", ["mut", *type_declaration(element_primitive)]]]
 
         case ir.TypeRef():
             return []
@@ -111,35 +93,35 @@ def type_declaration(node: ir.Node) -> list:
             decls: list = [["param", f"${arg.name}", *type_reference(arg.type_)] for arg in node.type_.args]
             if not isinstance(node.type_.ret_type, ir.VoidType):
                 decls.append(["result", *type_reference(node.type_.ret_type)])
-            return [ir.WasmExpr(None, ["type", f"${node.name}.__type", ["func", *decls]])]
+            return [["type", f"${node.name}.__type", ["func", *decls]]]
 
     raise NotImplementedError(type(node))
 
 
-def translate_wasm(node: ir.Node, terms=None) -> ir.WasmExpr:
+def translate_wasm(node: ir.Node, terms=None) -> list[str | int | list]:
     match node:
         case ir.Module():
             terms = ["module"]
-            asm_wasm = [translate_wasm(asm) for asm in node.asm]
-            for expr in asm_wasm:
-                if isinstance(expr, ir.WasmExpr):
-                    terms.extend(expr.terms)
-                else:
-                    terms.append(expr)
+            for expr in node.asm:
+                terms.extend(translate_wasm(expr))
 
             for attr in node.scope.attrs.values():
                 terms.extend(type_declaration(attr))
 
-            return ir.WasmExpr(node.ast_node, terms)
+            return terms
 
-        # case ir.Asm():
-        #     assert isinstance(node.terms, ir.WasmExpr)
-        #     node.terms = translate_wasm(node.terms)
-        #     return node
+        case ir.Asm():
+            assert isinstance(node.terms, ir.WasmExpr)
+            terms = []
+            for term in node.terms.terms:
+                if isinstance(term, ir.Node):
+                    terms.append(translate_wasm(term))
+                else:
+                    terms.append(term)
+            return terms
 
         case ir.WasmExpr():
-            node.terms = [translate_wasm(term) if isinstance(term, ir.Node) else term for term in node.terms]
-            return node
+            return [translate_wasm(term) if isinstance(term, ir.Node) else term for term in node.terms]
 
         case _:
             return traverse_ir.traverse(translate_wasm, node)
