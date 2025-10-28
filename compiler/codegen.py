@@ -213,9 +213,7 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
             return [["local.set", f"${node.lvalue.var.name}", *translate_wasm(node.expr)]]
 
         case ir.FunctionCall():
-            return [
-                ["call", f"${node.func.function.name}"] + [term for arg in node.args for term in translate_wasm(arg)]
-            ]
+            return [["call", f"${node.func.func.name}"] + [term for arg in node.args for term in translate_wasm(arg)]]
 
         # case _:
         #     print(type(node))

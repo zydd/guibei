@@ -127,29 +127,54 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
 
         case ir.GetAttr():
             node.obj = translate_function_defs(node.obj, scope)
-            if isinstance(node.obj, ir.TypeRef):
-                assert isinstance(node.obj.type_, ir.TypeDef)
-                attr = node.obj.type_.scope.lookup(node.attr)
-                match attr:
-                    case ir.FunctionDef():
-                        return ir.FunctionRef(node.ast_node, attr)
-                    case ir.AsmType():
-                        return attr
-                    case _:
-                        raise NotImplementedError(type(attr))
-            else:
-                # TODO
-                return node
+            match node.obj:
+                case ir.TypeRef():
+                    assert isinstance(node.obj.type_, ir.TypeDef)
+                    attr = node.obj.type_.scope.lookup(node.attr)
+                    match attr:
+                        case ir.FunctionDef():
+                            return ir.FunctionRef(node.ast_node, attr)
+                        case ir.AsmType() | ir.TypeRef():
+                            return attr
+                        case _:
+                            raise NotImplementedError(type(attr))
+                case ir.Expr():
+                    assert isinstance(node.obj.type_, ir.TypeRef)
+                    assert isinstance(node.obj.type_.type_, ir.TypeDef)
+                    method = node.obj.type_.type_.scope.lookup(node.attr)
+                    assert isinstance(method, ir.FunctionDef)
+                    if method.type_.args[0].name == "self":
+                        return ir.BoundMethod(node.ast_node, ir.UnknownType(), ir.FunctionRef(None, method), node.obj)
+                    else:
+                        return method
+                case _:
+                    # TODO
+                    breakpoint()
+                    return node
+                    raise NotImplementedError(type(node.obj))
 
         case ir.Call():
             node.callee = translate_function_defs(node.callee, scope)
             node.args = traverse_ir.traverse_list(translate_function_defs, node.args, scope)
             match node.callee:
                 case ir.FunctionRef():
-                    return ir.FunctionCall(node.ast_node, node.callee, node.args)
+                    assert isinstance(node.callee.func.type_.ret_type, (ir.TypeRef, ir.VoidType))
+                    return ir.FunctionCall(node.ast_node, node.callee.func.type_.ret_type, node.callee, node.args)
+                case ir.BoundMethod():
+                    assert isinstance(node.callee.func.func.type_.ret_type, (ir.TypeRef, ir.VoidType))
+                    return ir.FunctionCall(
+                        node.ast_node,
+                        node.callee.func.func.type_.ret_type,
+                        node.callee.func,
+                        [node.callee.obj] + node.args,
+                    )
+                case ir.TypeRef():
+                    # TODO: generalize
+                    assert isinstance(node.callee.primitive(), ir.NativeType)
+                    assert len(node.args) == 1
+                    assert isinstance(node.args[0], ir.IntLiteral)
+                    return ir.WasmExpr(node.ast_node, ["i32.const", node.args[0].value], node.callee)
                 case _:
-                    # TODO
-                    return node
                     raise NotImplementedError(type(node.callee))
 
         case ir.Scope():

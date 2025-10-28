@@ -325,6 +325,17 @@ class EnumValueType(TypeDef):
         )
 
 
+@dataclass
+class AstType(Type):
+    name: str
+
+
+@dataclass
+class UnknownType(Type):
+    def __init__(self):
+        super().__init__(None)
+
+
 # ----------------------------------------------------------------------
 # Expressions
 # ----------------------------------------------------------------------
@@ -332,15 +343,22 @@ class EnumValueType(TypeDef):
 
 @dataclass(init=False)
 class Expr(Node):
-    # TODO: Implement __init__ for subtypes of Expr
-    # type_: TypeRef | None = None
-    pass
+    type_: TypeRef | UnknownType | VoidType
+
+    def __init__(self, ast_node, type_=None):
+        super().__init__(ast_node)
+        self.type_ = type_ or UnknownType()
 
 
 @dataclass
 class Call(Expr):
     callee: Node
     args: list[Node]
+
+    def __init__(self, ast_node, callee, args):
+        super().__init__(ast_node)
+        self.callee = callee
+        self.args = args
 
     @staticmethod
     def translate(node: ast.Call, _scope: Scope):
@@ -360,6 +378,11 @@ class GetAttr(Expr):
     obj: Node
     attr: str
 
+    def __init__(self, ast_node, obj, attr):
+        super().__init__(ast_node)
+        self.obj = obj
+        self.attr = attr
+
     @staticmethod
     def translate(node: ast.GetAttr, _scope: Scope):
         obj = Untranslated(node.obj)
@@ -368,8 +391,13 @@ class GetAttr(Expr):
 
 @dataclass
 class GetItem(Expr):
-    expr: Node
-    idx: Node
+    expr: Expr
+    idx: Expr
+
+    def __init__(self, ast_node, expr, idx):
+        super().__init__(ast_node)
+        self.expr = expr
+        self.idx = idx
 
     @staticmethod
     def translate(node: ast.GetItem, _scope: Scope):
@@ -382,6 +410,10 @@ class GetItem(Expr):
 class Asm(Expr):
     terms: Node
 
+    def __init__(self, ast_node, terms):
+        super().__init__(ast_node)
+        self.terms = terms
+
     @staticmethod
     def translate(node: ast.Asm, _scope: Scope):
         terms = Untranslated(node.terms)
@@ -391,6 +423,10 @@ class Asm(Expr):
 @dataclass
 class IntLiteral(Expr):
     value: int
+
+    def __init__(self, ast_node, value):
+        super().__init__(ast_node, AstType(None, "__int_literal"))
+        self.value = value
 
     @staticmethod
     def translate(node: ast.IntLiteral, _scope: Scope):
@@ -404,6 +440,10 @@ class IntLiteral(Expr):
 class StringLiteral(Expr):
     value: str
 
+    def __init__(self, ast_node, value):
+        super().__init__(ast_node, AstType(None, "__string_literal"))
+        self.value = value
+
     @staticmethod
     def translate(node: ast.StringLiteral, _scope: Scope):
         return StringLiteral(node, node.value)
@@ -413,11 +453,11 @@ class StringLiteral(Expr):
 
 
 @dataclass(init=False)
-class WasmExpr(Node):
+class WasmExpr(Expr):
     terms: list[WasmExpr | str | int]
 
-    def __init__(self, ast_node: ast.Node | None, terms):
-        self.ast_node = ast_node
+    def __init__(self, ast_node: ast.Node | None, terms, type_=None):
+        super().__init__(ast_node, type_ or UnknownType())
         self.terms = [WasmExpr(None, t) if isinstance(t, list) else t for t in terms]
 
     @staticmethod
@@ -437,12 +477,12 @@ class WasmExpr(Node):
 class FunctionRef(Expr):
     # function: FunctionDef
 
-    def __init__(self, ast_node: ast.Node | None, function: FunctionDef):
+    def __init__(self, ast_node: ast.Node | None, func: FunctionDef):
         super().__init__(ast_node)
-        self.function = function
+        self.func = func
 
     def __repr__(self):
-        return f"FunctionRef({self.function.name})"
+        return f"FunctionRef({self.func.name})"
 
 
 @dataclass
@@ -468,7 +508,7 @@ class VarRef(Expr):
     # var: Node
 
     def __init__(self, ast_node: ast.Node | None, var: ArgDecl | VarDecl):
-        super().__init__(ast_node)
+        super().__init__(ast_node, var.type_)
         self.var = var
 
     def __repr__(self):
@@ -600,3 +640,9 @@ class AsmType(Node):
 class FunctionCall(Expr):
     func: FunctionRef
     args: list[Node]
+
+
+@dataclass
+class BoundMethod(Expr):
+    func: FunctionRef
+    obj: Expr
