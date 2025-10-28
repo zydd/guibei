@@ -110,11 +110,22 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
         case ir.IntLiteral():
             return [f"(i32.const {node.value})"]
 
+        case ir.AsmType():
+            return [node.name]
+
         case ir.VoidType():
             return []
 
         case ir.WasmExpr():
-            return [translate_wasm(term) if isinstance(term, ir.Node) else term for term in node.terms]
+            terms = []
+            for term in node.terms:
+                if isinstance(term, ir.WasmExpr):
+                    terms.append(translate_wasm(term))
+                elif isinstance(term, ir.Node):
+                    terms.extend(translate_wasm(term))
+                else:
+                    terms.append(term)
+            return terms
 
         case ir.TypeDef():
             return translate_wasm(node.scope)
@@ -139,7 +150,10 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
 
         case ir.Scope():
             terms = []
-            for expr in node.attrs.values():
+            for attr_name, expr in node.attrs.items():
+                if attr_name.startswith("__"):
+                    continue
+
                 match expr:
                     case ir.VarDecl() | ir.FunctionDef():
                         terms.extend(translate_wasm(expr))
@@ -147,6 +161,7 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
                     # TODO
                     case ir.TypeRef() | ir.VarRef() | ir.OverloadedFunction():
                         pass
+
                     case _:
                         raise NotImplementedError(type(expr))
             for expr in node.body:
@@ -161,13 +176,7 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
 
         case ir.Asm():
             assert isinstance(node.terms, ir.WasmExpr)
-            terms = []
-            for term in node.terms.terms:
-                if isinstance(term, ir.Node):
-                    terms.append(translate_wasm(term))
-                else:
-                    terms.append(term)
-            return terms
+            return translate_wasm(node.terms)
 
         case ir.SetLocal():
             return [["local.set", f"${node.var.var.name}", *translate_wasm(node.expr)]]
@@ -203,9 +212,9 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
             assert isinstance(node.lvalue, ir.VarRef)
             return [["local.set", f"${node.lvalue.var.name}", *translate_wasm(node.expr)]]
 
-        case ir.Call(callee=ir.FunctionRef()):
+        case ir.FunctionCall():
             return [
-                ["call", f"${node.callee.function.name}"] + [term for arg in node.args for term in translate_wasm(arg)]
+                ["call", f"${node.func.function.name}"] + [term for arg in node.args for term in translate_wasm(arg)]
             ]
 
         # case _:

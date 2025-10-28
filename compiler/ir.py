@@ -216,6 +216,7 @@ class TypeDef(Type):
         self.scope = scope
         self_ref = TypeRef(None, name, self)
         self.scope.register_type("Self", self_ref)
+        self.scope.attrs["__asm_type"] = AsmType(None, f"${self.scope.name}")
         # self.scope.register_type(name, self_ref)
 
     def add_method(self, name: str, method: Node):
@@ -585,3 +586,17 @@ class Assignment(Node):
         lvalue = Untranslated(node.lvalue)
         expr = Untranslated(node.expr)
         return Assignment(node, lvalue, expr)
+
+
+# Runtime
+
+
+@dataclass
+class AsmType(Node):
+    name: str
+
+
+@dataclass
+class FunctionCall(Expr):
+    func: FunctionRef
+    args: list[Node]

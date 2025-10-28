@@ -125,6 +125,33 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
             loop = ir.Loop(while_stmt, pre_condition, loop_scope)
             return translate_function_defs(loop, loop_scope)
 
+        case ir.GetAttr():
+            node.obj = translate_function_defs(node.obj, scope)
+            if isinstance(node.obj, ir.TypeRef):
+                assert isinstance(node.obj.type_, ir.TypeDef)
+                attr = node.obj.type_.scope.lookup(node.attr)
+                match attr:
+                    case ir.FunctionDef():
+                        return ir.FunctionRef(node.ast_node, attr)
+                    case ir.AsmType():
+                        return attr
+                    case _:
+                        raise NotImplementedError(type(attr))
+            else:
+                # TODO
+                return node
+
+        case ir.Call():
+            node.callee = translate_function_defs(node.callee, scope)
+            node.args = traverse_ir.traverse_list(translate_function_defs, node.args, scope)
+            match node.callee:
+                case ir.FunctionRef():
+                    return ir.FunctionCall(node.ast_node, node.callee, node.args)
+                case _:
+                    # TODO
+                    return node
+                    raise NotImplementedError(type(node.callee))
+
         case ir.Scope():
             node.attrs = traverse_ir.traverse_dict(translate_function_defs, node.attrs, node)
             node.body = traverse_ir.traverse_list(translate_function_defs, node.body, node)
