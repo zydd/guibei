@@ -142,7 +142,7 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
 
             return [
                 ["type", f"${node.name}.__type", ["func", *decls]],
-                ["func", f"${node.name}", ["type", f"${node.name}.__type"], *body],
+                ["func", f"${node.name}", ["type", f"${node.name}.__type"], *decls, *body],
             ]
 
         case ir.FunctionReturn():
@@ -151,15 +151,15 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
         case ir.Scope():
             terms = []
             for attr_name, expr in node.attrs.items():
-                if attr_name.startswith("__"):
-                    continue
+                # if attr_name.startswith("__"):
+                #     continue
 
                 match expr:
                     case ir.VarDecl() | ir.FunctionDef():
                         terms.extend(translate_wasm(expr))
 
                     # TODO
-                    case ir.TypeRef() | ir.VarRef() | ir.OverloadedFunction():
+                    case ir.TypeRef() | ir.VarRef() | ir.OverloadedFunction() | ir.AsmType():
                         pass
 
                     case _:
@@ -169,7 +169,7 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
             return terms
 
         case ir.VarDecl():
-            return [["local", f"${node.name}"]]
+            return [["local", f"${node.name}", *type_reference(node.type_)]]
 
         case ir.VarRef():
             return [["local.get", f"${node.var.name}"]]
@@ -202,7 +202,7 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
                             ["i32.eqz", *translate_wasm(node.pre_condition)],
                         ],
                         *body,
-                        ["br", f"$while_loop_{id}"],
+                        ["br", f"${node.scope.name}.__loop"],
                     ],
                 ]
             ]
@@ -212,8 +212,55 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
             assert isinstance(node.lvalue, ir.VarRef)
             return [["local.set", f"${node.lvalue.var.name}", *translate_wasm(node.expr)]]
 
+        case ir.SetItem():
+            assert isinstance(node.expr.type_, ir.TypeRef)
+            assert isinstance(node.expr.type_.type_, ir.TypeDef)
+            return [
+                [
+                    "array.set",
+                    f"${node.expr.type_.type_.name}",
+                    *translate_wasm(node.expr),
+                    *translate_wasm(node.idx),
+                    *translate_wasm(node.value),
+                ]
+            ]
+
         case ir.FunctionCall():
             return [["call", f"${node.func.func.name}"] + [term for arg in node.args for term in translate_wasm(arg)]]
+
+        case ir.GetItem():
+            assert isinstance(node.expr, ir.VarRef)
+            elem_primitive = node.expr.var.type_.primitive().element_type.primitive()
+            assert isinstance(node.expr.type_, ir.TypeRef)
+            assert isinstance(node.expr.type_.type_, ir.TypeDef)
+            assert isinstance(elem_primitive, ir.NativeType)
+            getter = {
+                "i8": "array.get_s",
+                "u8": "array.get_u",
+            }
+            return [
+                [
+                    getter[elem_primitive.array_packed],
+                    f"${node.expr.type_.type_.name}",
+                    *translate_wasm(node.expr),
+                    *translate_wasm(node.idx),
+                ]
+            ]
+
+        case ir.StringLiteral():
+            assert isinstance(node.type_, ir.AstType)
+            return [
+                [
+                    f"local.tee ${node.temp_var.var.name}",
+                    [f"array.new_default ${node.type_.name}", f"(i32.const {len(node.value)})"],
+                ],
+                *(
+                    [
+                        f"array.set ${node.type_.name} (local.get ${node.temp_var.var.name}) (i32.const {i}) (i32.const {byte})"
+                    ]
+                    for i, byte in enumerate(node.value.encode("ascii"))
+                ),
+            ]
 
         # case _:
         #     print(type(node))

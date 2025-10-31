@@ -182,6 +182,16 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
             node.body = traverse_ir.traverse_list(translate_function_defs, node.body, node)
             return node
 
+        case ir.Assignment():
+            node.lvalue = translate_function_defs(node.lvalue, scope)
+            expr = translate_function_defs(node.expr, scope)
+            assert isinstance(expr, ir.Expr)
+            node.expr = expr
+            if isinstance(node.lvalue, ir.GetItem):
+                return ir.SetItem(node.ast_node, node.lvalue.expr, node.lvalue.idx, expr)
+            else:
+                return node
+
         case ir.Untranslated():
             return translate_function_defs(node.translate(scope), scope)
 

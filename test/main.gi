@@ -7,6 +7,7 @@ asm:
     (type $vtd (array (mut funcref)))
     (global (ref $vtd) (array.new_default $vtd (i32.const 13)))
     (type $__enum (sub (struct (field (ref i31)))))
+    (type $__string_literal (array (mut i8)))
 
 # i32
 
@@ -15,7 +16,7 @@ type i32: __native_type<i32>
 
 
 func (+)(a: i32, b: i32) -> i32:
-    asm: i32.add {a} {b}
+    asm: {a} {b} i32.add
 
 
 func (-)(a: i32, b: i32) -> i32:

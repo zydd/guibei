@@ -73,7 +73,11 @@ class Scope(Node):
             # Shadow previously declared local var
             for i in itertools.count():
                 if f"__local.{name}${i}" not in self.attrs:
-                    self.attrs[f"__local.{name}${i}"] = self.attrs[name]
+                    shadowed_name = f"__local.{name}${i}"
+                    shadowed_var = self.attrs[name]
+                    assert hasattr(shadowed_var, "name")
+                    shadowed_var.name = shadowed_name
+                    self.attrs[shadowed_name] = shadowed_var
                     break
 
         if self.func:
@@ -439,14 +443,18 @@ class IntLiteral(Expr):
 @dataclass
 class StringLiteral(Expr):
     value: str
+    temp_var: VarRef
 
-    def __init__(self, ast_node, value):
+    def __init__(self, ast_node, value, temp_var):
         super().__init__(ast_node, AstType(None, "__string_literal"))
         self.value = value
+        self.temp_var = temp_var
 
     @staticmethod
-    def translate(node: ast.StringLiteral, _scope: Scope):
-        return StringLiteral(node, node.value)
+    def translate(node: ast.StringLiteral, scope: Scope):
+        temp_var = VarDecl(None, "__str", NativeType(None, "i32", "u8"))
+        scope.register_local("__str", temp_var)
+        return StringLiteral(node, node.value, VarRef(None, temp_var))
 
     def __repr__(self):
         return f"StringLiteral({self.value})"
@@ -646,3 +654,10 @@ class FunctionCall(Expr):
 class BoundMethod(Expr):
     func: FunctionRef
     obj: Expr
+
+
+@dataclass
+class SetItem(Node):
+    expr: Expr
+    idx: Expr
+    value: Expr
