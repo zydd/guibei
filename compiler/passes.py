@@ -221,7 +221,7 @@ ir_passes: list = [
     translate_toplevel_type_decls,
     check_no_untranslated_types,
     translate_function_defs,
-    # check_no_untranslated_nodes,
+    check_no_untranslated_nodes,
 ]
 
 

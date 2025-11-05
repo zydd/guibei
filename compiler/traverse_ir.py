@@ -26,6 +26,10 @@ def traverse_list(func, attr: list[ir.Node], *args, **kwargs):
 
 def traverse(func, node: ir.Node, *args, **kwargs):
     assert isinstance(node, ir.Node), type(node)
+
+    if isinstance(node, ir.WasmExpr):
+        return traverse_wasm(func, node, *args, **kwargs)
+
     for attr_name in node:
         attr = node[attr_name]
         if attr_name == "ast_node":
