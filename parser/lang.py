@@ -232,7 +232,7 @@ def if_block():
 def return_statement():
     yield regex(r"return\b *")
     res = yield optional(expr())
-    return ast.FunctionReturn(res if res is not None else ast.VoidType())
+    return ast.FunctionReturn(res if res is not None else ast.VoidExpr())
 
 
 @generate

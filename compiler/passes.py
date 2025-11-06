@@ -49,16 +49,37 @@ def translate_toplevel_type_decls(node: ir.Node, scope=None) -> ir.Node:
     match node:
         case ir.Module():
             node.scope.attrs = traverse_ir.traverse_dict(translate_toplevel_type_decls, node.scope.attrs, node.scope)
+
+        case ir.UntranslatedType(ast.ArrayType() as ast_node):
+            tr_type = translate_toplevel_type_decls(ir.UntranslatedType(ast_node.element_type), scope)
+            assert isinstance(tr_type, ir.Type)
+            return ir.ArrayType(ast_node, tr_type)
+
+        case ir.UntranslatedType(ast.TypeIdentifier() as ast_node):
+            type_: ir.Type = scope.lookup_type(ast_node.name)
+            return ir.TypeRef(node.ast_node, type_)
+
+        case ir.UntranslatedType(ast.GetAttr(obj=ast.TypeIdentifier() as obj, attr=str()) as ast_node):
+            type_ = scope.lookup_type(obj.name)
+            assert isinstance(type_, ir.TypeDef)
+            member = type_.scope.attrs[ast_node.attr]
+            assert isinstance(member, ir.TypeDef)
+            return ir.TypeRef(ast_node, member)
+
         case ir.UntranslatedType():
             return node.translate(scope)
+
         case ir.TypeRef():
             pass
+
         case ir.TypeDef():
             return traverse_ir.traverse(translate_toplevel_type_decls, node, node.scope)
+
         case ir.FunctionDef():
-            type_ = translate_toplevel_type_decls(node.type_, scope)
-            assert isinstance(type_, ir.FunctionType)
-            node.type_ = type_
+            tr_type = translate_toplevel_type_decls(node.type_, scope)
+            assert isinstance(tr_type, ir.FunctionType)
+            node.type_ = tr_type
+
         case _:
             return traverse_ir.traverse(translate_toplevel_type_decls, node, scope)
     return node
@@ -84,11 +105,18 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
         case ir.FunctionDef():
             for arg in node.type_.args:
                 node.scope.register_var(arg.name, ir.VarRef(None, arg))
+
             node.scope = traverse_ir.traverse(translate_function_defs, node.scope, node.scope)
+
+            # TODO: Can't do this transformation here because we might need to drop the result of expr if the function returns void
+            # if node.scope.body and isinstance(node.scope.body[-1], ir.Expr):
+            #     node.scope.body[-1] = ir.FunctionReturn(None, ir.FunctionRef(None, node), node.scope.body[-1])
+
             return node
 
         case ir.Untranslated(ast.VarDecl() as var):
-            var_type = ir.UntranslatedType(var.type_).translate(scope)
+            var_type = translate_toplevel_type_decls(ir.UntranslatedType(var.type_), scope)
+            assert isinstance(var_type, ir.Type)
             var_decl = ir.VarDecl(var, var.name, var_type)
             scope.register_local(var_decl.name, var_decl)
             if var.init:
@@ -110,7 +138,7 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
                 case ir.FunctionDef():
                     return ir.FunctionRef(id, attr)
                 case ir.TypeDef():
-                    return ir.TypeRef(id, id.name, attr)
+                    return ir.TypeRef(id, attr)
                 case _:
                     raise NotImplementedError(attr)
 
@@ -173,7 +201,9 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
                     assert isinstance(node.callee.primitive(), ir.NativeType)
                     assert len(node.args) == 1
                     assert isinstance(node.args[0], ir.IntLiteral)
-                    return ir.WasmExpr(node.ast_node, ["i32.const", node.args[0].value], node.callee)
+                    return ir.Asm(
+                        node.ast_node, ir.WasmExpr(node.ast_node, ["i32.const", node.args[0].value]), node.callee
+                    )
                 case _:
                     raise NotImplementedError(type(node.callee))
 
@@ -210,6 +240,110 @@ def check_no_untranslated_nodes(node: ir.Node) -> ir.Node:
     return node
 
 
+def propagate_types(node: ir.Node):
+    match node:
+        case ir.Module():
+            node.scope = propagate_types(node.scope)
+            node.asm = [propagate_types(match_expr_type(asm, ir.VoidType(None))) for asm in node.asm]
+
+        case ir.FunctionReturn():
+            assert isinstance(node.func.func.type_.ret_type, (ir.TypeRef | ir.VoidType))
+            node.expr = propagate_types(match_expr_type(node.expr, node.func.func.type_.ret_type))
+
+        case ir.FunctionCall():
+            assert len(node.args) == len(node.func.func.type_.args)
+            node.args = [
+                propagate_types(match_expr_type(arg, arg_decl.type_))
+                for arg, arg_decl in zip(node.args, node.func.func.type_.args)
+            ]
+
+        case ir.FunctionDef():
+            for i in range(len(node.scope.body) - 1):
+                if isinstance(node.scope.body[i], ir.Asm):
+                    node.scope.body[i] = propagate_types(match_expr_type(node.scope.body[i], ir.VoidType(None)))
+                elif isinstance(node.scope.body[i], ir.Expr):
+                    expr = propagate_types(node.scope.body[i])
+                    assert not isinstance(expr.type_, ir.UnknownType)
+                    node.scope.body[i] = expr if isinstance(expr.type_, ir.VoidType) else ir.Drop(expr)
+                else:
+                    node.scope.body[i] = propagate_types(node.scope.body[i])
+
+            if node.scope.body:
+                if isinstance(node.type_.ret_type, ir.VoidType):
+                    if isinstance(node.scope.body[-1], ir.Expr):
+                        expr = propagate_types(node.scope.body[-1])
+                        assert not isinstance(expr.type_, ir.UnknownType)
+                        node.scope.body[-1] = expr if isinstance(expr.type_, ir.VoidType) else ir.Drop(expr)
+                    else:
+                        node.scope.body[-1] = propagate_types(node.scope.body[-1])
+                else:
+                    if isinstance(node.scope.body[-1], ir.Expr):
+                        node.scope.body[-1] = propagate_types(match_expr_type(node.scope.body[-1], node.type_.ret_type))
+                    else:
+                        assert isinstance(node.scope.body[-1], ir.FunctionReturn)
+                        node.scope.body[-1] = propagate_types(node.scope.body[-1])
+
+        case ir.Scope():
+            # TODO: while/if/else expressions
+            for i in range(len(node.body)):
+                if isinstance(node.body[i], ir.Asm):
+                    node.body[i] = propagate_types(match_expr_type(node.body[i], ir.VoidType(None)))
+                elif isinstance(node.body[i], ir.Expr):
+                    expr = propagate_types(node.body[i])
+                    assert not isinstance(expr.type_, ir.UnknownType)
+                    node.body[i] = expr if isinstance(expr.type_, ir.VoidType) else ir.Drop(expr)
+                else:
+                    node.body[i] = propagate_types(node.body[i])
+
+            node.attrs = traverse_ir.traverse_dict(propagate_types, node.attrs)
+
+        case ir.SetLocal():
+            node.expr = propagate_types(match_expr_type(node.expr, node.var.type_))
+
+        case ir.SetItem():
+            node.expr = propagate_types(node.expr)
+            node.idx = propagate_types(node.idx)
+            node.value = propagate_types(match_expr_type(node.value, node.expr.type_.primitive().element_type))
+
+        case ir.GetItem():
+            node.type_ = node.expr.type_.primitive().element_type
+            node.expr = propagate_types(node.expr)
+            # TODO: match numeric type
+            node.idx = propagate_types(node.idx)
+
+        case _:
+            return traverse_ir.traverse(propagate_types, node)
+
+    return node
+
+
+def match_expr_type(expr: ir.Node, type_: ir.Type):
+    assert isinstance(expr, ir.Expr)
+    match expr.type_:
+        case ir.UnknownType():
+            assert isinstance(type_, (ir.TypeRef, ir.UnknownType, ir.VoidType))
+            expr.type_ = type_
+        case ir.AstType(name="__int_literal"):
+            assert isinstance(type_.primitive(), ir.NativeType)
+        case ir.AstType(name="__string_literal"):
+            assert isinstance(type_.primitive(), ir.ArrayType)
+        case _:
+            if expr.type_ != type_:
+                raise Exception(f"Type mismatch: {expr.type_} vs {type_}")
+
+    return expr
+
+
+def check_no_unknown_types(node: ir.Node) -> ir.Node:
+    match node:
+        case ir.UnknownType():
+            raise Exception(f"Unknown type: {node}")
+
+        case _:
+            return traverse_ir.traverse(check_no_unknown_types, node)
+    return node
+
+
 toplevel_ast_passes: list = [
     register_toplevel_decls,
     register_toplevel_methods,
@@ -222,6 +356,8 @@ ir_passes: list = [
     check_no_untranslated_types,
     translate_function_defs,
     check_no_untranslated_nodes,
+    propagate_types,
+    check_no_unknown_types,
 ]
 
 

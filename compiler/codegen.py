@@ -96,6 +96,24 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
     match node:
         case ir.Module():
             terms: list = ["module"]
+
+            for attr in node.scope.attrs.values():
+                annotations = getattr(attr.ast_node, "annotations", None)
+                if annotations:
+                    assert isinstance(attr, ir.FunctionDef)
+                    terms.append(
+                        [
+                            "func",
+                            f"${attr.name}",
+                            [
+                                "import",
+                                f'"{annotations[0].args[0].value}"',
+                                f'"{annotations[0].args[1].value}"',
+                            ],
+                            ["type", f"${attr.name}.__type"],
+                        ]
+                    )
+
             for expr in node.asm:
                 terms.extend(translate_wasm(expr))
 
@@ -108,12 +126,13 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
             return terms
 
         case ir.IntLiteral():
+            # TODO: __from_literal
             return [f"(i32.const {node.value})"]
 
         case ir.AsmType():
             return [node.name]
 
-        case ir.VoidType():
+        case ir.VoidExpr():
             return []
 
         case ir.WasmExpr():
@@ -138,6 +157,10 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
             if not isinstance(node.type_.ret_type, ir.VoidType):
                 decls.append(["result", *type_reference(node.type_.ret_type)])
 
+            # TODO
+            if hasattr(node.ast_node, "annotations"):
+                return [["type", f"${node.name}.__type", ["func", *decls]]]
+
             body = translate_wasm(node.scope)
 
             return [
@@ -159,7 +182,7 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
                         terms.extend(translate_wasm(expr))
 
                     # TODO
-                    case ir.TypeRef() | ir.VarRef() | ir.OverloadedFunction() | ir.AsmType():
+                    case ir.TypeRef() | ir.VarRef() | ir.OverloadedFunction() | ir.AsmType() | ir.EnumValueType():
                         pass
 
                     case _:
@@ -261,6 +284,9 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
                     for i, byte in enumerate(node.value.encode("ascii"))
                 ),
             ]
+
+        case ir.Drop():
+            return [["drop", *translate_wasm(node.expr)]]
 
         # case _:
         #     print(type(node))

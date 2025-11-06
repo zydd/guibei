@@ -83,11 +83,7 @@ class Scope(Node):
         if self.func:
             self.attrs[name] = var
         else:
-            func_scope = self.parent
-            while func_scope and not func_scope.func:
-                func_scope = func_scope.parent
-            if not func_scope:
-                raise RuntimeError("Not in function scope")
+            func_scope = self.current_func().func.scope
 
             local_name = f"{func_scope.name}.{name}"
             if local_name in func_scope.attrs:
@@ -105,7 +101,6 @@ class Scope(Node):
 
         if isinstance(type_, TypeRef):
             self.attrs[name] = type_
-            return type_
         else:
             global_name = f"{self.name}.{name}"
             if global_name in self.root.attrs:
@@ -117,9 +112,8 @@ class Scope(Node):
             if isinstance(type_, TypeDef):
                 type_.name = global_name
 
-            self.root.attrs[global_name] = type_
-            self.attrs[name] = ref = TypeRef(None, global_name, type_)
-            return ref
+            # self.root.attrs[global_name] = type_
+            self.attrs[name] = type_
 
     def has_member(self, name: str) -> bool:
         return name in self.attrs
@@ -143,6 +137,14 @@ class Scope(Node):
             return self.parent.lookup(name)
         else:
             raise KeyError(f"Attribute '{name}' not found")
+
+    def current_func(self) -> FunctionRef:
+        func = self.func
+        while not func:
+            assert self.parent is not None
+            self = self.parent
+            func = self.func
+        return func
 
 
 @dataclass
@@ -193,16 +195,7 @@ class UntranslatedType(Type):
         ir_type = globals().get(type_name)
         if ir_type:
             return ir_type.translate(self.ast_node, scope)
-        match self.ast_node:
-            case ast.TypeIdentifier():
-                type_ = scope.lookup_type(self.ast_node.name)
-                return TypeRef(self.ast_node, self.ast_node.name, type_)
-            case ast.GetAttr(obj=ast.TypeIdentifier() as expr, attr=str()):
-                type_ = scope.lookup_type(expr.name)
-                assert isinstance(type_, TypeDef)
-                member = type_.scope.attrs[self.ast_node.attr]
-                assert isinstance(member, TypeDef)
-                return TypeRef(self.ast_node, member.name, member)
+
         raise NotImplementedError(type_name)
 
 
@@ -218,7 +211,7 @@ class TypeDef(Type):
         self.super_ = super_
         self.name = name
         self.scope = scope
-        self_ref = TypeRef(None, name, self)
+        self_ref = TypeRef(None, self)
         self.scope.register_type("Self", self_ref)
         self.scope.attrs["__asm_type"] = AsmType(None, f"${self.scope.name}")
         # self.scope.register_type(name, self_ref)
@@ -235,10 +228,6 @@ class TypeDef(Type):
 class ArrayType(Type):
     element_type: Type
 
-    @staticmethod
-    def translate(node: ast.ArrayType, scope: Scope):
-        return ArrayType(node, UntranslatedType(node.element_type).translate(scope))
-
 
 @dataclass
 class TupleType(Type):
@@ -254,6 +243,9 @@ class VoidType(Type):
     @staticmethod
     def translate(node: ast.VoidType, _scope):
         return VoidType(node)
+
+    def __eq__(self, value):
+        return isinstance(value, VoidType)
 
 
 @dataclass
@@ -321,7 +313,7 @@ class EnumValueType(TypeDef):
         field_types: list = [UntranslatedType(t) for t in node.field_types]
         return EnumValueType(
             node,
-            TypeRef(None, enum.name, enum),
+            TypeRef(None, enum),
             node.name,
             Scope(enum.scope, node.name),
             discr=discr,
@@ -352,6 +344,19 @@ class Expr(Node):
     def __init__(self, ast_node, type_=None):
         super().__init__(ast_node)
         self.type_ = type_ or UnknownType()
+
+
+@dataclass
+class VoidExpr(Expr):
+    def __init__(self, ast_node):
+        super().__init__(ast_node, VoidType(None))
+
+    @staticmethod
+    def translate(node: ast.VoidExpr, _scope):
+        return VoidExpr(node)
+
+    def __eq__(self, value):
+        return isinstance(value, VoidExpr)
 
 
 @dataclass
@@ -412,10 +417,10 @@ class GetItem(Expr):
 
 @dataclass
 class Asm(Expr):
-    terms: Node
+    terms: WasmExpr
 
-    def __init__(self, ast_node, terms):
-        super().__init__(ast_node)
+    def __init__(self, ast_node, terms, type_=None):
+        super().__init__(ast_node, type_)
         self.terms = terms
 
     @staticmethod
@@ -461,11 +466,11 @@ class StringLiteral(Expr):
 
 
 @dataclass(init=False)
-class WasmExpr(Expr):
+class WasmExpr(Node):
     terms: list[WasmExpr | str | int]
 
-    def __init__(self, ast_node: ast.Node | None, terms, type_=None):
-        super().__init__(ast_node, type_ or UnknownType())
+    def __init__(self, ast_node: ast.Node | None, terms):
+        super().__init__(ast_node)
         self.terms = [WasmExpr(None, t) if isinstance(t, list) else t for t in terms]
 
     @staticmethod
@@ -486,7 +491,7 @@ class FunctionRef(Expr):
     # function: FunctionDef
 
     def __init__(self, ast_node: ast.Node | None, func: FunctionDef):
-        super().__init__(ast_node)
+        super().__init__(ast_node, TypeRef(None, func.type_))
         self.func = func
 
     def __repr__(self):
@@ -495,20 +500,26 @@ class FunctionRef(Expr):
 
 @dataclass
 class TypeRef(Type):
-    name: str
     # type_: Type
 
-    def __init__(self, ast_node: ast.Node | None, name: str, type_: Type):
+    def __init__(self, ast_node: ast.Node | None, type_: Type):
         super().__init__(ast_node)
         assert not isinstance(type_, TypeRef)
-        self.name = name
         self.type_ = type_
 
     def __repr__(self):
-        return f"TypeRef({self.name})"
+        return f"TypeRef({self.type_.name})"
+
+    def __eq__(self, value):
+        value_type = value.type_ if isinstance(value, TypeRef) else value
+        return self.type_ == value_type
 
     def primitive(self):
         return self.type_.primitive()
+
+    @property
+    def name(self):
+        return self.type_.name
 
 
 @dataclass
@@ -596,11 +607,12 @@ class OverloadedFunction(Node):
 
 @dataclass
 class FunctionReturn(Node):
+    func: FunctionRef
     expr: Node
 
     @staticmethod
-    def translate(node: ast.FunctionReturn, _scope: Scope):
-        return FunctionReturn(node, Untranslated(node.expr))
+    def translate(node: ast.FunctionReturn, scope: Scope):
+        return FunctionReturn(node, scope.current_func(), Untranslated(node.expr))
 
 
 @dataclass
@@ -661,3 +673,12 @@ class SetItem(Node):
     expr: Expr
     idx: Expr
     value: Expr
+
+
+@dataclass
+class Drop(Node):
+    expr: Expr
+
+    def __init__(self, expr: Expr):
+        super().__init__(None)
+        self.expr = expr

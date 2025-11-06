@@ -52,6 +52,11 @@ class VoidType(Type):
 
 
 @dataclass(repr=_ast_repr)
+class VoidExpr(Node):
+    pass
+
+
+@dataclass(repr=_ast_repr)
 class FunctionType(Type):
     args: list[ArgDecl]
     ret_type: Type
