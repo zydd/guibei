@@ -1,7 +1,9 @@
 from parser.combinators import *
 from parser.indent import *
 
-from compiler.ast import *
+from compiler import ast
+
+operator_characters = "-~`!@$%^&*+=|;:',<.>/?"
 
 
 @generate
@@ -30,13 +32,13 @@ def asm():
 
     @generate
     def wast_expr():
-        return WasmExpr((yield sep_by(indent_spaces(), wast_term())))
+        return ast.WasmExpr((yield sep_by(indent_spaces(), wast_term())))
 
     yield string("asm:")
     yield regex(r"\s*")
     yield indented()
     asm = yield with_pos(wast_expr())
-    return Asm(asm)
+    return ast.Asm(asm)
 
 
 @generate
@@ -52,7 +54,7 @@ def var_decl():
     yield regex("let +")
     name, type_ = yield typed_id_decl()
     optional_init = yield optional(sequence(regex(r"\s*=\s*"), expr()))
-    return VarDecl(name, type_, init=optional_init[1] if optional_init else None)
+    return ast.VarDecl(name, type_, init=optional_init[1] if optional_init else None)
 
 
 @generate
@@ -60,7 +62,7 @@ def assignment():
     lvalue = yield cast_expr()
     yield regex(r"\s*=\s*")
     value = yield expr()
-    return Assignment(lvalue, value)
+    return ast.Assignment(lvalue, value)
 
 
 @generate
@@ -74,12 +76,14 @@ def function_def():
     name = yield choice(identifier(), operator_identifier())
     yield regex(r" *")
     args = yield parens(sep_by(regex(r"\s*,\s*"), typed_id_decl()))
+    args = [ast.ArgDecl(*a) for a in args]
     ret_type = yield optional(fn_ret_type())
     if (yield optional(regex(r" *:"))):
         body = yield indented_block(statement())
     else:
         body = []
-    return FunctionDef(name.name, args, ret_type or VoidType(), body)
+    type_ = ast.FunctionType(args, ret_type or ast.VoidType())
+    return ast.FunctionDef(name.name, type_, body)
 
 
 @generate
@@ -92,13 +96,13 @@ def function_type():
     yield regex("func *")
     args = yield parens(sep_by(regex(r"\s*,\s*"), typed_id_decl()))
     ret_type = yield optional(fn_ret_type())
-    return FunctionType(None, args, ret_type or VoidType())
+    return ast.FunctionType(None, args, ret_type or ast.VoidType())
 
 
 @generate
 def tuple_def():
     fields = yield parens(sep_by(regex(r"\s*,\s*"), type_expr()))
-    return TupleType(None, fields)
+    return ast.TupleType(None, fields)
 
 
 # @generate
@@ -119,49 +123,50 @@ def type_def():
     yield regex(r"\s*:")
     body = yield indented_block(type_expr())
     assert len(body) == 1
-    return NewType(name, body[-1])
+    return ast.TypeDef(name, body[-1])
 
 
 @generate
 def native_type():
-    type_ = yield regex(r"__native_type<(\w+)>", 1)
-    return NativeType(type_)
+    yield regex(r"__native_type<")
+    args = yield sep_by(regex(r"\s*,\s*"), regex(r"\w+"))
+    yield string(">")
+    return ast.NativeType(args)
 
 
 @generate
 def int_literal():
-    return IntLiteral(int((yield regex(r"-?\d+"))))
+    return ast.IntLiteral(int((yield regex(r"-?\d+"))))
 
 
 @generate
 def string_literal():
     value = yield regex(r'"(([^"\\]|\\.)*)"', group=1)
-    return StringLiteral(value)
+    value = value.encode().decode("unicode_escape")
+    return ast.StringLiteral(value)
 
 
 @generate
 def identifier():
-    return Identifier((yield regex(r"[_a-zA-Z]\w*")))
+    return ast.Identifier((yield regex(r"[_a-zA-Z]\w*")))
 
 
 @generate
 def operator_identifier():
-    yield string("(")
-    op = yield regex(rf"[{operator_characters}]+")
-    yield string(")")
-    return Identifier(op)
+    op = yield regex(rf"\([{operator_characters}]+\)")
+    return ast.Identifier(op)
 
 
 @generate
 def call(callee):
     args = yield parens(sep_by(regex(r"\s*,\s*"), expr()))
-    return Call(callee, args)
+    return ast.Call(callee, args)
 
 
 @generate
 def array_index(array):
     idx = yield brackets(optional(expr()))
-    return ArrayIndex(array, idx)
+    return ast.GetItem(array, idx)
 
 
 @generate
@@ -170,9 +175,9 @@ def attr_access(expr):
     yield string(".")
     attr = yield choice(number(), regex(r"\w+"))
     if isinstance(attr, int):
-        return TupleIndex(expr, attr)
+        return ast.GetTupleItem(expr, attr)
     else:
-        return MemberAccess(expr, attr)
+        return ast.GetAttr(expr, attr)
 
 
 @generate
@@ -193,7 +198,7 @@ def binop(ops, unit):
 
     # TODO: right-association
     for op, rhs in zip(operators, terms):
-        res = Call(Identifier(op), [res, rhs])
+        res = ast.Call(ast.Identifier(f"({op})"), [res, rhs])
 
     return res
 
@@ -205,7 +210,7 @@ def while_block():
     yield regex(r" *:\s*")
     yield indented()
     body = yield with_pos(sep_by(regex(r"\s*"), statement()))
-    return WhileStatement(condition, body)
+    return ast.While(condition, body)
 
 
 @generate
@@ -221,14 +226,14 @@ def if_block():
     yield regex(r" *:")
     body_then = yield indented_block(statement())
     body_else = yield optional(else_block())
-    return IfStatement(condition, body_then, body_else if body_else is not None else [])
+    return ast.IfElse(condition, body_then, body_else if body_else is not None else [])
 
 
 @generate
 def return_statement():
     yield regex(r"return\b *")
     res = yield optional(expr())
-    return ReturnStatement(res if res is not None else VoidType())
+    return ast.FunctionReturn(res if res is not None else ast.VoidExpr())
 
 
 @generate
@@ -245,13 +250,15 @@ def enum_def():
     def enum_val():
         name = yield regex(r"\w+")
         fields = yield optional(parens(sep_by(regex(r"\s*,\s*"), type_expr())))
-        return name, fields
+        if fields is None:
+            fields = []
+        return ast.EnumValueType(fields, name)
 
     yield regex("enum +")
     name = yield regex(r"\w+")
     yield regex(r" *:")
     values = yield indented_block(enum_val())
-    return Enum(name, values)
+    return ast.EnumType(name, values)
 
 
 @generate
@@ -261,7 +268,7 @@ def impl():
     yield regex(r" *:")
     values = yield indented_block(choice(comment(), function_def()))
     values = [stmt for stmt in values if stmt is not None]
-    return TypeImpl(name, values)
+    return ast.TypeImpl(name, values)
 
 
 @generate
@@ -294,7 +301,7 @@ def cast_expr():
     cast = yield optional(backtrack(sequence(type_name(), regex(" *"), expr_index())))
     if cast:
         type_, _, expr = cast
-        return CastExpr(type_, expr)
+        return ast.Call(type_, [expr])
     return (yield expr_index())
 
 
@@ -333,7 +340,7 @@ def expr():
 @generate
 def type_name():
     term = yield identifier()
-    term = TypeIdentifier(term.name)
+    term = ast.TypeIdentifier(term.name)
 
     while True:
         term_ex = yield optional(choice(call(term), attr_access(term)))
@@ -353,7 +360,7 @@ def type_name():
 @generate
 def array_type_index(array):
     idx = yield brackets(regex(r" *"))
-    return ArrayType(array)
+    return ast.ArrayType(array)
 
 
 @generate
@@ -369,8 +376,8 @@ def type_expr():
 
 
 @generate
-def prog():
+def module():
     yield regex(r"\s*")
     res = yield sep_by(regex(r"\s*"), statement())
     yield regex(r"\s*")
-    return res
+    return ast.Module(res)

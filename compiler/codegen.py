@@ -1,0 +1,296 @@
+from . import ir
+from . import traverse_ir
+
+
+def wasm_repr_indented(expr: list[str | int | list], level=0) -> str:
+    indent = "    " * level
+    if len(expr) == 1 and not isinstance(expr[0], list):
+        return f"{indent}({expr[0]})"
+    else:
+        terms = []
+        if expr:
+            terms.append("\n" + wasm_repr_indented(expr[0], level + 1) if isinstance(expr[0], list) else str(expr[0]))
+            n = 1
+            if len(expr) > 1 and expr[0] != "elem" and isinstance(expr[1], str) and expr[1].startswith("$"):
+                terms[0] += " " + expr[1]
+                n += 1
+            for term in expr[n:]:
+                terms.append(
+                    wasm_repr_indented(term, level + 1) if isinstance(term, list) else f"{'    ' * (level + 1)}{term}"
+                )
+        inner = "\n".join(terms)
+        if len(inner) < 80:
+            return indent + _wasm_repr_flat(expr)
+        return f"{indent}({inner}\n{indent})"
+
+
+def _wasm_repr_flat(expr):
+    format = lambda term: _wasm_repr_flat(term) if isinstance(term, list) else str(term)
+    return f"({' '.join(map(format, expr))})"
+
+
+def type_reference(node: ir.Node) -> list:
+    match node:
+        case ir.NativeType():
+            return [node.name]
+
+        case ir.TypeDef():
+            primitive = node.primitive()
+            if isinstance(primitive, ir.NativeType):
+                return type_reference(primitive)
+            return [["ref", f"${node.name}"]]
+
+        case ir.TypeRef():
+            return type_reference(node.type_)
+
+        # case ir.VoidType():
+        #     return []
+
+    raise NotImplementedError(type(node))
+
+
+def type_declaration(node: ir.Node) -> list:
+    match node:
+        case ir.NativeType():
+            return [node.name]
+
+        case ir.EnumType():
+            return [["type", f"${node.name}", "(sub $__enum (struct (field (ref i31))))"]]
+
+        case ir.EnumValueType():
+            fields = [["field", *type_reference(type_)] for type_ in node.field_types]
+            assert isinstance(node.super_, ir.TypeRef)
+            return [
+                [
+                    "type",
+                    f"${node.name}",
+                    ["sub", f"${node.super_.name}", ["struct", "(field (ref i31))", *fields]],
+                ],
+            ]
+
+        case ir.TypeDef():
+            primitive = node.primitive()
+            if isinstance(primitive, ir.NativeType):
+                return []
+            decl = type_declaration(primitive)
+
+            if isinstance(node.super_, ir.TypeRef) and isinstance(node.super_.primitive(), ir.TupleType):
+                decl = [["sub", f"${node.super_.name}", *decl]]
+
+            return [["type", f"${node.name}", *decl]]
+
+        case ir.ArrayType():
+            element_primitive = node.element_type.primitive()
+            if isinstance(element_primitive, ir.NativeType) and element_primitive.array_packed:
+                return [["array", ["mut", element_primitive.array_packed]]]
+            else:
+                return [["array", ["mut", *type_declaration(element_primitive)]]]
+
+        case ir.TypeRef() | ir.FunctionDef():
+            return []
+
+    raise NotImplementedError(type(node))
+
+
+def translate_wasm(node: ir.Node) -> list[str | int | list]:
+    match node:
+        case ir.Module():
+            terms: list = ["module"]
+
+            for attr in node.scope.attrs.values():
+                annotations = getattr(attr.ast_node, "annotations", None)
+                if annotations:
+                    assert isinstance(attr, ir.FunctionDef)
+                    terms.append(
+                        [
+                            "func",
+                            f"${attr.name}",
+                            [
+                                "import",
+                                f'"{annotations[0].args[0].value}"',
+                                f'"{annotations[0].args[1].value}"',
+                            ],
+                            ["type", f"${attr.name}.__type"],
+                        ]
+                    )
+
+            for expr in node.asm:
+                terms.extend(translate_wasm(expr))
+
+            for attr in node.scope.attrs.values():
+                terms.extend(type_declaration(attr))
+
+            for attr in node.scope.attrs.values():
+                terms.extend(translate_wasm(attr))
+
+            return terms
+
+        case ir.IntLiteral():
+            # TODO: __from_literal
+            return [f"(i32.const {node.value})"]
+
+        case ir.AsmType():
+            return [node.name]
+
+        case ir.VoidExpr():
+            return []
+
+        case ir.WasmExpr():
+            terms = []
+            for term in node.terms:
+                if isinstance(term, ir.WasmExpr):
+                    terms.append(translate_wasm(term))
+                elif isinstance(term, ir.Node):
+                    terms.extend(translate_wasm(term))
+                else:
+                    terms.append(term)
+            return terms
+
+        case ir.TypeDef():
+            return translate_wasm(node.scope)
+
+        case ir.TypeRef():
+            return []
+
+        case ir.FunctionDef():
+            decls: list = [["param", f"${arg.name}", *type_reference(arg.type_)] for arg in node.type_.args]
+            if not isinstance(node.type_.ret_type, ir.VoidType):
+                decls.append(["result", *type_reference(node.type_.ret_type)])
+
+            # TODO
+            if hasattr(node.ast_node, "annotations"):
+                return [["type", f"${node.name}.__type", ["func", *decls]]]
+
+            body = translate_wasm(node.scope)
+
+            return [
+                ["type", f"${node.name}.__type", ["func", *decls]],
+                ["func", f"${node.name}", ["type", f"${node.name}.__type"], *decls, *body],
+            ]
+
+        case ir.FunctionReturn():
+            return [["return", *translate_wasm(node.expr)]]
+
+        case ir.Scope():
+            terms = []
+            for attr_name, expr in node.attrs.items():
+                # if attr_name.startswith("__"):
+                #     continue
+
+                match expr:
+                    case ir.VarDecl() | ir.FunctionDef():
+                        terms.extend(translate_wasm(expr))
+
+                    # TODO
+                    case ir.TypeRef() | ir.VarRef() | ir.OverloadedFunction() | ir.AsmType() | ir.EnumValueType():
+                        pass
+
+                    case _:
+                        raise NotImplementedError(type(expr))
+            for expr in node.body:
+                terms.extend(translate_wasm(expr))
+            return terms
+
+        case ir.VarDecl():
+            return [["local", f"${node.name}", *type_reference(node.type_)]]
+
+        case ir.VarRef():
+            return [["local.get", f"${node.var.name}"]]
+
+        case ir.Asm():
+            assert isinstance(node.terms, ir.WasmExpr)
+            return translate_wasm(node.terms)
+
+        case ir.SetLocal():
+            return [["local.set", f"${node.var.var.name}", *translate_wasm(node.expr)]]
+
+        case ir.IfElse():
+            else_block = [["else", *translate_wasm(node.scope_else)]] if node.scope_else.body else []
+            return [["if", *translate_wasm(node.condition), ["then", *translate_wasm(node.scope_then)], *else_block]]
+
+        case ir.Loop():
+            body = translate_wasm(node.scope)
+            assert node.post_condition is None
+            id = 0
+            return [
+                [
+                    "block",
+                    f"${node.scope.name}.__block",
+                    [
+                        "loop",
+                        f"${node.scope.name}.__loop",
+                        [
+                            "br_if",
+                            f"${node.scope.name}.__block",
+                            ["i32.eqz", *translate_wasm(node.pre_condition)],
+                        ],
+                        *body,
+                        ["br", f"${node.scope.name}.__loop"],
+                    ],
+                ]
+            ]
+
+        # TODO
+        case ir.Assignment(lvalue=ir.VarRef()):
+            assert isinstance(node.lvalue, ir.VarRef)
+            return [["local.set", f"${node.lvalue.var.name}", *translate_wasm(node.expr)]]
+
+        case ir.SetItem():
+            assert isinstance(node.expr.type_, ir.TypeRef)
+            assert isinstance(node.expr.type_.type_, ir.TypeDef)
+            return [
+                [
+                    "array.set",
+                    f"${node.expr.type_.type_.name}",
+                    *translate_wasm(node.expr),
+                    *translate_wasm(node.idx),
+                    *translate_wasm(node.value),
+                ]
+            ]
+
+        case ir.FunctionCall():
+            return [["call", f"${node.func.func.name}"] + [term for arg in node.args for term in translate_wasm(arg)]]
+
+        case ir.GetItem():
+            assert isinstance(node.expr, ir.VarRef)
+            elem_primitive = node.expr.var.type_.primitive().element_type.primitive()
+            assert isinstance(node.expr.type_, ir.TypeRef)
+            assert isinstance(node.expr.type_.type_, ir.TypeDef)
+            assert isinstance(elem_primitive, ir.NativeType)
+            getter = {
+                "i8": "array.get_s",
+                "u8": "array.get_u",
+            }
+            return [
+                [
+                    getter[elem_primitive.array_packed],
+                    f"${node.expr.type_.type_.name}",
+                    *translate_wasm(node.expr),
+                    *translate_wasm(node.idx),
+                ]
+            ]
+
+        case ir.StringLiteral():
+            assert isinstance(node.type_, ir.AstType)
+            return [
+                [
+                    f"local.tee ${node.temp_var.var.name}",
+                    [f"array.new_default ${node.type_.name}", f"(i32.const {len(node.value)})"],
+                ],
+                *(
+                    [
+                        f"array.set ${node.type_.name} (local.get ${node.temp_var.var.name}) (i32.const {i}) (i32.const {byte})"
+                    ]
+                    for i, byte in enumerate(node.value.encode("ascii"))
+                ),
+            ]
+
+        case ir.Drop():
+            return [["drop", *translate_wasm(node.expr)]]
+
+        # case _:
+        #     print(type(node))
+        #     return traverse_ir.traverse(translate_wasm, node)
+
+    return [str(node)]
+    raise NotImplementedError(node)

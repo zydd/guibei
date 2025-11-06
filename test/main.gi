@@ -1,11 +1,13 @@
 
 asm:
     (export "memory" (memory $memory))
-    (export "_start" (func $main))
+    (export "_start" (func $module.main))
     (memory $memory 1)
     (global $__stackp (mut i32) (i32.const 1024))
     (type $vtd (array (mut funcref)))
     (global (ref $vtd) (array.new_default $vtd (i32.const 13)))
+    (type $__enum (sub (struct (field (ref i31)))))
+    (type $__string_literal (array (mut i8)))
 
 # i32
 
@@ -14,7 +16,7 @@ type i32: __native_type<i32>
 
 
 func (+)(a: i32, b: i32) -> i32:
-    asm: (i32.add {a} {b})
+    asm: {a} {b} i32.add
 
 
 func (-)(a: i32, b: i32) -> i32:
@@ -83,12 +85,16 @@ impl i32:
 
 type i8: __native_type<i8>
 type bytes: i8[]
-
+type str: bytes
 
 impl bytes:
     # func __from_literal(i: __int_literal):
     #     asm:
     #         (i32.const {i})
+
+    func repeat(chr: i32, count: i32) -> bytes:
+        asm:
+            (array.new {bytes.__asm_type} {chr} {count})
 
     func print(self: Self):
         let i: i32 = 0
@@ -120,7 +126,7 @@ impl bytes:
     #     # if start < 0 or end < 0 or start > len or end > len or start > end:
     #     #     unreachable
 
-    #     let result: bytes = bytes(end - start, 0)
+    #     let result: bytes = bytes.repeat(end - start, 0)
     #     let i: i32 = start
     #     # while i < end:
     #     #     result[i - start] = self[i]
@@ -184,7 +190,7 @@ func __read_n(addr: i32, count: i32) -> i32:
 func read_bytes(count: i32) -> bytes:
     let buffer: i32 = asm: (global.get $__stackp) + 16
     let read_count: i32 = __read_n(buffer, count)
-    let result: bytes = bytes(0, read_count)
+    let result: bytes = bytes.repeat(0, read_count)
     let i: i32 = 0
 
     while i < read_count:
@@ -195,14 +201,14 @@ func read_bytes(count: i32) -> bytes:
 
 func main():
     i32(0).print()
-    bytes.print(bytes(10, 1))
+    bytes.print(bytes.repeat(10, 1))
     i32(10).print()
-    bytes.print(bytes(10, 1))
+    bytes.print(bytes.repeat(10, 1))
     i32.print(1234567890)
-    bytes.print(bytes(10, 1))
+    bytes.print(bytes.repeat(10, 1))
     i32(-1234567890).print()
     bytes.print("\nHello world!\n")
     i32.print(bytes.eq("abc", "abc"))
     bytes.print("\n")
     bytes.print(read_bytes(100))
-    bytes.print(bytes(10, 1))
+    bytes.print(bytes.repeat(10, 1))
