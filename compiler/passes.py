@@ -327,6 +327,11 @@ def match_expr_type(expr: ir.Node, type_: ir.Type):
             assert isinstance(type_.primitive(), ir.NativeType)
         case ir.AstType(name="__string_literal"):
             assert isinstance(type_.primitive(), ir.ArrayType)
+            assert isinstance(expr, ir.StringLiteral)
+            assert isinstance(expr.temp_var.type_, ir.UnknownType)
+            assert isinstance(expr.temp_var.var.type_, ir.UnknownType)
+            assert isinstance(type_, ir.TypeRef)
+            expr.temp_var.type_ = expr.temp_var.var.type_ = type_
         case _:
             if expr.type_ != type_:
                 raise Exception(f"Type mismatch: {expr.type_} vs {type_}")

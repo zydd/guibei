@@ -142,6 +142,7 @@ def int_literal():
 @generate
 def string_literal():
     value = yield regex(r'"(([^"\\]|\\.)*)"', group=1)
+    value = value.encode().decode("unicode_escape")
     return ast.StringLiteral(value)
 
 

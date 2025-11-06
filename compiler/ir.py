@@ -457,7 +457,7 @@ class StringLiteral(Expr):
 
     @staticmethod
     def translate(node: ast.StringLiteral, scope: Scope):
-        temp_var = VarDecl(None, "__str", NativeType(None, "i32", "u8"))
+        temp_var = VarDecl(None, "__str", UnknownType())
         scope.register_local("__str", temp_var)
         return StringLiteral(node, node.value, VarRef(None, temp_var))
 
@@ -527,6 +527,8 @@ class VarRef(Expr):
     # var: Node
 
     def __init__(self, ast_node: ast.Node | None, var: ArgDecl | VarDecl):
+        # TODO: should not 'copy' type on reference creation
+        # if the var type changes, the reference becomes outdated
         super().__init__(ast_node, var.type_)
         self.var = var
 
