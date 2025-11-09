@@ -96,13 +96,13 @@ def function_type():
     yield regex("func *")
     args = yield parens(sep_by(regex(r"\s*,\s*"), typed_id_decl()))
     ret_type = yield optional(fn_ret_type())
-    return ast.FunctionType(None, args, ret_type or ast.VoidType())
+    return ast.FunctionType(args, ret_type)
 
 
 @generate
 def tuple_def():
     fields = yield parens(sep_by(regex(r"\s*,\s*"), type_expr()))
-    return ast.TupleType(None, fields)
+    return ast.TupleType(fields)
 
 
 # @generate

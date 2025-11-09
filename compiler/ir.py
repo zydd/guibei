@@ -231,11 +231,11 @@ class ArrayType(Type):
 
 @dataclass
 class TupleType(Type):
-    fields: list[Type]
+    field_types: list[Type]
 
     @staticmethod
     def translate(node: ast.TupleType, scope: Scope):
-        return TupleType(node, [UntranslatedType(t).translate(scope) for t in node.field_types])
+        return TupleType(node, [UntranslatedType(t) for t in node.field_types])
 
 
 @dataclass

@@ -55,6 +55,17 @@ def translate_toplevel_type_decls(node: ir.Node, scope=None) -> ir.Node:
             assert isinstance(tr_type, ir.Type)
             return ir.ArrayType(ast_node, tr_type)
 
+        case ir.UntranslatedType(ast.TupleType() as ast_node):
+            if not ast_node.field_types:
+                return ir.VoidType(ast_node)
+
+            field_types = []
+            for field_type in ast_node.field_types:
+                tr_type = translate_toplevel_type_decls(ir.UntranslatedType(field_type), scope)
+                assert isinstance(tr_type, ir.Type)
+                field_types.append(tr_type)
+            return ir.TupleType(ast_node, field_types)
+
         case ir.UntranslatedType(ast.TypeIdentifier() as ast_node):
             type_: ir.Type = scope.lookup_type(ast_node.name)
             return ir.TypeRef(node.ast_node, type_)

@@ -70,7 +70,7 @@ def type_declaration(node: ir.Node) -> list:
 
         case ir.TypeDef():
             primitive = node.primitive()
-            if isinstance(primitive, ir.NativeType):
+            if isinstance(primitive, (ir.NativeType, ir.VoidType)):
                 return []
             decl = type_declaration(primitive)
 
@@ -85,6 +85,10 @@ def type_declaration(node: ir.Node) -> list:
                 return [["array", ["mut", element_primitive.array_packed]]]
             else:
                 return [["array", ["mut", *type_declaration(element_primitive)]]]
+
+        case ir.TupleType():
+            fields = [["field", *type_reference(type_)] for type_ in node.field_types]
+            return [["struct", *fields]]
 
         case ir.TypeRef() | ir.FunctionDef():
             return []

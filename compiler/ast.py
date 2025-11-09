@@ -59,7 +59,7 @@ class VoidExpr(Node):
 @dataclass(repr=_ast_repr)
 class FunctionType(Type):
     args: list[ArgDecl]
-    ret_type: Type
+    ret_type: Type | None
 
 
 @dataclass(repr=_ast_repr)

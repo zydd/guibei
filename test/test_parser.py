@@ -29,6 +29,10 @@ def test_expr_index(code):
         "type test: (i32, i32, i32)",
         "type int:\n    i32",
         "type test:\n    i322",
+        "type test:\n    func()",
+        "type test:\n    func() -> i32",
+        "type test:\n    func(a: i32)",
+        "type test:\n    func(a: i32) -> i32",
     ],
 )
 def test_type_def(code):
