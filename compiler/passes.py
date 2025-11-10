@@ -172,7 +172,15 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
                     attr = node.obj.type_.scope.lookup(node.attr)
                     match attr:
                         case ir.FunctionDef():
-                            return ir.FunctionRef(node.ast_node, attr)
+                            if isinstance(node.obj.primitive(), (ir.EnumType, ir.VoidType)):
+                                return ir.BoundMethod(
+                                    node.ast_node,
+                                    ir.UnknownType(),
+                                    ir.FunctionRef(None, attr),
+                                    ir.TypeInst(None, node.obj, []),
+                                )
+                            else:
+                                return ir.FunctionRef(node.ast_node, attr)
                         case ir.AsmType() | ir.TypeRef():
                             return attr
                         case ir.EnumValueType():
@@ -210,13 +218,23 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
                         [node.callee.obj] + node.args,
                     )
                 case ir.TypeRef():
-                    # TODO: generalize
-                    assert isinstance(node.callee.primitive(), ir.NativeType)
-                    assert len(node.args) == 1
-                    assert isinstance(node.args[0], ir.IntLiteral)
-                    return ir.Asm(
-                        node.ast_node, ir.WasmExpr(node.ast_node, ["i32.const", node.args[0].value]), node.callee
-                    )
+                    match node.callee.primitive():
+                        case ir.NativeType():
+                            # TODO: generalize
+                            assert len(node.args) == 1
+                            assert isinstance(node.args[0], ir.IntLiteral)
+                            return ir.Asm(
+                                node.ast_node,
+                                ir.WasmExpr(node.ast_node, ["i32.const", node.args[0].value]),
+                                node.callee,
+                            )
+                        case ir.EnumType():
+                            assert all(isinstance(arg, ir.Expr) for arg in node.args)
+                            args: list = node.args
+                            return ir.TypeInst(node.ast_node, node.callee, args)
+
+                        case _:
+                            raise NotImplementedError(node.callee)
                 case _:
                     raise NotImplementedError(type(node.callee))
 
@@ -361,6 +379,9 @@ def match_expr_type(expr: ir.Node, type_: ir.Type):
             assert isinstance(expr.temp_var.var.type_, ir.UnknownType)
             assert isinstance(type_, ir.TypeRef)
             expr.temp_var.type_ = expr.temp_var.var.type_ = type_
+        case ir.TypeRef(type_=ir.TypeDef() as expr_type):
+            if not expr_type.has_base_class(type_):
+                raise Exception(f"{expr.type_} is not compatible with {type_}")
         case _:
             if expr.type_ != type_:
                 raise Exception(f"Type mismatch: {expr.type_} vs {type_}")

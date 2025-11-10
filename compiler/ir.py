@@ -223,6 +223,17 @@ class TypeDef(Type):
     def primitive(self):
         return self.super_.primitive()
 
+    def has_base_class(self, cls: Type):
+        current: Type = self
+        while True:
+            if current == cls:
+                return True
+
+            if isinstance(current, TypeDef):
+                current = current.super_
+            else:
+                return False
+
 
 @dataclass
 class ArrayType(Type):
@@ -773,3 +784,8 @@ class Drop(Node):
     def __init__(self, expr: Expr):
         super().__init__(None)
         self.expr = expr
+
+
+@dataclass
+class TypeInst(Expr):
+    args: list[Expr]

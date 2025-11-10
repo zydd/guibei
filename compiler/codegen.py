@@ -50,12 +50,19 @@ def type_reference(node: ir.Node) -> list:
 
 
 def type_declaration(node: ir.Node) -> list:
+    decl: list
+
     match node:
         case ir.NativeType():
             return [node.name]
 
         case ir.EnumType():
-            return [["type", f"${node.name}", "(sub $__enum (struct (field (ref i31))))"]]
+            decl = [["type", f"${node.name}", "(sub $__enum (struct (field i32)))"]]
+
+            for attr in node.scope.attrs.values():
+                decl.extend(type_declaration(attr))
+
+            return decl
 
         case ir.EnumValueType():
             fields = [["field", *type_reference(type_)] for type_ in node.field_types]
@@ -64,7 +71,7 @@ def type_declaration(node: ir.Node) -> list:
                 [
                     "type",
                     f"${node.name}",
-                    ["sub", f"${node.super_.name}", ["struct", "(field (ref i31))", *fields]],
+                    ["sub", f"${node.super_.name}", ["struct", "(field i32)", *fields]],
                 ],
             ]
 
@@ -90,7 +97,7 @@ def type_declaration(node: ir.Node) -> list:
             fields = [["field", *type_reference(type_)] for type_ in node.field_types]
             return [["struct", *fields]]
 
-        case ir.TypeRef() | ir.FunctionDef():
+        case ir.TypeRef() | ir.FunctionDef() | ir.AsmType():
             return []
 
     raise NotImplementedError(type(node))
@@ -292,6 +299,20 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
         case ir.Drop():
             return [["drop", *translate_wasm(node.expr)]]
 
+        case ir.TypeInst():
+            assert isinstance(node.type_, ir.TypeRef)
+            match node.type_.type_:
+                case ir.EnumValueType():
+                    args = []
+                    for arg in node.args:
+                        args.extend(translate_wasm(arg))
+                    return [
+                        ["struct.new", f"${node.type_.type_.scope.name}", ["i32.const", node.type_.type_.discr], *args]
+                    ]
+
+                case _:
+                    raise NotImplementedError(node.type_)
+
         case ir.MatchEnum():
             assert isinstance(node.expr, ir.Expr)
             enum_type = node.expr.type_.primitive()
@@ -310,7 +331,7 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
             default_case = ["unreachable"]
 
             terms = [
-                ["br_table", *block_names, ["i31.get_u", ["struct.get", "$__enum", 0, *translate_wasm(node.expr)]]],
+                ["br_table", *block_names, ["struct.get", "$__enum", 0, *translate_wasm(node.expr)]],
                 *default_case,
             ]
             for val, case in zip(reversed(enum_values), reversed(cases)):
