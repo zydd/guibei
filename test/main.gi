@@ -144,10 +144,13 @@ enum Option:
 
 
 impl Option:
-    func is_some(self: Option.Some) -> i32:
-        return 1
-    func is_some(self: Option) -> i32:
-        return 0
+    func is_some(self: Self) -> i32:
+        match self:
+            case Option.None:
+                return 0
+            case Option.Some(_):
+                return 1
+        asm: unreachable
 
 
 # Result

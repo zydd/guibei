@@ -284,3 +284,16 @@ def test_comment(code):
 def test_comment_fail(code):
     with pytest.raises(ValueError):
         parser.run_parser(comment(), code)
+
+
+# match
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        "match value:\n    case 0: return 1\n    case 1: return 2\n    case _: return 3",
+    ],
+)
+def test_match_parser(code):
+    assert parser.run_parser(match_block(), code)

@@ -197,6 +197,18 @@ class While(Node):
 
 
 @dataclass(repr=_ast_repr)
+class MatchCase(Node):
+    expr: Node
+    body: list[Node]
+
+
+@dataclass(repr=_ast_repr)
+class Match(Node):
+    expr: Node
+    cases: list[MatchCase]
+
+
+@dataclass(repr=_ast_repr)
 class FunctionReturn(Node):
     expr: Node
 
@@ -205,3 +217,8 @@ class FunctionReturn(Node):
 class Assignment(Node):
     lvalue: Node
     expr: Node
+
+
+@dataclass(repr=_ast_repr)
+class Placeholder(Node):
+    pass

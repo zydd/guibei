@@ -186,7 +186,7 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
                         terms.extend(translate_wasm(expr))
 
                     # TODO
-                    case ir.TypeRef() | ir.VarRef() | ir.OverloadedFunction() | ir.AsmType() | ir.EnumValueType():
+                    case ir.TypeRef() | ir.VarRef() | ir.AsmType() | ir.EnumValueType():
                         pass
 
                     case _:
@@ -291,6 +291,38 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
 
         case ir.Drop():
             return [["drop", *translate_wasm(node.expr)]]
+
+        case ir.MatchEnum():
+            assert isinstance(node.expr, ir.Expr)
+            enum_type = node.expr.type_.primitive()
+            enum_values = [val for val in enum_type.scope.attrs.values() if isinstance(val, ir.EnumValueType)]
+            enum_values.sort(key=lambda v: v.discr)
+
+            cases: list = [None] * len(enum_values)
+            for case in node.cases:
+                assert isinstance(case.enum, ir.TypeRef)
+                assert isinstance(case.enum.type_, ir.EnumValueType)
+                cases[case.enum.type_.discr] = case
+
+            block_names = [f"${case.scope.name}" for case in cases]
+
+            # TODO
+            default_case = ["unreachable"]
+
+            terms = [
+                ["br_table", *block_names, ["i31.get_u", ["struct.get", "$__enum", 0, *translate_wasm(node.expr)]]],
+                *default_case,
+            ]
+            for val, case in zip(reversed(enum_values), reversed(cases)):
+                terms = [
+                    ["block", f"${case.scope.name}", *terms],
+                    *translate_wasm(case.scope),
+                    ["br", f"${node.scope.name}"],
+                ]
+
+            terms = ["block", f"${node.scope.name}", *terms]
+
+            return [terms]
 
         # case _:
         #     print(type(node))

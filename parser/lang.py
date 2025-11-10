@@ -148,7 +148,8 @@ def string_literal():
 
 @generate
 def identifier():
-    return ast.Identifier((yield regex(r"[_a-zA-Z]\w*")))
+    name = yield regex(r"[_a-zA-Z]\w*")
+    return ast.Placeholder() if name == "_" else ast.Identifier(name)
 
 
 @generate
@@ -211,6 +212,24 @@ def while_block():
     yield indented()
     body = yield with_pos(sep_by(regex(r"\s*"), statement()))
     return ast.While(condition, body)
+
+
+@generate
+def case_block():
+    yield regex("case +")
+    cond = yield expr()
+    yield regex(r" *:\s*")
+    body = yield indented_block(statement())
+    return ast.MatchCase(cond, body)
+
+
+@generate
+def match_block():
+    yield regex("match +")
+    cond = yield expr()
+    yield regex(r" *:\s*")
+    cases = yield indented_block(case_block())
+    return ast.Match(cond, cases)
 
 
 @generate
@@ -282,6 +301,7 @@ def statement():
     stmt = yield choice(
         while_block(),
         if_block(),
+        match_block(),
         return_statement(),
         var_decl(),
         enum_def(),
@@ -339,8 +359,8 @@ def expr():
 
 @generate
 def type_name():
-    term = yield identifier()
-    term = ast.TypeIdentifier(term.name)
+    name = yield regex(r"[_a-zA-Z]\w*")
+    term = ast.TypeIdentifier(name)
 
     while True:
         term_ex = yield optional(choice(call(term), attr_access(term)))

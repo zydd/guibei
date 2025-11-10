@@ -52,17 +52,17 @@ class Scope(Node):
         self.body = body or list()
         self.func = func
         self.children_names: set[str] = set()
+        self.name = parent.new_child_name(name) if parent else name
 
-        if parent:
-            self.name = f"{parent.name}.{name}"
-            if self.name in parent.children_names:
-                for i in itertools.count(1):
-                    if f"{self.name}${i}" not in parent.children_names:
-                        self.name = f"{self.name}${i}"
-                        break
-            parent.children_names.add(self.name)
-        else:
-            self.name = name
+    def new_child_name(self, name):
+        name = f"{self.name}.{name}"
+        if name in self.children_names:
+            for i in itertools.count(1):
+                if f"{name}${i}" not in self.children_names:
+                    name = f"{name}${i}"
+                    break
+        self.children_names.add(name)
+        return name
 
     def register_var(self, name: str, var: Node):
         assert not self.has_member(name)
@@ -274,14 +274,23 @@ class NativeType(Type):
         return NativeType(node, name, packed, signed)
 
 
-@dataclass(init=False)
+@dataclass
+class EnumTypeBase(Type):
+    def __init__(self):
+        super().__init__(None)
+
+
+@dataclass
 class EnumType(TypeDef):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    count: int
+
+    def __init__(self, ast_node: ast.Node | None, super_: Type, name: str, scope: Scope, count: int):
+        super().__init__(ast_node, super_, name, scope)
+        self.count = count
 
     @staticmethod
     def translate(node: ast.EnumType, scope: Scope):
-        return EnumType(node, None, node.name, Scope(scope, node.name))
+        return EnumType(node, EnumTypeBase(), node.name, Scope(scope, node.name), len(node.values))
 
     def add_method(self, name: str, method: Node):
         if self.scope.has_member(name):
@@ -465,6 +474,15 @@ class StringLiteral(Expr):
         return f"StringLiteral({self.value})"
 
 
+@dataclass
+class Placeholder(Expr):
+    pass
+
+    @staticmethod
+    def translate(node: ast.Placeholder, _scope: Scope):
+        return Placeholder(node, UnknownType())
+
+
 @dataclass(init=False)
 class WasmExpr(Node):
     terms: list[WasmExpr | str | int]
@@ -636,6 +654,77 @@ class IfElse(Node):
         scope_then = Scope(scope, "__if", body=[Untranslated(stmt) for stmt in node.body_then])
         scope_else = Scope(scope, "__else", body=[Untranslated(stmt) for stmt in node.body_else])
         return IfElse(node, condition, scope_then, scope_else)
+
+
+@dataclass
+class MatchCase(Node):
+    expr: Node
+    scope: Scope
+
+
+@dataclass
+class MatchCaseEnum(Node):
+    enum: Node
+    args: list[Node]
+    scope: Scope
+
+    @staticmethod
+    def from_case(case: MatchCase) -> MatchCaseEnum:
+        if isinstance(case, MatchCaseEnum):
+            return case
+        elif isinstance(case.expr, Call):
+            assert isinstance(case.expr.callee, TypeRef)
+            return MatchCaseEnum(
+                case.ast_node,
+                case.expr.callee,
+                case.expr.args,
+                case.scope,
+            )
+        else:
+            assert isinstance(case.expr, TypeRef)
+            return MatchCaseEnum(
+                case.ast_node,
+                case.expr,
+                [],
+                case.scope,
+            )
+
+
+@dataclass
+class Match(Node):
+    expr: Node
+    cases: list[MatchCase]
+    scope: Scope
+
+    @staticmethod
+    def translate(node: ast.Match, scope: Scope):
+        expr = Untranslated(node.expr)
+        match_scope = Scope(scope, "__match")
+        cases = [Match._translate_case(case, match_scope) for case in node.cases]
+        return Match(node, expr, cases, match_scope)
+
+    @staticmethod
+    def _translate_case(node: ast.MatchCase, scope: Scope):
+        match node.expr:
+            case ast.Call():
+                expr = Untranslated(node.expr.callee)
+                args: list = [Untranslated(arg) for arg in node.expr.args]
+                statements: list = [Untranslated(stmt) for stmt in node.body]
+                case_scope = Scope(scope, "__case", statements)
+                return MatchCaseEnum(node, expr, args, case_scope)
+
+            case _:
+                expr = Untranslated(node.expr)
+                statements = [Untranslated(stmt) for stmt in node.body]
+                case_scope = Scope(scope, "__case", statements)
+                return MatchCase(node, expr, case_scope)
+
+
+@dataclass
+class MatchEnum(Node):
+    expr: Node
+    cases: list[MatchCaseEnum]
+    scope: Scope
 
 
 @dataclass

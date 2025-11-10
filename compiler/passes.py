@@ -175,6 +175,8 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
                             return ir.FunctionRef(node.ast_node, attr)
                         case ir.AsmType() | ir.TypeRef():
                             return attr
+                        case ir.EnumValueType():
+                            return ir.TypeRef(None, attr)
                         case _:
                             raise NotImplementedError(type(attr))
                 case ir.Expr():
@@ -288,11 +290,17 @@ def propagate_types(node: ir.Node):
                     else:
                         node.scope.body[-1] = propagate_types(node.scope.body[-1])
                 else:
-                    if isinstance(node.scope.body[-1], ir.Expr):
-                        node.scope.body[-1] = propagate_types(match_expr_type(node.scope.body[-1], node.type_.ret_type))
-                    else:
-                        assert isinstance(node.scope.body[-1], ir.FunctionReturn)
-                        node.scope.body[-1] = propagate_types(node.scope.body[-1])
+                    match node.scope.body[-1]:
+                        case ir.Expr():
+                            node.scope.body[-1] = propagate_types(
+                                match_expr_type(node.scope.body[-1], node.type_.ret_type)
+                            )
+                        case ir.FunctionReturn():
+                            node.scope.body[-1] = propagate_types(node.scope.body[-1])
+                        case _:
+                            # TODO: check if statements always return
+                            node.scope.body[-1] = propagate_types(node.scope.body[-1])
+                            # raise Exception(f"Unexpected node type in function body: {type(node.scope.body[-1])}")
 
         case ir.Scope():
             # TODO: while/if/else expressions
@@ -322,6 +330,16 @@ def propagate_types(node: ir.Node):
             # TODO: match numeric type
             node.idx = propagate_types(node.idx)
 
+        case ir.MatchCaseEnum():
+            assert isinstance(node.enum, ir.TypeRef)
+            assert isinstance(node.enum.type_, ir.EnumValueType)
+            assert len(node.args) == len(node.enum.type_.field_types)
+            node.args = [
+                propagate_types(match_expr_type(arg, type_))
+                for arg, type_ in zip(node.args, node.enum.type_.field_types)
+            ]
+            node.scope = propagate_types(node.scope)
+
         case _:
             return traverse_ir.traverse(propagate_types, node)
 
@@ -350,6 +368,21 @@ def match_expr_type(expr: ir.Node, type_: ir.Type):
     return expr
 
 
+def specialize_match(node: ir.Node) -> ir.Node:
+    match node:
+        case ir.Match():
+            assert isinstance(node.expr, ir.Expr)
+            if isinstance(node.expr.type_.primitive(), ir.EnumType):
+                cases = [ir.MatchCaseEnum.from_case(case) for case in node.cases]
+                return ir.MatchEnum(node.ast_node, node.expr, cases, node.scope)
+            else:
+                raise NotImplementedError
+
+        case _:
+            return traverse_ir.traverse(specialize_match, node)
+    return node
+
+
 def check_no_unknown_types(node: ir.Node) -> ir.Node:
     match node:
         case ir.UnknownType():
@@ -373,6 +406,7 @@ ir_passes: list = [
     translate_function_defs,
     check_no_untranslated_nodes,
     propagate_types,
+    specialize_match,
     check_no_unknown_types,
 ]
 
