@@ -323,8 +323,10 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
                     raise NotImplementedError(node.type_)
 
         case ir.MatchEnum():
-            assert isinstance(node.expr, ir.Expr)
-            enum_type = node.expr.type_.primitive()
+            assert isinstance(node.match_expr, ir.Assignment)
+            assert isinstance(node.match_expr.expr, ir.Expr)
+            assert isinstance(node.match_expr.lvalue, ir.VarRef)
+            enum_type = node.match_expr.expr.type_.primitive()
             enum_values = [val for val in enum_type.scope.attrs.values() if isinstance(val, ir.EnumValueType)]
             enum_values.sort(key=lambda v: v.discr)
 
@@ -340,19 +342,47 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
             default_case = ["unreachable"]
 
             terms = [
-                ["br_table", *block_names, ["struct.get", "$__enum", 0, *translate_wasm(node.expr)]],
+                [
+                    "br_table",
+                    *block_names,
+                    ["struct.get", "$__enum", 0, ["local.get", f"${node.match_expr.lvalue.var.name}"]],
+                ],
                 *default_case,
             ]
             for val, case in zip(reversed(enum_values), reversed(cases)):
+                assert isinstance(case, ir.MatchCaseEnum)
+                assert isinstance(case.enum, ir.TypeRef)
+                assert isinstance(case.enum.type_, ir.EnumValueType)
+                args = []
+                for i, matched_field in enumerate(case.args, start=1):
+                    if isinstance(matched_field, ir.VarRef):
+                        args.append(
+                            [
+                                "local.set",
+                                f"${matched_field.var.name}",
+                                [
+                                    "struct.get",
+                                    f"${case.enum.type_.name}",
+                                    i,
+                                    [
+                                        "ref.cast",
+                                        f"(ref ${case.enum.type_.name})",
+                                        "local.get",
+                                        f"${node.match_expr.lvalue.var.name}",
+                                    ],
+                                ],
+                            ]
+                        )
                 terms = [
                     ["block", f"${case.scope.name}", *terms],
+                    *args,
                     *translate_wasm(case.scope),
                     ["br", f"${node.scope.name}"],
                 ]
 
             terms = ["block", f"${node.scope.name}", *terms]
 
-            return [terms]
+            return [*translate_wasm(node.match_expr), terms]
 
         # case _:
         #     print(type(node))

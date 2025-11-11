@@ -152,13 +152,13 @@ impl Option:
                 return 1
         asm: unreachable
 
-    # func unwrap(self: Self) -> i32:
-    #     match self:
-    #         case Option.None:
-    #             asm: unreachable
-    #         case Option.Some(value):
-    #             return value
-    #     asm: unreachable
+    func unwrap(self: Self) -> i32:
+        match self:
+            case Option.None:
+                asm: unreachable
+            case Option.Some(value):
+                return value
+        asm: unreachable
 
 # Result
 
@@ -230,4 +230,8 @@ func main():
     Option.Some(3).is_some().print()
     bytes.print(" val: ")
     Option.Some(3).0.print()
+    bytes.print("\n")
+    bytes.print("val unwrap: ")
+    let val: Option = Option.Some(123)
+    val.unwrap().print()
     bytes.print("\n")

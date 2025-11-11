@@ -269,6 +269,28 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
             else:
                 return node
 
+        case ir.MatchCaseEnum():
+            node.enum = translate_function_defs(node.enum, scope)
+            assert isinstance(node.enum, ir.TypeRef)
+            assert isinstance(node.enum.type_, ir.EnumValueType)
+            for i in range(len(node.args)):
+                assert isinstance(node.args[i], ir.Untranslated)
+                arg_type = node.enum.type_.field_types[i]
+                assert isinstance(arg_type, ir.TypeRef)
+                match node.args[i].ast_node:
+                    case ast.Placeholder() as placeholder:
+                        node.args[i] = ir.Placeholder(placeholder, arg_type)
+                    case ast.Identifier() as id:
+                        var_decl = ir.VarDecl(id, id.name, arg_type)
+                        node.scope.register_local(id.name, var_decl)
+                        node.args[i] = ir.VarRef(None, var_decl)
+                    case _:
+                        raise NotImplementedError
+            node_scope = translate_function_defs(node.scope, scope)
+            assert isinstance(node_scope, ir.Scope)
+            node.scope = node_scope
+            return node
+
         case ir.Untranslated():
             return translate_function_defs(node.translate(scope), scope)
 
@@ -408,10 +430,13 @@ def match_expr_type(expr: ir.Node, type_: ir.Type):
 def specialize_match(node: ir.Node) -> ir.Node:
     match node:
         case ir.Match():
-            assert isinstance(node.expr, ir.Expr)
-            if isinstance(node.expr.type_.primitive(), ir.EnumType):
+            assert isinstance(node.match_expr, ir.Assignment)
+            assert isinstance(node.match_expr.lvalue, ir.VarRef)
+            assert isinstance(node.match_expr.expr, ir.Expr)
+            node.match_expr.lvalue.var.type_ = node.match_expr.expr.type_
+            if isinstance(node.match_expr.expr.type_.primitive(), ir.EnumType):
                 cases = [ir.MatchCaseEnum.from_case(case) for case in node.cases]
-                return ir.MatchEnum(node.ast_node, node.expr, cases, node.scope)
+                return ir.MatchEnum(node.ast_node, node.match_expr, cases, node.scope)
             else:
                 raise NotImplementedError
 
@@ -424,6 +449,12 @@ def check_no_unknown_types(node: ir.Node) -> ir.Node:
     match node:
         case ir.UnknownType():
             raise Exception(f"Unknown type: {node}")
+
+        case ir.VarRef():
+            # TODO: fix VarRef type update
+            assert isinstance(node.var.type_, ir.TypeRef)
+            node.type_ = node.var.type_
+            check_no_unknown_types(node.type_)
 
         case _:
             return traverse_ir.traverse(check_no_unknown_types, node)

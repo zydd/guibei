@@ -718,16 +718,18 @@ class MatchCaseEnum(Node):
 
 @dataclass
 class Match(Node):
-    expr: Node
+    match_expr: Node
     cases: list[MatchCase]
     scope: Scope
 
     @staticmethod
     def translate(node: ast.Match, scope: Scope):
-        expr = Untranslated(node.expr)
         match_scope = Scope(scope, "__match")
+        expr_var = VarDecl(None, "__match_expr", UnknownType())
+        match_scope.register_local("__match_expr", expr_var)
+        expr_assign = Assignment(None, VarRef(None, expr_var), Untranslated(node.expr))
         cases = [Match._translate_case(case, match_scope) for case in node.cases]
-        return Match(node, expr, cases, match_scope)
+        return Match(node, expr_assign, cases, match_scope)
 
     @staticmethod
     def _translate_case(node: ast.MatchCase, scope: Scope):
@@ -748,7 +750,7 @@ class Match(Node):
 
 @dataclass
 class MatchEnum(Node):
-    expr: Node
+    match_expr: Node
     cases: list[MatchCaseEnum]
     scope: Scope
 
