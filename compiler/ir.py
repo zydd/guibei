@@ -436,6 +436,21 @@ class GetItem(Expr):
 
 
 @dataclass
+class GetTupleItem(Expr):
+    expr: Expr
+    idx: int
+
+    def __init__(self, ast_node, expr, idx):
+        super().__init__(ast_node)
+        self.expr = expr
+        self.idx = idx
+
+    @staticmethod
+    def translate(node: ast.GetTupleItem, _scope: Scope):
+        return GetTupleItem(node, Untranslated(node.expr), node.idx)
+
+
+@dataclass
 class Asm(Expr):
     terms: WasmExpr
 
@@ -692,10 +707,10 @@ class MatchCaseEnum(Node):
                 case.scope,
             )
         else:
-            assert isinstance(case.expr, TypeRef)
+            assert isinstance(case.expr, TypeInst), case.expr
             return MatchCaseEnum(
                 case.ast_node,
-                case.expr,
+                case.expr.type_,
                 [],
                 case.scope,
             )

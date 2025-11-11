@@ -164,7 +164,24 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
             loop = ir.Loop(while_stmt, pre_condition, loop_scope)
             return translate_function_defs(loop, loop_scope)
 
+        case ir.GetTupleItem():
+            expr = translate_function_defs(node.expr, scope)
+            assert isinstance(expr, ir.Expr)
+            node.expr = expr
+            assert isinstance(node.type_, ir.UnknownType)
+            assert isinstance(node.expr.type_, ir.TypeRef)
+            match node.expr.type_.type_:
+                case ir.EnumValueType():
+                    field_type = node.expr.type_.type_.field_types[node.idx]
+                    assert isinstance(field_type, ir.TypeRef)
+                    node.type_ = field_type
+                case _:
+                    raise NotImplementedError(node)
+
+            return node
+
         case ir.GetAttr():
+            # if "None" in node.attr: breakpoint()
             node.obj = translate_function_defs(node.obj, scope)
             match node.obj:
                 case ir.TypeRef():
@@ -172,16 +189,15 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
                     attr = node.obj.type_.scope.lookup(node.attr)
                     match attr:
                         case ir.FunctionDef():
-                            if isinstance(node.obj.primitive(), (ir.EnumType, ir.VoidType)):
-                                return ir.BoundMethod(
-                                    node.ast_node,
-                                    ir.UnknownType(),
-                                    ir.FunctionRef(None, attr),
-                                    ir.TypeInst(None, node.obj, []),
-                                )
-                            else:
-                                return ir.FunctionRef(node.ast_node, attr)
-                        case ir.AsmType() | ir.TypeRef():
+                            return ir.FunctionRef(node.ast_node, attr)
+                        case ir.EnumValueType(field_types=[]) | ir.VoidType():
+                            # Convert void types to instances
+                            return ir.TypeInst(None, ir.TypeRef(None, attr), [])
+                        case ir.TypeRef():
+                            assert not isinstance(attr.type_, ir.VoidType)
+                            assert not (isinstance(attr.type_, ir.EnumValueType) and len(attr.type_.field_types) == 0)
+                            return attr
+                        case ir.AsmType():
                             return attr
                         case ir.EnumValueType():
                             return ir.TypeRef(None, attr)

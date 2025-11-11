@@ -152,6 +152,13 @@ impl Option:
                 return 1
         asm: unreachable
 
+    # func unwrap(self: Self) -> i32:
+    #     match self:
+    #         case Option.None:
+    #             asm: unreachable
+    #         case Option.Some(value):
+    #             return value
+    #     asm: unreachable
 
 # Result
 
@@ -219,7 +226,8 @@ func main():
     bytes.print("None.is_some: ")
     Option.None.is_some().print()
     bytes.print("\n")
-    bytes.print("Some.is_some: ")
+    bytes.print("Some(3).is_some: ")
     Option.Some(3).is_some().print()
-    bytes.print("\n")
+    bytes.print(" val: ")
+    Option.Some(3).0.print()
     bytes.print("\n")

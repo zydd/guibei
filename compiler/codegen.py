@@ -262,6 +262,15 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
         case ir.FunctionCall():
             return [["call", f"${node.func.func.name}"] + [term for arg in node.args for term in translate_wasm(arg)]]
 
+        case ir.GetTupleItem():
+            idx = node.idx
+            assert isinstance(node.expr.type_, ir.TypeRef)
+            if isinstance(node.expr.type_.type_, ir.EnumValueType):
+                idx = node.idx + 1
+                return [["struct.get", f"${node.expr.type_.type_.name}", idx, *translate_wasm(node.expr)]]
+            else:
+                raise NotImplementedError
+
         case ir.GetItem():
             assert isinstance(node.expr, ir.VarRef)
             elem_primitive = node.expr.var.type_.primitive().element_type.primitive()
