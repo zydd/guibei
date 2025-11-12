@@ -268,10 +268,8 @@ def enum_def():
     @generate
     def enum_val():
         name = yield regex(r"\w+")
-        fields = yield optional(parens(sep_by(regex(r"\s*,\s*"), type_expr())))
-        if fields is None:
-            fields = []
-        return ast.EnumValueType(fields, name)
+        fields = yield optional(tuple_def())
+        return ast.EnumValueType(name, fields)
 
     yield regex("enum +")
     name = yield regex(r"\w+")

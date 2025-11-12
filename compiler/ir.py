@@ -231,6 +231,8 @@ class TypeDef(Type):
 
             if isinstance(current, TypeDef):
                 current = current.super_
+                if isinstance(current, TypeRef):
+                    current = current.type_
             else:
                 return False
 
@@ -244,9 +246,9 @@ class ArrayType(Type):
 class TupleType(Type):
     field_types: list[Type]
 
-    @staticmethod
-    def translate(node: ast.TupleType, scope: Scope):
-        return TupleType(node, [UntranslatedType(t) for t in node.field_types])
+    # @staticmethod
+    # def translate(node: ast.TupleType, scope: Scope):
+    #     return TupleType(node, None, [UntranslatedType(t) for t in node.field_types])
 
 
 @dataclass
@@ -286,9 +288,14 @@ class NativeType(Type):
 
 
 @dataclass
-class EnumTypeBase(Type):
+class EnumTypeBase(TupleType):
+    name: str = "__enum"
+
     def __init__(self):
-        super().__init__(None)
+        super().__init__(None, [NativeType(None, "i32", "i32")])
+
+    def __eq__(self, value):
+        return isinstance(value, EnumTypeBase)
 
 
 @dataclass
@@ -303,20 +310,20 @@ class EnumType(TypeDef):
     def translate(node: ast.EnumType, scope: Scope):
         return EnumType(node, EnumTypeBase(), node.name, Scope(scope, node.name), len(node.values))
 
-    def add_method(self, name: str, method: Node):
-        if self.scope.has_member(name):
-            # TODO: ensure all overloaded functions/methods are defined together
-            assert name in self.scope.attrs
-            # Look up only in current scope
-            match self.scope.attrs[name]:
-                case FunctionDef() as fn:
-                    self.scope.attrs[name] = OverloadedFunction(None, name, [fn, method])
-                case OverloadedFunction() as overloads:
-                    overloads.overloads.append(method)
-                case _:
-                    raise NotImplementedError
-        else:
-            self.scope.register_var(name, method)
+    # def add_method(self, name: str, method: Node):
+    #     if self.scope.has_member(name):
+    #         # TODO: ensure all overloaded functions/methods are defined together
+    #         assert name in self.scope.attrs
+    #         # Look up only in current scope
+    #         match self.scope.attrs[name]:
+    #             case FunctionDef() as fn:
+    #                 self.scope.attrs[name] = OverloadedFunction(None, name, [fn, method])
+    #             case OverloadedFunction() as overloads:
+    #                 overloads.overloads.append(method)
+    #             case _:
+    #                 raise NotImplementedError
+    #     else:
+    #         self.scope.register_var(name, method)
 
     def primitive(self):
         return self
@@ -325,20 +332,21 @@ class EnumType(TypeDef):
 @dataclass(kw_only=True)
 class EnumValueType(TypeDef):
     discr: int
-    field_types: list[Type]
+    fields: TupleType
 
     @staticmethod
     def translate(enum: EnumType, discr: int, node: ast.EnumValueType):
         assert isinstance(node, ast.EnumValueType)
-        field_types: list = [UntranslatedType(t) for t in node.field_types]
+        assert isinstance(enum.super_, TupleType)
+        field_types: list = [UntranslatedType(t) for t in node.fields.field_types] if node.fields else []
+        fields = TupleType(None, enum.super_.field_types + field_types)
+
         return EnumValueType(
-            node,
-            TypeRef(None, enum),
-            node.name,
-            Scope(enum.scope, node.name),
-            discr=discr,
-            field_types=field_types,
+            node, TypeRef(None, enum), node.name, Scope(enum.scope, node.name), discr=discr, fields=fields
         )
+
+    def primitive(self):
+        return self
 
 
 @dataclass
@@ -697,21 +705,25 @@ class MatchCaseEnum(Node):
     @staticmethod
     def from_case(case: MatchCase) -> MatchCaseEnum:
         if isinstance(case, MatchCaseEnum):
+            assert isinstance(case.enum, TypeRef)
+            assert isinstance(case.enum.type_, EnumValueType)
+            case.args.insert(0, IntLiteral(None, case.enum.type_.discr))
             return case
         elif isinstance(case.expr, Call):
             assert isinstance(case.expr.callee, TypeRef)
+            assert isinstance(case.expr.callee.primitive(), EnumValueType)
             return MatchCaseEnum(
                 case.ast_node,
                 case.expr.callee,
-                case.expr.args,
+                [IntLiteral(None, case.expr.callee.primitive().discr)] + case.expr.args,
                 case.scope,
             )
         else:
-            assert isinstance(case.expr, TypeInst), case.expr
+            assert isinstance(case.expr, TupleInst), case.expr
             return MatchCaseEnum(
                 case.ast_node,
                 case.expr.type_,
-                [],
+                [IntLiteral(None, case.expr.type_.primitive().discr)],
                 case.scope,
             )
 
@@ -739,6 +751,7 @@ class Match(Node):
                 args: list = [Untranslated(arg) for arg in node.expr.args]
                 statements: list = [Untranslated(stmt) for stmt in node.body]
                 case_scope = Scope(scope, "__case", statements)
+                # discriminant arg is added in MatchCaseEnum.from_case
                 return MatchCaseEnum(node, expr, args, case_scope)
 
             case _:
@@ -804,5 +817,5 @@ class Drop(Node):
 
 
 @dataclass
-class TypeInst(Expr):
+class TupleInst(Expr):
     args: list[Expr]

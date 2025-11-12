@@ -83,8 +83,9 @@ class EnumType(Type):
 
 
 @dataclass(repr=_ast_repr)
-class EnumValueType(TupleType):
+class EnumValueType(Type):
     name: str
+    fields: TupleType | None
 
 
 # ----------------------------------------------------------------------

@@ -65,15 +65,8 @@ def type_declaration(node: ir.Node) -> list:
             return decl
 
         case ir.EnumValueType():
-            fields = [["field", *type_reference(type_)] for type_ in node.field_types]
-            assert isinstance(node.super_, ir.TypeRef)
-            return [
-                [
-                    "type",
-                    f"${node.name}",
-                    ["sub", f"${node.super_.name}", ["struct", "(field i32)", *fields]],
-                ],
-            ]
+            assert isinstance(node.super_, ir.TypeRef), node.super_
+            return [["type", f"${node.name}", ["sub", f"${node.super_.name}", *type_declaration(node.fields)]]]
 
         case ir.TypeDef():
             primitive = node.primitive()
@@ -263,13 +256,9 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
             return [["call", f"${node.func.func.name}"] + [term for arg in node.args for term in translate_wasm(arg)]]
 
         case ir.GetTupleItem():
-            idx = node.idx
             assert isinstance(node.expr.type_, ir.TypeRef)
-            if isinstance(node.expr.type_.type_, ir.EnumValueType):
-                idx = node.idx + 1
-                return [["struct.get", f"${node.expr.type_.type_.name}", idx, *translate_wasm(node.expr)]]
-            else:
-                raise NotImplementedError
+            assert isinstance(node.expr.type_.type_, ir.TypeDef)
+            return [["struct.get", f"${node.expr.type_.type_.name}", node.idx, *translate_wasm(node.expr)]]
 
         case ir.GetItem():
             assert isinstance(node.expr, ir.VarRef)
@@ -308,19 +297,15 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
         case ir.Drop():
             return [["drop", *translate_wasm(node.expr)]]
 
-        case ir.TypeInst():
+        case ir.TupleInst():
             assert isinstance(node.type_, ir.TypeRef)
-            match node.type_.type_:
-                case ir.EnumValueType():
-                    args = []
-                    for arg in node.args:
-                        args.extend(translate_wasm(arg))
-                    return [
-                        ["struct.new", f"${node.type_.type_.scope.name}", ["i32.const", node.type_.type_.discr], *args]
-                    ]
+            assert isinstance(node.type_.type_, ir.TypeDef)
 
-                case _:
-                    raise NotImplementedError(node.type_)
+            args = []
+            for arg in node.args:
+                args.extend(translate_wasm(arg))
+
+            return [["struct.new", f"${node.type_.type_.scope.name}", *args]]
 
         case ir.MatchEnum():
             assert isinstance(node.match_expr, ir.Assignment)
@@ -354,7 +339,7 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
                 assert isinstance(case.enum, ir.TypeRef)
                 assert isinstance(case.enum.type_, ir.EnumValueType)
                 args = []
-                for i, matched_field in enumerate(case.args, start=1):
+                for i, matched_field in enumerate(case.args):
                     if isinstance(matched_field, ir.VarRef):
                         args.append(
                             [

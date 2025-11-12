@@ -170,18 +170,20 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
             node.expr = expr
             assert isinstance(node.type_, ir.UnknownType)
             assert isinstance(node.expr.type_, ir.TypeRef)
-            match node.expr.type_.type_:
-                case ir.EnumValueType():
-                    field_type = node.expr.type_.type_.field_types[node.idx]
-                    assert isinstance(field_type, ir.TypeRef)
-                    node.type_ = field_type
-                case _:
-                    raise NotImplementedError(node)
+
+            expr_type = node.expr.type_.primitive()
+            if isinstance(expr_type, ir.EnumValueType):
+                node.idx += 1
+                expr_type = expr_type.fields
+
+            assert isinstance(expr_type, ir.TupleType)
+            field_type = expr_type.field_types[node.idx]
+            assert isinstance(field_type, ir.TypeRef), field_type
+            node.type_ = field_type
 
             return node
 
         case ir.GetAttr():
-            # if "None" in node.attr: breakpoint()
             node.obj = translate_function_defs(node.obj, scope)
             match node.obj:
                 case ir.TypeRef():
@@ -189,13 +191,18 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
                     attr = node.obj.type_.scope.lookup(node.attr)
                     match attr:
                         case ir.FunctionDef():
-                            return ir.FunctionRef(node.ast_node, attr)
-                        case ir.EnumValueType(field_types=[]) | ir.VoidType():
-                            # Convert void types to instances
-                            return ir.TypeInst(None, ir.TypeRef(None, attr), [])
+                            if isinstance(node.obj.primitive(), ir.EnumValueType) and attr.type_.args[0].name == "self":
+                                return ir.BoundMethod(
+                                    node.ast_node,
+                                    ir.UnknownType(),
+                                    ir.FunctionRef(None, attr),
+                                    ir.TupleInst(
+                                        node.obj.ast_node, node.obj, [ir.IntLiteral(None, node.obj.primitive().discr)]
+                                    ),
+                                )
+                            else:
+                                return ir.FunctionRef(node.ast_node, attr)
                         case ir.TypeRef():
-                            assert not isinstance(attr.type_, ir.VoidType)
-                            assert not (isinstance(attr.type_, ir.EnumValueType) and len(attr.type_.field_types) == 0)
                             return attr
                         case ir.AsmType():
                             return attr
@@ -211,6 +218,7 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
                     if method.type_.args[0].name == "self":
                         return ir.BoundMethod(node.ast_node, ir.UnknownType(), ir.FunctionRef(None, method), node.obj)
                     else:
+                        raise RuntimeError("Calling static method from object")
                         return method
                 case _:
                     # TODO
@@ -244,10 +252,16 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
                                 ir.WasmExpr(node.ast_node, ["i32.const", node.args[0].value]),
                                 node.callee,
                             )
-                        case ir.EnumType():
+                        case ir.EnumValueType() as enum_val:
                             assert all(isinstance(arg, ir.Expr) for arg in node.args)
                             args: list = node.args
-                            return ir.TypeInst(node.ast_node, node.callee, args)
+                            return ir.TupleInst(
+                                node.ast_node, node.callee, [ir.IntLiteral(None, enum_val.discr)] + args
+                            )
+                        case ir.TupleType():
+                            assert all(isinstance(arg, ir.Expr) for arg in node.args)
+                            tuple_args: list = node.args
+                            return ir.TupleInst(node.ast_node, node.callee, tuple_args)
 
                         case _:
                             raise NotImplementedError(node.callee)
@@ -275,7 +289,7 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
             assert isinstance(node.enum.type_, ir.EnumValueType)
             for i in range(len(node.args)):
                 assert isinstance(node.args[i], ir.Untranslated)
-                arg_type = node.enum.type_.field_types[i]
+                arg_type = node.enum.type_.fields.field_types[i + 1]
                 assert isinstance(arg_type, ir.TypeRef)
                 match node.args[i].ast_node:
                     case ast.Placeholder() as placeholder:
@@ -386,15 +400,28 @@ def propagate_types(node: ir.Node):
             # TODO: match numeric type
             node.idx = propagate_types(node.idx)
 
-        case ir.MatchCaseEnum():
-            assert isinstance(node.enum, ir.TypeRef)
-            assert isinstance(node.enum.type_, ir.EnumValueType)
-            assert len(node.args) == len(node.enum.type_.field_types)
-            node.args = [
-                propagate_types(match_expr_type(arg, type_))
-                for arg, type_ in zip(node.args, node.enum.type_.field_types)
-            ]
-            node.scope = propagate_types(node.scope)
+        case ir.Match():
+            node.match_expr = propagate_types(node.match_expr)
+            for i, case in enumerate(node.cases):
+                match case:
+                    case ir.MatchCaseEnum():
+                        assert isinstance(case.enum, ir.TypeRef)
+                        assert isinstance(case.enum.type_, ir.EnumValueType)
+                        assert len(case.args) == len(case.enum.type_.fields.field_types[1:])
+                        case.args = [
+                            propagate_types(match_expr_type(arg, type_))
+                            for arg, type_ in zip(case.args, case.enum.type_.fields.field_types[1:])
+                        ]
+                        case.scope = propagate_types(case.scope)
+
+                    case ir.MatchCase():
+                        assert isinstance(node.match_expr, ir.Assignment)
+                        assert isinstance(node.match_expr.expr, ir.Expr)
+                        case.expr = propagate_types(match_expr_type(case.expr, node.match_expr.expr.type_))
+                        case.scope = propagate_types(case.scope)
+
+                    case _:
+                        raise NotImplementedError(case)
 
         case _:
             return traverse_ir.traverse(propagate_types, node)
@@ -403,6 +430,13 @@ def propagate_types(node: ir.Node):
 
 
 def match_expr_type(expr: ir.Node, type_: ir.Type):
+    if isinstance(expr, ir.TypeRef):
+        match expr.primitive():
+            case ir.EnumValueType() as enum if len(enum.fields.field_types) == 1:
+                expr = ir.TupleInst(expr.ast_node, expr, [ir.IntLiteral(None, enum.discr)])
+            case _:
+                raise NotImplementedError(expr)
+
     assert isinstance(expr, ir.Expr)
     match expr.type_:
         case ir.UnknownType():

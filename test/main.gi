@@ -208,6 +208,25 @@ func read_bytes(count: i32) -> bytes:
         i = i + 1
     return result
 
+type pair: (i32, i32)
+
+impl pair:
+    func print(self: Self):
+        bytes.print("(")
+        self.0.print()
+        bytes.print(", ")
+        self.1.print()
+        bytes.print(")")
+
+type mat: (pair, pair)
+
+impl mat:
+    func print(self: Self):
+        bytes.print("[")
+        self.0.print()
+        bytes.print(", ")
+        self.1.print()
+        bytes.print("]")
 
 func main():
     i32(0).print()
@@ -234,4 +253,8 @@ func main():
     bytes.print("val unwrap: ")
     let val: Option = Option.Some(123)
     val.unwrap().print()
+    bytes.print("\n")
+    pair(123, 456).print()
+    bytes.print("\n")
+    mat(pair(1, 2), pair(3, 4)).print()
     bytes.print("\n")
