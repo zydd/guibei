@@ -100,6 +100,11 @@ class GetItem(Node):
 
 
 @dataclass(repr=_ast_repr)
+class TupleExpr(Node):
+    field_values: list[Node]
+
+
+@dataclass(repr=_ast_repr)
 class GetTupleItem(Node):
     expr: Node
     idx: int
@@ -136,7 +141,7 @@ class WasmExpr(Node):
 @dataclass(repr=_ast_repr)
 class Call(Node):
     callee: Node
-    args: list[Node]
+    arg: Node
 
 
 @dataclass(repr=_ast_repr)

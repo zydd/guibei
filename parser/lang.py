@@ -59,7 +59,7 @@ def var_decl():
 
 @generate
 def assignment():
-    lvalue = yield cast_expr()
+    lvalue = yield expr_index()
     yield regex(r"\s*=\s*")
     value = yield expr()
     return ast.Assignment(lvalue, value)
@@ -153,15 +153,15 @@ def identifier():
 
 
 @generate
-def operator_identifier():
-    op = yield regex(rf"\([{operator_characters}]+\)")
-    return ast.Identifier(op)
+def tuple_expr():
+    elements = yield parens(sep_by(regex(r"\s*,\s*"), expr()))
+    return ast.TupleExpr(elements)
 
 
 @generate
-def call(callee):
-    args = yield parens(sep_by(regex(r"\s*,\s*"), expr()))
-    return ast.Call(callee, args)
+def operator_identifier():
+    op = yield regex(rf"\([{operator_characters}]+\)")
+    return ast.Identifier(op)
 
 
 @generate
@@ -198,8 +198,9 @@ def binop(ops, unit):
         terms.append(rhs)
 
     # TODO: right-association
+    # TODO: BinOp AST node - it should be possible to retrieve the original input from the AST
     for op, rhs in zip(operators, terms):
-        res = ast.Call(ast.Identifier(f"({op})"), [res, rhs])
+        res = ast.Call(ast.Identifier(f"({op})"), ast.TupleExpr([res, rhs]))
 
     return res
 
@@ -315,12 +316,10 @@ def statement():
 
 
 @generate
-def cast_expr():
-    cast = yield optional(backtrack(sequence(type_name(), regex(" *"), expr_index())))
-    if cast:
-        type_, _, expr = cast
-        return ast.Call(type_, [expr])
-    return (yield expr_index())
+def cast_expr(term):
+    yield regex(r" *")
+    arg = yield expr_term
+    return ast.Call(term, arg)
 
 
 @generate
@@ -328,14 +327,14 @@ def expr_index():
     term = yield expr_term
 
     while True:
-        term_ex = yield optional(choice(call(term), attr_access(term), array_index(term)))
+        term_ex = yield optional(choice(attr_access(term), array_index(term), backtrack(cast_expr(term))))
         if not term_ex:
             break
         term = term_ex
     return term
 
 
-expr_term = choice(function_def(), asm(), int_literal(), string_literal(), identifier())
+expr_term = choice(function_def(), asm(), int_literal(), string_literal(), identifier(), tuple_expr())
 
 operators = [
     regex(r"\*|/|%"),
@@ -346,7 +345,7 @@ operators = [
     regex(r"\|"),
 ]
 
-op_parser = cast_expr()
+op_parser = expr_index()
 for op in operators:
     op_parser = binop(op, op_parser)
 
@@ -361,7 +360,7 @@ def type_name():
     term = ast.TypeIdentifier(name)
 
     while True:
-        term_ex = yield optional(choice(call(term), attr_access(term)))
+        term_ex = yield optional(attr_access(term))
         if not term_ex:
             break
         term = term_ex

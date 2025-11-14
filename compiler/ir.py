@@ -400,7 +400,10 @@ class Call(Expr):
     @staticmethod
     def translate(node: ast.Call, _scope: Scope):
         callee = Untranslated(node.callee)
-        args: list = [Untranslated(arg) for arg in node.args]
+        if isinstance(node.arg, ast.TupleExpr):
+            args = [Untranslated(arg) for arg in node.arg.field_values]
+        else:
+            args = [Untranslated(node.arg)]
         return Call(node, callee, args)
 
 
@@ -748,7 +751,8 @@ class Match(Node):
         match node.expr:
             case ast.Call():
                 expr = Untranslated(node.expr.callee)
-                args: list = [Untranslated(arg) for arg in node.expr.args]
+                assert isinstance(node.expr.arg, ast.TupleExpr)
+                args: list = [Untranslated(arg) for arg in node.expr.arg.field_values]
                 statements: list = [Untranslated(stmt) for stmt in node.body]
                 case_scope = Scope(scope, "__case", statements)
                 # discriminant arg is added in MatchCaseEnum.from_case

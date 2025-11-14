@@ -218,27 +218,16 @@ def test_impl_parser(code):
         "i32 3",
         "i32[] 3",
         "i32[][] 3",
-        "i32[ ] 3",
         "tuple_type.1 3",
         "tuple_type.1[] 3",
         "struct.subtype.attr.1[] 3",
         "type1 value",
+        "a b c d",
+        "a b[].c d",
     ],
 )
 def test_cast_expr(code):
-    assert parser.run_parser(cast_expr(), code)
-
-
-@pytest.mark.parametrize(
-    "code",
-    [
-        "i32[].1 3",
-        "type1 type2 3",
-    ],
-)
-def test_cast_expr_fail(code):
-    with pytest.raises(ValueError):
-        parser.run_parser(cast_expr(), code)
+    assert parser.run_parser(expr_index(), code)
 
 
 # statement

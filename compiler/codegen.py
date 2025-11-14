@@ -111,8 +111,8 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
                             f"${attr.name}",
                             [
                                 "import",
-                                f'"{annotations[0].args[0].value}"',
-                                f'"{annotations[0].args[1].value}"',
+                                f'"{annotations[0].arg.field_values[0].value}"',
+                                f'"{annotations[0].arg.field_values[1].value}"',
                             ],
                             ["type", f"${attr.name}.__type"],
                         ]

@@ -124,12 +124,16 @@ def optional(p):
     return parser
 
 
-def sequence(*parsers):
+def sequence(*parsers, index=None):
     def parser(input):
         results = []
         for p in parsers:
             result, input = p(input)
             results.append(result)
+
+        if index is not None:
+            results = results[index]
+
         return results, input
 
     return parser
