@@ -252,6 +252,15 @@ class TupleType(Type):
 
 
 @dataclass
+class NamedTupleType(TupleType):
+    # field_names: list[str]
+
+    def __init__(self, ast_node: ast.Node | None, field_types: list[Type], field_names: list[str]):
+        super().__init__(ast_node, field_types)
+        self.field_names = field_names
+
+
+@dataclass
 class VoidType(Type):
     @staticmethod
     def translate(node: ast.VoidType, _scope):
@@ -451,8 +460,8 @@ class GetTupleItem(Expr):
     expr: Expr
     idx: int
 
-    def __init__(self, ast_node, expr, idx):
-        super().__init__(ast_node)
+    def __init__(self, ast_node, expr, idx, type_=None):
+        super().__init__(ast_node, type_)
         self.expr = expr
         self.idx = idx
 

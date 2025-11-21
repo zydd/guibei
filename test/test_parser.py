@@ -286,3 +286,20 @@ def test_comment_fail(code):
 )
 def test_match_parser(code):
     assert parser.run_parser(match_block(), code)
+
+
+# tuple
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        "()",
+        "(1, 2, 3)",
+        "(a, b, c)",
+        "(a: i32, b: i32, c: i32)",
+        "(a: i32 1, b: i32 2, c: i32 3)",
+    ],
+)
+def test_tuple_expr(code):
+    assert parser.run_parser(tuple_expr(), code)

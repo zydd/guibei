@@ -60,13 +60,25 @@ def translate_toplevel_type_decls(node: ir.Node, scope=None) -> ir.Node:
                 return ir.VoidType(ast_node)
 
             field_types = []
+            field_names: list = []
             for field_type in ast_node.field_types:
-                tr_type = translate_toplevel_type_decls(ir.UntranslatedType(field_type), scope)
-                assert isinstance(tr_type, ir.Type)
-                field_types.append(tr_type)
-            return ir.TupleType(ast_node, field_types)
+                if isinstance(field_type, ast.NamedTupleElement):
+                    tr_type = translate_toplevel_type_decls(ir.UntranslatedType(field_type.value), scope)
+                    assert isinstance(tr_type, ir.Type)
+                    field_types.append(tr_type)
+                    field_names.append(field_type.name)
+                else:
+                    tr_type = translate_toplevel_type_decls(ir.UntranslatedType(field_type), scope)
+                    assert isinstance(tr_type, ir.Type)
+                    field_types.append(tr_type)
+                    field_names.append(None)
 
-        case ir.UntranslatedType(ast.TypeIdentifier() as ast_node):
+            if any(x is not None for x in field_names):
+                return ir.NamedTupleType(ast_node, field_types, field_names)
+            else:
+                return ir.TupleType(ast_node, field_types)
+
+        case ir.UntranslatedType(ast.TypeIdentifier() | ast.Identifier() as ast_node):
             type_: ir.Type = scope.lookup_type(ast_node.name)
             return ir.TypeRef(node.ast_node, type_)
 
@@ -212,14 +224,22 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
                             raise NotImplementedError(type(attr))
                 case ir.Expr():
                     assert isinstance(node.obj.type_, ir.TypeRef)
-                    assert isinstance(node.obj.type_.type_, ir.TypeDef)
-                    method = node.obj.type_.type_.scope.lookup(node.attr)
-                    assert isinstance(method, ir.FunctionDef)
-                    if method.type_.args[0].name == "self":
-                        return ir.BoundMethod(node.ast_node, ir.UnknownType(), ir.FunctionRef(None, method), node.obj)
+
+                    obj_type_prim = node.obj.type_.primitive()
+                    if isinstance(obj_type_prim, ir.NamedTupleType) and node.attr in obj_type_prim.field_names:
+                        field = obj_type_prim.field_names.index(node.attr)
+                        return ir.GetTupleItem(node.ast_node, node.obj, field, obj_type_prim.field_types[field])
                     else:
-                        raise RuntimeError("Calling static method from object")
-                        return method
+                        assert isinstance(node.obj.type_.type_, ir.TypeDef)
+                        method = node.obj.type_.type_.scope.lookup(node.attr)
+                        assert isinstance(method, ir.FunctionDef)
+                        if method.type_.args[0].name == "self":
+                            return ir.BoundMethod(
+                                node.ast_node, ir.UnknownType(), ir.FunctionRef(None, method), node.obj
+                            )
+                        else:
+                            raise RuntimeError("Calling static method from object")
+                            # return method
                 case _:
                     # TODO
                     breakpoint()

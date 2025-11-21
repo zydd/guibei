@@ -208,7 +208,7 @@ func read_bytes(count: i32) -> bytes:
         i = i + 1
     return result
 
-type pair: (i32, i32)
+type pair: (fst: i32, snd: i32)
 
 impl pair:
     func print(self: Self):
@@ -257,4 +257,8 @@ func main():
     pair(123, 456).print()
     bytes.print("\n")
     mat(pair(1, 2), pair(3, 4)).print()
+    bytes.print("\n")
+    pair(123, 456).0.print()
+    bytes.print("\n")
+    pair(123, 456).snd.print()
     bytes.print("\n")

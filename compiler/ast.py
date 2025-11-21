@@ -100,6 +100,12 @@ class GetItem(Node):
 
 
 @dataclass(repr=_ast_repr)
+class NamedTupleElement(Node):
+    name: str
+    value: Node
+
+
+@dataclass(repr=_ast_repr)
 class TupleExpr(Node):
     field_values: list[Node]
 
