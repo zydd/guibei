@@ -27,6 +27,10 @@ func (<)(a: i32, b: i32) -> i32:
     asm: (i32.lt_s {a} {b})
 
 
+func (>)(a: i32, b: i32) -> i32:
+    asm: (i32.gt_s {a} {b})
+
+
 func (/)(a: i32, b: i32) -> i32:
     asm: (i32.div_s {a} {b})
 
@@ -41,6 +45,10 @@ func (==)(a: i32, b: i32) -> i32:
 
 func (!=)(a: i32, b: i32) -> i32:
     asm: (i32.ne {a} {b})
+
+
+func (|)(a: i32, b: i32) -> i32:
+    asm: (i32.or {a} {b})
 
 
 impl i32:
@@ -92,7 +100,7 @@ impl bytes:
     #     asm:
     #         (i32.const {i})
 
-    func repeat(chr: i32, count: i32) -> bytes:
+    func repeat(count: i32, chr: i32) -> bytes:
         asm:
             (array.new {bytes.__asm_type} {chr} {count})
 
@@ -121,18 +129,18 @@ impl bytes:
 
         return 1
 
-    # func slice(self: Self, start: i32, end: i32) -> Self:
-    #     let len: i32 = self.len()
-    #     # if start < 0 or end < 0 or start > len or end > len or start > end:
-    #     #     unreachable
+    func slice(self: Self, start: i32, end: i32) -> bytes:
+        let len: i32 = self.len()
+        if start < 0 | end < 0 | start > len | end > len | start > end:
+            asm: unreachable
 
-    #     let result: bytes = bytes.repeat(end - start, 0)
-    #     let i: i32 = start
-    #     # while i < end:
-    #     #     result[i - start] = self[i]
-    #     #     i = i + 1
+        let result: bytes = bytes.repeat(end - start, 0)
+        let i: i32 = start
+        while i < end:
+            result[i - start] = self[i]
+            i = i + 1
 
-    #     return result
+        return result
 
 
 # Option
@@ -200,7 +208,7 @@ func __read_n(addr: i32, count: i32) -> i32:
 func read_bytes(count: i32) -> bytes:
     let buffer: i32 = asm: (global.get $__stackp) + 16
     let read_count: i32 = __read_n(buffer, count)
-    let result: bytes = bytes.repeat(0, read_count)
+    let result: bytes = bytes.repeat(read_count, 0)
     let i: i32 = 0
 
     while i < read_count:
@@ -230,17 +238,17 @@ impl mat:
 
 func main():
     i32(0).print()
-    bytes.print(bytes.repeat(10, 1))
+    bytes.print(bytes.repeat(1, 10))
     i32(10).print()
-    bytes.print(bytes.repeat(10, 1))
+    bytes.print(bytes.repeat(1, 10))
     i32.print(1234567890)
-    bytes.print(bytes.repeat(10, 1))
+    bytes.print(bytes.repeat(1, 10))
     i32(-1234567890).print()
     bytes.print("\nHello world!\n")
     i32.print(bytes.eq("abc", "abc"))
     bytes.print("\n")
     bytes.print(read_bytes(100))
-    bytes.print(bytes.repeat(10, 1))
+    bytes.print(bytes.repeat(1, 10))
 
     bytes.print("None.is_some: ")
     Option.None.is_some().print()
@@ -261,4 +269,6 @@ func main():
     pair(123, 456).0.print()
     bytes.print("\n")
     pair(123, 456).snd.print()
+    bytes.print("\n")
+    bytes.slice("abcdefghi", 3, 6).print()
     bytes.print("\n")

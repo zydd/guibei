@@ -622,12 +622,15 @@ class FunctionDef(Node):
         "@": "at",
         "*": "star",
         "/": "slash",
+        "&": "and",
         "%": "perc",
         "`": "bt",
+        "^": "hat",
         "+": "plus",
         "<": "lt",
         "=": "eq",
         ">": "gt",
+        "|": "or",
         "~": "til",
     }
 
