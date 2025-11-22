@@ -97,7 +97,7 @@ class Scope(Node):
             self.attrs[name] = VarRef(None, var)
 
     def register_type(self, name: str, type_: Type):
-        assert not self.has_member(name)
+        assert not self.has_member(name), name
 
         if isinstance(type_, TypeRef):
             self.attrs[name] = type_

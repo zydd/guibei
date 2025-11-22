@@ -31,6 +31,10 @@ func (>)(a: i32, b: i32) -> i32:
     asm: (i32.gt_s {a} {b})
 
 
+func (*)(a: i32, b: i32) -> i32:
+    asm: (i32.mul {a} {b})
+
+
 func (/)(a: i32, b: i32) -> i32:
     asm: (i32.div_s {a} {b})
 
@@ -49,6 +53,14 @@ func (!=)(a: i32, b: i32) -> i32:
 
 func (|)(a: i32, b: i32) -> i32:
     asm: (i32.or {a} {b})
+
+
+func (&)(a: i32, b: i32) -> i32:
+    asm: (i32.and {a} {b})
+
+
+func not(a: i32) -> i32:
+    asm: (i32.eqz {a})
 
 
 impl i32:
@@ -80,6 +92,7 @@ impl i32:
         if self < 0:
             asm: (i32.store8 {buffer + i} {i32 45})
             i = i + 1
+            len = len + 1
 
         while i < len:
             asm: (i32.store8 {buffer + i} (i32.load {buffer + 21 + i - len}))
@@ -214,3 +227,27 @@ func __read_n(addr: i32, count: i32) -> i32:
 
     asm:
         (i32.load (global.get $__stackp))
+
+
+# builtin
+
+
+func assert(cond: i32):
+    if cond == 0:
+        asm:
+            unreachable
+
+
+type pair: (first: i32, second: i32)
+
+
+impl pair:
+    func eq(self: Self, other: Self) -> i32:
+        return (self.0 == other.0) & (self.1 == other.1)
+
+    func print(self: Self):
+        bytes.print("(")
+        self.0.print()
+        bytes.print(", ")
+        self.1.print()
+        bytes.print(")")

@@ -261,8 +261,7 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
             return [["struct.get", f"${node.expr.type_.type_.name}", node.idx, *translate_wasm(node.expr)]]
 
         case ir.GetItem():
-            assert isinstance(node.expr, ir.VarRef)
-            elem_primitive = node.expr.var.type_.primitive().element_type.primitive()
+            elem_primitive = node.expr.type_.primitive().element_type.primitive()
             assert isinstance(node.expr.type_, ir.TypeRef)
             assert isinstance(node.expr.type_.type_, ir.TypeDef)
             assert isinstance(elem_primitive, ir.NativeType)

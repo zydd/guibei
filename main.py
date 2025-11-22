@@ -7,21 +7,26 @@ import parser
 from compiler import codegen
 
 
-files_content = ""
-for filename in sys.argv[2:]:
-    with open(filename, "r", encoding="utf8") as f:
-        files_content += f.read() + "\n"
+def main(output_file, input_files):
+    code = ""
+    for filename in input_files:
+        with open(filename, "r", encoding="utf8") as f:
+            code += f.read() + "\n"
 
-prog = parser.parse_str(files_content)
-if not prog:
-    sys.exit(1)
+    prog = parser.parse_str(code)
+    if not prog:
+        return 1
+
+    module = compiler.semantic_pass(prog)
+    with open(output_file + ".ir", "w", encoding="utf8") as ir_out:
+        pprint.pp(module, stream=ir_out)
+
+    module = codegen.translate_wasm(module)
+    out = open(output_file, "w")
+    out.write(codegen.wasm_repr_indented(module))
+
+    return 0
 
 
-module = compiler.semantic_pass(prog)
-pprint.pp(module)
-
-
-module = codegen.translate_wasm(module)
-# pprint.pp(module)
-out = open(sys.argv[1], "w")
-out.write(codegen.wasm_repr_indented(module))
+if __name__ == "__main__":
+    quit(main(sys.argv[1], sys.argv[2:]))

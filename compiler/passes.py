@@ -165,6 +165,16 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
                 case _:
                     raise NotImplementedError(attr)
 
+        case ir.Untranslated(ast.TupleExpr() as ast_node):
+            if len(ast_node.field_values) == 1:
+                return translate_function_defs(ir.Untranslated(ast_node.field_values[0]), scope)
+            else:
+                fields: list = [
+                    translate_function_defs(ir.Untranslated(field), scope) for field in ast_node.field_values
+                ]
+                assert all(isinstance(field, ir.Expr) for field in fields)
+                return ir.TupleInst(ast_node, ir.UnknownType(), fields)
+
         case ir.WasmExpr():
             terms: list = [translate_function_defs(a, scope) if isinstance(a, ir.Node) else a for a in node.terms]
             node.terms = terms

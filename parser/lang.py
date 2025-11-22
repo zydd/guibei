@@ -347,10 +347,10 @@ expr_term = choice(function_def(), asm(), int_literal(), string_literal(), ident
 operators = [
     regex(r"\*|/|%"),
     regex(r"\+|-"),
-    regex(r"<=|>=|>|<"),
-    regex(r"==|!="),
     regex(r"&"),
+    regex(r"\&"),
     regex(r"\|"),
+    regex(r"<=|>=|>|<|==|!="),
 ]
 
 op_parser = expr_index()
