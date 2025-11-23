@@ -40,10 +40,10 @@ def run(code, exit_ok=None, exit_err=None, stdout=None):
         )
 
         if exit_ok is True:
-            assert result.returncode == 0
+            assert result.returncode == 0, "Execution failed"
 
         if exit_err is True:
-            assert result.returncode != 0
+            assert result.returncode != 0, "Execution succeeded while expecting failure"
 
         if stdout is not None:
             assert result.stdout == stdout
@@ -135,8 +135,8 @@ def test_option(code):
     [
         'assert(bytes.eq("abc", "abc"))',
         'assert(not (bytes.eq("abc", "def")))',
-        "assert(bytes.repeat(4, 13)[0] == 13)",
-        "assert(bytes.repeat(4, 13)[0] != 4)",
+        "assert(i32(bytes.repeat(4, 13)[0]) == 13)",
+        "assert(i32(bytes.repeat(4, 13)[0]) != 4)",
         'assert(bytes.len("abcd") == 4)',
         'assert(bytes.eq(bytes.slice("abcdef", 1, 5), "bcde"))',
     ],
@@ -174,3 +174,37 @@ def test_print(code, stdout):
 )
 def test_pair(code):
     assert run(f"func main():\n" + textwrap.indent(code, "    "), exit_ok=True)
+
+
+@pytest.mark.parametrize(
+    "file",
+    [
+        os.path.join(base_dir, "test/programs", fname)
+        for fname in os.listdir(os.path.join(base_dir, "test/programs"))
+        if fname.endswith(".gi")
+    ],
+)
+def test_programs(file):
+    assert run(open(file, "r", encoding="utf8").read(), exit_ok=True)
+
+
+@pytest.mark.skip
+@pytest.mark.parametrize(
+    "code",
+    [
+        "let a: i32 = 256\nassert(i32(i8(a)) == 0)",
+    ],
+)
+def test_integer_narrowing(code):
+    assert run(f"func main():\n" + textwrap.indent(code, "    "), exit_ok=True)
+
+
+@pytest.mark.skip
+@pytest.mark.parametrize(
+    "code",
+    [
+        "i8(256)",
+    ],
+)
+def test_integer_narrowing_fail(code):
+    assert run(f"func main():\n" + textwrap.indent(code, "    "), exit_err=True)

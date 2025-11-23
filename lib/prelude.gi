@@ -104,7 +104,7 @@ impl i32:
 # bytes
 
 
-type i8: __native_type<i8>
+type i8: __native_type<i32, i8>
 type bytes: i8[]
 type str: bytes
 
@@ -147,7 +147,8 @@ impl bytes:
 
         let i: i32 = 0
         while i < self.len():
-            if self[i] != other[i]:
+            # FIXME: remove explicit cast
+            if i32(self[i]) != i32(other[i]):
                 return 0
             i = i + 1
 
@@ -155,7 +156,8 @@ impl bytes:
 
     func slice(self: Self, start: i32, end: i32) -> bytes:
         let len: i32 = self.len()
-        if start < 0 | end < 0 | start > len | end > len | start > end:
+        # FIXME: use logical operators
+        if (start < 0) | (end < 0) | (start > len) | (end > len) | (start > end):
             asm: unreachable
 
         let result: bytes = bytes.repeat(end - start, 0)

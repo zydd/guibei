@@ -443,16 +443,10 @@ class GetItem(Expr):
     expr: Expr
     idx: Expr
 
-    def __init__(self, ast_node, expr, idx):
-        super().__init__(ast_node)
+    def __init__(self, ast_node, expr, idx, type_):
+        super().__init__(ast_node, type_)
         self.expr = expr
         self.idx = idx
-
-    @staticmethod
-    def translate(node: ast.GetItem, _scope: Scope):
-        expr = Untranslated(node.expr)
-        idx = Untranslated(node.idx)
-        return GetItem(node, expr, idx)
 
 
 @dataclass

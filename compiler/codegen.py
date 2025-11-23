@@ -84,7 +84,7 @@ def type_declaration(node: ir.Node) -> list:
             if isinstance(element_primitive, ir.NativeType) and element_primitive.array_packed:
                 return [["array", ["mut", element_primitive.array_packed]]]
             else:
-                return [["array", ["mut", *type_declaration(element_primitive)]]]
+                return [["array", ["mut", *type_reference(node.element_type)]]]
 
         case ir.TupleType():
             fields = [["field", *type_reference(type_)] for type_ in node.field_types]
@@ -264,19 +264,31 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
             elem_primitive = node.expr.type_.primitive().element_type.primitive()
             assert isinstance(node.expr.type_, ir.TypeRef)
             assert isinstance(node.expr.type_.type_, ir.TypeDef)
-            assert isinstance(elem_primitive, ir.NativeType)
-            getter = {
-                "i8": "array.get_s",
-                "u8": "array.get_u",
-            }
-            return [
-                [
-                    getter[elem_primitive.array_packed],
-                    f"${node.expr.type_.type_.name}",
-                    *translate_wasm(node.expr),
-                    *translate_wasm(node.idx),
-                ]
-            ]
+            match elem_primitive:
+                case ir.NativeType():
+                    getter = {
+                        "i8": "array.get_s",
+                        "u8": "array.get_u",
+                    }
+                    return [
+                        [
+                            getter[elem_primitive.array_packed],
+                            f"${node.expr.type_.type_.name}",
+                            *translate_wasm(node.expr),
+                            *translate_wasm(node.idx),
+                        ]
+                    ]
+                case ir.TupleType():
+                    return [
+                        [
+                            "array.get",
+                            f"${node.expr.type_.type_.name}",
+                            *translate_wasm(node.expr),
+                            *translate_wasm(node.idx),
+                        ]
+                    ]
+                case _:
+                    raise NotImplementedError(elem_primitive)
 
         case ir.StringLiteral():
             assert isinstance(node.type_, ir.AstType)
