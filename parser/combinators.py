@@ -181,6 +181,19 @@ def backtrack(p):
     return parser
 
 
+def not_followed_by(p):
+    def parser(input):
+        try:
+            _match, _input = p(input)
+        except (ValueError, IncompleteParse) as e:
+            return (), input
+
+        found = repr(input.current()[0]) if input.current() else "{eof}"
+        raise ValueError(input.context() + f"\nExpected not to match, but found {found}")
+
+    return parser
+
+
 def debug_context():
     def parser(input):
         print(input.context(), file=sys.stderr)

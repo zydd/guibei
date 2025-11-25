@@ -35,7 +35,7 @@ func (*)(a: i32, b: i32) -> i32:
     asm: (i32.mul {a} {b})
 
 
-func (/)(a: i32, b: i32) -> i32:
+func (//)(a: i32, b: i32) -> i32:
     asm: (i32.div_s {a} {b})
 
 
@@ -86,7 +86,7 @@ impl i32:
             asm: (i32.store8 {buffer + i} {n % 10 + 48})
             i = i - 1
             len = len + 1
-            n = n / 10
+            n = n // 10
 
         i = 0
         if self < 0:
@@ -148,7 +148,7 @@ impl bytes:
         let i: i32 = 0
         while i < self.len():
             # FIXME: remove explicit cast
-            if i32(self[i]) != i32(other[i]):
+            if i32 self[i] != i32 other[i]:
                 return 0
             i = i + 1
 

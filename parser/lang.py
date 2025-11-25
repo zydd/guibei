@@ -59,7 +59,7 @@ def var_decl():
 
 @generate
 def assignment():
-    lvalue = yield expr_index()
+    lvalue = yield expr()
     yield regex(r"\s*=\s*")
     value = yield expr()
     return ast.Assignment(lvalue, value)
@@ -136,7 +136,7 @@ def native_type():
 
 @generate
 def int_literal():
-    return ast.IntLiteral(int((yield regex(r"-?\d+"))))
+    return ast.IntLiteral(int((yield regex(r"\d+"))))
 
 
 @generate
@@ -179,6 +179,12 @@ def array_index(array):
 
 
 @generate
+def call(unit, callee):
+    arg = yield unit
+    return ast.Call(callee, arg)
+
+
+@generate
 def attr_access(expr):
     number = generate(lambda: int((yield regex(r"\d+"))))
     yield string(".")
@@ -189,28 +195,43 @@ def attr_access(expr):
         return ast.GetAttr(expr, attr)
 
 
-@generate
-def binop(ops, unit):
-    res = yield unit
-    terms = []
-    operators = []
+def unaryop(unop):
+    @generate
+    def _unaryop(unit):
+        ops = yield many(unop)
+        term = yield unit
+        for op in reversed(ops):
+            term = ast.Call(ast.Identifier(f"unary({op})"), term)
+        return term
 
-    while True:
-        op = yield optional(sequence(regex(r"\s*"), ops))
-        if op is None:
-            break
-        op = op[1]
-        yield regex(r"\s*")
-        rhs = yield unit
-        operators.append(op)
-        terms.append(rhs)
+    return _unaryop
 
-    # TODO: right-association
-    # TODO: BinOp AST node - it should be possible to retrieve the original input from the AST
-    for op, rhs in zip(operators, terms):
-        res = ast.Call(ast.Identifier(f"({op})"), ast.TupleExpr([res, rhs]))
 
-    return res
+def binop(binop):
+    @generate
+    def _binop(unit):
+        res = yield unit
+        terms = []
+        operators = []
+
+        while True:
+            op = yield optional(sequence(regex(r"\s*"), binop))
+            if op is None:
+                break
+            op = op[1]
+            yield regex(r"\s*")
+            rhs = yield unit
+            operators.append(op)
+            terms.append(rhs)
+
+        # TODO: right-association
+        # TODO: BinOp AST node - it should be possible to retrieve the original input from the AST
+        for op, rhs in zip(operators, terms):
+            res = ast.Call(ast.Identifier(f"({op})"), ast.TupleExpr([res, rhs]))
+
+        return res
+
+    return _binop
 
 
 @generate
@@ -324,42 +345,48 @@ def statement():
 
 
 @generate
-def cast_expr(term):
-    yield regex(r" *")
-    arg = yield expr_term
-    return ast.Call(term, arg)
-
-
-@generate
-def expr_index():
-    term = yield expr_term
-
+def expr_index(unit):
+    term = yield unit
     while True:
-        term_ex = yield optional(choice(attr_access(term), array_index(term), backtrack(cast_expr(term))))
+        term_ex = yield optional(choice(attr_access(term), array_index(term), call(unit, term)))
         if not term_ex:
             break
         term = term_ex
     return term
 
 
+@generate
+def cast_expr(unit):
+    callee = yield unit
+    while True:
+        arg = yield optional(sequence(regex(r" +"), not_followed_by(regex(rf"[{operator_characters}]")), unit, index=2))
+        if not arg:
+            break
+        # TODO: ast.Cast
+        callee = ast.Call(callee, arg)
+    return callee
+
+
 expr_term = choice(function_def(), asm(), int_literal(), string_literal(), identifier(), tuple_expr())
 
-operators = [
-    regex(r"\*|/|%"),
-    regex(r"\+|-"),
-    regex(r"&"),
-    regex(r"\&"),
-    regex(r"\|"),
-    regex(r"<=|>=|>|<|==|!="),
-]
 
-op_parser = expr_index()
-for op in operators:
-    op_parser = binop(op, op_parser)
+precedence = [
+    expr_index,
+    cast_expr,
+    unaryop(regex(r"\+|-")),
+    binop(regex(r"\*|//|/|%")),
+    binop(regex(r"\+|-")),
+    binop(regex(r"&")),
+    binop(regex(r"\&")),
+    binop(regex(r"\|")),
+    binop(regex(r"<=|>=|>|<|==|!=")),
+]
+for op in precedence:
+    expr_term = op(expr_term)
 
 
 def expr():
-    return op_parser
+    return expr_term
 
 
 @generate

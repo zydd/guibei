@@ -5,7 +5,16 @@ import pytest
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import parser
+from compiler import traverse_ast
 from parser.lang import *
+
+
+def reduce_tuple(node):
+    match node:
+        case ast.TupleExpr(field_values=[val]):
+            return reduce_tuple(val)
+        case _:
+            return traverse_ast.traverse(reduce_tuple, node)
 
 
 @pytest.mark.parametrize(
@@ -19,7 +28,7 @@ from parser.lang import *
     ],
 )
 def test_expr_index(code):
-    assert parser.run_parser(expr_index(), code)
+    assert parser.run_parser(expr_index(expr_term), code)
 
 
 @pytest.mark.parametrize(
@@ -87,21 +96,29 @@ def test_expr_fail(code):
 
 
 @pytest.mark.parametrize(
-    "code",
+    "code, par",
     [
-        "1+2",
-        "1+2+3",
-        "1+2-3",
-        "1-2+3",
-        "1*2*3",
-        "1|2|3",
-        "1*2+3",
-        "1+2*3",
-        "1+2*3 | 4+5*6",
+        ("1+2", "(1+2)"),
+        ("1+2+3", "((1+2)+3)"),
+        ("1+2-3", "((1+2)-3)"),
+        ("1-2+3", "((1-2)+3)"),
+        ("1*2*3", "((1*2)*3)"),
+        ("1|2|3", "((1|2)|3)"),
+        ("1*2+3", "((1*2)+3)"),
+        ("1+2*3", "(1+(2*3))"),
+        ("1+2*3 | 4+5*6", "(1+(2*3)) | (4+(5*6))"),
+        ("-1", "-1"),
+        ("1+-1", "1+(-1)"),
+        ("-1+-1", "(-1)+(-1)"),
+        ("--1", "-(-1)"),
+        ("1*-1", "1*(-1)"),
     ],
 )
-def test_op_parser(code):
-    assert parser.run_parser(op_parser, code)
+def test_op_parser(code, par):
+    res1 = parser.run_parser(expr(), code)
+    res2 = parser.run_parser(expr(), par)
+    assert isinstance(res1, ast.Call)
+    assert res1 == reduce_tuple(res2)
 
 
 # sep_py
@@ -211,23 +228,29 @@ def test_impl_parser(code):
 
 # cast_expr
 
+assert precedence[1] == cast_expr
+cast_expr_parser = cast_expr(precedence[0](expr_term))
+
 
 @pytest.mark.parametrize(
-    "code",
+    "code, par",
     [
-        "i32 3",
-        "i32[] 3",
-        "i32[][] 3",
-        "tuple_type.1 3",
-        "tuple_type.1[] 3",
-        "struct.subtype.attr.1[] 3",
-        "type1 value",
-        "a b c d",
-        "a b[].c d",
+        ("i32 3", "(i32) 3"),
+        ("i32[] 3", "(i32[]) 3"),
+        ("i32[][] 3", "(i32[][]) 3"),
+        ("tuple_type.1 3", "(tuple_type.1) 3"),
+        ("tuple_type.1[] 3", "(tuple_type.1[]) 3"),
+        ("struct.subtype.attr.1[] 3", "(struct.subtype.attr.1[]) 3"),
+        ("type1 value", "(type1) value"),
+        ("a b c d", "((a b) c) d"),
+        ("a b[].c d", "(a ((b[]).c)) d"),
     ],
 )
-def test_cast_expr(code):
-    assert parser.run_parser(expr_index(), code)
+def test_cast_expr(code, par):
+    res1 = parser.run_parser(cast_expr_parser, code)
+    res2 = parser.run_parser(cast_expr_parser, par)
+    assert res1 != res2
+    assert res1 == reduce_tuple(res2) != None
 
 
 # statement

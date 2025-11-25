@@ -193,6 +193,9 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
             assert isinstance(idx, ir.Expr)
             return ir.GetItem(node.ast_node, expr, idx, expr.type_.primitive().element_type)
 
+        case ir.Untranslated(ast.Call(callee=ast.Identifier("unary(-)"), arg=ast.IntLiteral() as value)):
+            return ir.IntLiteral(value, -value.value)
+
         case ir.GetTupleItem():
             expr = translate_function_defs(node.expr, scope)
             assert isinstance(expr, ir.Expr)
