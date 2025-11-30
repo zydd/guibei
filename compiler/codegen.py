@@ -186,7 +186,7 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
                         terms.extend(translate_wasm(expr))
 
                     # TODO
-                    case ir.TypeRef() | ir.VarRef() | ir.AsmType() | ir.EnumValueType():
+                    case ir.TypeRef() | ir.VarRef() | ir.ArgRef() | ir.AsmType() | ir.EnumValueType():
                         pass
 
                     case _:
@@ -201,6 +201,9 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
         case ir.VarRef():
             return [["local.get", f"${node.var.name}"]]
 
+        case ir.ArgRef():
+            return [["local.get", f"${node.arg.name}"]]
+
         case ir.Asm():
             assert isinstance(node.terms, ir.WasmExpr)
             return translate_wasm(node.terms)
@@ -211,6 +214,12 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
         case ir.IfElse():
             else_block = [["else", *translate_wasm(node.scope_else)]] if node.scope_else.body else []
             return [["if", *translate_wasm(node.condition), ["then", *translate_wasm(node.scope_then)], *else_block]]
+
+        case ir.Block():
+            return [["block", f"${node.name}", ["result", *type_reference(node.type_)], *translate_wasm(node.body)]]
+
+        case ir.Break():
+            return [["br", f"${node.block_name}", *translate_wasm(node.expr)]]
 
         case ir.Loop():
             body = translate_wasm(node.scope)

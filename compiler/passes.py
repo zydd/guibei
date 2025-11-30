@@ -110,12 +110,12 @@ def translate_toplevel_type_decls(node: ir.Node, scope=None) -> ir.Node:
     return node
 
 
-def check_no_untranslated_types(node: ir.Node, scope=None) -> ir.Node:
+def check_no_untranslated_types(node: ir.Node) -> ir.Node:
     match node:
         case ir.UntranslatedType():
             raise Exception(f"Untranslated type: {node}")
         case _:
-            return traverse_ir.traverse(check_no_untranslated_types, node, scope)
+            return traverse_ir.traverse(check_no_untranslated_types, node)
     return node
 
 
@@ -129,7 +129,7 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
 
         case ir.FunctionDef():
             for arg in node.type_.args:
-                node.scope.register_var(arg.name, ir.VarRef(None, arg))
+                node.scope.register_var(arg.name, ir.ArgRef(None, arg))
 
             node.scope = traverse_ir.traverse(translate_function_defs, node.scope, node.scope)
 
@@ -156,14 +156,22 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
                 assert isinstance(attr, ir.Type)
 
             match attr:
-                case ir.VarRef() | ir.TypeRef():
+                case ir.VarRef() | ir.ArgRef() | ir.TypeRef():
                     return attr
-                case ir.VarDecl() | ir.ArgDecl():
+                case ir.VarDecl():
                     return ir.VarRef(id, attr)
+                case ir.ArgDecl():
+                    return ir.ArgRef(id, attr)
                 case ir.FunctionDef():
                     return ir.FunctionRef(id, attr)
                 case ir.TypeDef():
                     return ir.TypeRef(id, attr)
+                case ir.MacroDef():
+                    # if len(attr.func.type_.args) == 0:
+                    #     assert isinstance(attr.func.type_.ret_type, (ir.TypeRef, ir.VoidType, ir.UnknownType))
+                    #     return ir.MacroInst(id, attr.func.type_.ret_type, ir.MacroRef(None, attr), [])
+                    # else:
+                    return ir.MacroRef(id, attr)
                 case _:
                     raise NotImplementedError(attr)
 
@@ -273,10 +281,8 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
             node.args = traverse_ir.traverse_list(translate_function_defs, node.args, scope)
             match node.callee:
                 case ir.FunctionRef():
-                    assert isinstance(node.callee.func.type_.ret_type, (ir.TypeRef, ir.VoidType))
                     return ir.FunctionCall(node.ast_node, node.callee.func.type_.ret_type, node.callee, node.args)
                 case ir.BoundMethod():
-                    assert isinstance(node.callee.func.func.type_.ret_type, (ir.TypeRef, ir.VoidType))
                     return ir.FunctionCall(
                         node.ast_node,
                         node.callee.func.func.type_.ret_type,
@@ -318,6 +324,8 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
 
                         case _:
                             raise NotImplementedError(node.callee)
+                case ir.MacroRef():
+                    return ir.MacroInst(node.ast_node, node.callee.macro.func.type_.ret_type, node.callee, node.args)
                 case _:
                     raise NotImplementedError(type(node.callee))
 
@@ -383,15 +391,39 @@ def propagate_types(node: ir.Node):
             node.asm = [propagate_types(match_expr_type(asm, ir.VoidType(None))) for asm in node.asm]
 
         case ir.FunctionReturn():
-            assert isinstance(node.func.func.type_.ret_type, (ir.TypeRef | ir.VoidType))
             node.expr = propagate_types(match_expr_type(node.expr, node.func.func.type_.ret_type))
 
         case ir.FunctionCall():
-            assert len(node.args) == len(node.func.func.type_.args)
+            func_args = node.func.func.type_.args
+            assert len(node.args) == len(func_args)
             node.args = [
-                propagate_types(match_expr_type(arg, arg_decl.type_))
-                for arg, arg_decl in zip(node.args, node.func.func.type_.args)
+                propagate_types(match_expr_type(arg, arg_decl.type_)) for arg, arg_decl in zip(node.args, func_args)
             ]
+
+        case ir.MacroInst():
+            func_args = node.macro.macro.func.type_.args
+            assert len(node.args) == len(func_args)
+            node.args = [
+                propagate_types(match_expr_type(arg, arg_decl.type_)) for arg, arg_decl in zip(node.args, func_args)
+            ]
+
+        case ir.TupleInst():
+            assert isinstance(node.type_, ir.TypeRef)
+            match node.type_.primitive():
+                case ir.TupleType() as tup:
+                    assert len(node.args) == len(tup.field_types)
+                    node.args = [
+                        propagate_types(match_expr_type(arg, field_type))
+                        for arg, field_type in zip(node.args, tup.field_types)
+                    ]
+                case ir.EnumValueType() as enum:
+                    assert len(node.args) == len(enum.fields.field_types)
+                    node.args = [
+                        propagate_types(match_expr_type(arg, field_type))
+                        for arg, field_type in zip(node.args, enum.fields.field_types)
+                    ]
+                case _:
+                    raise NotImplementedError(node.type_)
 
         case ir.FunctionDef():
             for i in range(len(node.scope.body) - 1):
@@ -543,8 +575,28 @@ def check_no_unknown_types(node: ir.Node) -> ir.Node:
             node.type_ = node.var.type_
             check_no_unknown_types(node.type_)
 
+        case ir.ArgRef():
+            # TODO: fix ArgRef type update
+            assert isinstance(node.arg.type_, ir.TypeRef)
+            node.type_ = node.arg.type_
+            check_no_unknown_types(node.type_)
+
         case _:
             return traverse_ir.traverse(check_no_unknown_types, node)
+    return node
+
+
+def inline_macros(node: ir.Node, scope=None) -> ir.Node:
+    match node:
+        case ir.FunctionDef():
+            return traverse_ir.traverse(inline_macros, node, node.scope)
+        case ir.MacroInst():
+            return traverse_ir.inline(node.macro, scope, node.args)
+        case _:
+            return traverse_ir.traverse(inline_macros, node, scope)
+
+
+def done(node: ir.Node) -> ir.Node:
     return node
 
 
@@ -563,6 +615,8 @@ ir_passes: list = [
     propagate_types,
     specialize_match,
     check_no_unknown_types,
+    inline_macros,
+    done,
 ]
 
 

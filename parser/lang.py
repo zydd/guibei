@@ -70,7 +70,7 @@ def macro_def():
     yield regex("macro +")
     name = yield choice(identifier(), operator_identifier())
     yield regex(r" *")
-    args = (yield optional(_function_args())) or []
+    args = yield _function_args()
     ret_type = yield (optional(_function_ret()))
     yield regex(r" *:")
     body = yield indented_block(statement())

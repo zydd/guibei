@@ -22,8 +22,9 @@ def main(output_file, input_files):
         pprint.pp(module, stream=ir_out)
 
     module = codegen.translate_wasm(module)
-    out = open(output_file, "w")
-    out.write(codegen.wasm_repr_indented(module))
+    wasm = codegen.wasm_repr_indented(module)
+    with open(output_file, "w", encoding="utf8") as out:
+        out.write(wasm)
 
     return 0
 

@@ -29,7 +29,7 @@ class Node:
     #     fields = ", ".join(
     #         f"{f.name}={getattr(self, f.name)}" for f in dataclasses.fields(self) if f.name != "ast_node"
     #     )
-    #     return f"ir.{self.__class__.__name__}({fields})"
+    #     return f"{self.__class__.__name__}({fields})"
 
 
 @dataclass(init=False)
@@ -42,9 +42,14 @@ class Scope(Node):
     func: FunctionRef | None = None
 
     def __init__(
-        self, parent: Scope | None, name: str, body: list[Node] | None = None, func: FunctionRef | None = None
+        self,
+        parent: Scope | None,
+        name: str,
+        body: list[Node] | None = None,
+        func: FunctionRef | None = None,
+        ast_node=None,
     ):
-        super().__init__(None)
+        super().__init__(ast_node)
         self.parent = parent
         self.root: Scope = parent.root if parent else self
         self.name: str = f"{parent.name}.{name}" if parent else name
@@ -68,20 +73,25 @@ class Scope(Node):
         assert not self.has_member(name)
         self.attrs[name] = var
 
-    def register_local(self, name: str, var: ArgDecl | VarDecl):
+    def register_local(self, name: str, var: VarDecl):
         if name in self.attrs:
             # Shadow previously declared local var
             for i in itertools.count():
                 if f"__local.{name}${i}" not in self.attrs:
                     shadowed_name = f"__local.{name}${i}"
                     shadowed_var = self.attrs[name]
-                    assert hasattr(shadowed_var, "name")
-                    shadowed_var.name = shadowed_name
+                    if isinstance(shadowed_var, VarRef):
+                        assert hasattr(shadowed_var.var, "name"), shadowed_var
+                        shadowed_var.var.name = shadowed_name
+                    else:
+                        assert hasattr(shadowed_var, "name"), shadowed_var
+                        shadowed_var.name = shadowed_name
                     self.attrs[shadowed_name] = shadowed_var
                     break
 
         if self.func:
             self.attrs[name] = var
+            return var
         else:
             func_scope = self.current_func().func.scope
 
@@ -95,6 +105,7 @@ class Scope(Node):
             var.name = local_name
             func_scope.attrs[local_name] = var
             self.attrs[name] = VarRef(None, var)
+            return var
 
     def register_type(self, name: str, type_: Type):
         assert not self.has_member(name), name
@@ -376,7 +387,7 @@ class UnknownType(Type):
 
 @dataclass(init=False)
 class Expr(Node):
-    type_: TypeRef | UnknownType | VoidType
+    type_: Type
 
     def __init__(self, ast_node, type_=None):
         super().__init__(ast_node)
@@ -537,6 +548,12 @@ class WasmExpr(Node):
         return WasmExpr(node, terms)
 
 
+@dataclass
+class Block(Expr):
+    name: str
+    body: Scope
+
+
 # ----------------------------------------------------------------------
 # References
 # ----------------------------------------------------------------------
@@ -558,14 +575,14 @@ class FunctionRef(Expr):
 
 @dataclass
 class MacroRef(Node):
-    # func: MacroDef
+    # macro: MacroDef
 
-    def __init__(self, ast_node: ast.Node | None, func: MacroDef):
+    def __init__(self, ast_node: ast.Node | None, macro: MacroDef):
         super().__init__(ast_node)
-        self.func = func
+        self.macro = macro
 
     def __repr__(self):
-        return f'MacroRef("{self.func.name}")'
+        return f'MacroRef("{self.macro.name}")'
 
 
 @dataclass
@@ -596,7 +613,7 @@ class TypeRef(Type):
 class VarRef(Expr):
     # var: Node
 
-    def __init__(self, ast_node: ast.Node | None, var: ArgDecl | VarDecl):
+    def __init__(self, ast_node: ast.Node | None, var: VarDecl):
         # TODO: should not 'copy' type on reference creation
         # if the var type changes, the reference becomes outdated
         super().__init__(ast_node, var.type_)
@@ -604,6 +621,20 @@ class VarRef(Expr):
 
     def __repr__(self):
         return f"VarRef({self.var.name})"
+
+
+@dataclass
+class ArgRef(Expr):
+    # arg: ArgDecl
+
+    def __init__(self, ast_node: ast.Node | None, arg: ArgDecl):
+        # TODO: should not 'copy' type on reference creation
+        # if the var type changes, the reference becomes outdated
+        super().__init__(ast_node, arg.type_)
+        self.arg = arg
+
+    def __repr__(self):
+        return f"ArgRef({self.arg.name})"
 
 
 # ----------------------------------------------------------------------
@@ -703,6 +734,17 @@ class FunctionReturn(Node):
     def translate(node: ast.FunctionReturn, scope: Scope):
         expr = Untranslated(node.expr) if node.expr is not None else VoidExpr(None)
         return FunctionReturn(node, scope.current_func(), expr)
+
+
+@dataclass
+class Break(Node):
+    block_name: str
+    expr: Expr
+
+    def __init__(self, ast_node: ast.Node | None, block_name: str, expr: Expr):
+        super().__init__(ast_node)
+        self.block_name = block_name
+        self.expr = expr
 
 
 @dataclass
@@ -856,3 +898,14 @@ class Drop(Node):
 @dataclass
 class TupleInst(Expr):
     args: list[Expr]
+
+
+@dataclass
+class MacroInst(Expr):
+    macro: MacroRef
+    args: list[Node]
+
+    def __init__(self, ast_node: ast.Node | None, type_: Type, macro: MacroRef, args: list[Node]):
+        super().__init__(ast_node, type_)
+        self.macro = macro
+        self.args = args

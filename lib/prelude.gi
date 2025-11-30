@@ -27,8 +27,16 @@ func (<)(a: i32, b: i32) -> i32:
     asm: (i32.lt_s {a} {b})
 
 
+func (<=)(a: i32, b: i32) -> i32:
+    asm: (i32.le_s {a} {b})
+
+
 func (>)(a: i32, b: i32) -> i32:
     asm: (i32.gt_s {a} {b})
+
+
+func (>=)(a: i32, b: i32) -> i32:
+    asm: (i32.ge_s {a} {b})
 
 
 func (*)(a: i32, b: i32) -> i32:

@@ -20,26 +20,27 @@ impl mat_arr:
         asm: (array.new {Self.__asm_type} {default} {count})
 
 
-macro a -> i32:
-    let val: i32 = 3
-    if val > 0:
-        let mult: i32 = 2
-        val = val * mult
-    val
+macro a() -> i32:
+    let macro_local: i32 = 3
+    macro_local * 2
 
 
-# Macro return -> block result
-macro b(val: i32) -> i32:
-    if val > 0:
+macro b(macro_arg: i32) -> i32:
+    if macro_arg >= 3:
         let mult: i32 = 2
-        val = val * mult
-    val
+        return macro_arg * mult
+    macro_arg
 
 
 func main() -> ():
     let arr: mat_arr = mat_arr.repeat(10)
+
     let i: i32 = 0
-    arr[3] = mat(pair(3, 3), pair(3, 3))
+    while i < arr.len():
+        arr[i] = mat(pair(i, b(i)), pair(a(), a()))
+        i = i + 1
+
+    i = 0
     while i < arr.len():
         arr[i].print()
         bytes.print("\n")
