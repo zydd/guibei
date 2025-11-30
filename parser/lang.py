@@ -42,7 +42,7 @@ def asm():
 
 
 @generate
-def typed_id_decl():
+def _typed_id_decl():
     name = yield regex(r"\w+")
     yield regex(r"\s*:\s*")
     type_ = yield type_expr()
@@ -52,7 +52,7 @@ def typed_id_decl():
 @generate
 def var_decl():
     yield regex("let +")
-    name, type_ = yield typed_id_decl()
+    name, type_ = yield _typed_id_decl()
     optional_init = yield optional(sequence(regex(r"\s*=\s*"), expr()))
     return ast.VarDecl(name, type_, init=optional_init[1] if optional_init else None)
 
@@ -66,36 +66,48 @@ def assignment():
 
 
 @generate
-def function_def():
-    @generate
-    def fn_ret_type():
-        yield regex(r"\s*->\s*")
-        return (yield type_expr())
+def macro_def():
+    yield regex("macro +")
+    name = yield choice(identifier(), operator_identifier())
+    yield regex(r" *")
+    args = (yield optional(_function_args())) or []
+    ret_type = yield (optional(_function_ret()))
+    yield regex(r" *:")
+    body = yield indented_block(statement())
 
+    func = ast.FunctionDef(name.name, ast.FunctionType(args, ret_type), body)
+    return ast.MacroDef(name.name, func)
+
+
+@generate
+def function_def():
     yield regex("func +")
     name = yield choice(identifier(), operator_identifier())
     yield regex(r" *")
-    args = yield parens(sep_by(regex(r"\s*,\s*"), typed_id_decl()))
-    args = [ast.ArgDecl(*a) for a in args]
-    ret_type = yield optional(fn_ret_type())
+    args, ret_type = yield (sequence(_function_args(), _function_ret()))
     if (yield optional(regex(r" *:"))):
         body = yield indented_block(statement())
     else:
         body = []
-    type_ = ast.FunctionType(args, ret_type or ast.VoidType())
+    type_ = ast.FunctionType(args, ret_type)
     return ast.FunctionDef(name.name, type_, body)
+
+
+def _function_ret():
+    return sequence(regex(r" *-> *"), type_expr(), index=1)
+
+
+@generate
+def _function_args():
+    args = yield parens(sep_by(regex(r"\s*,\s*"), _typed_id_decl()))
+    return [ast.ArgDecl(*a) for a in args]
 
 
 @generate
 def function_type():
-    @generate
-    def fn_ret_type():
-        yield regex(r"\s*->\s*")
-        return (yield type_expr())
-
     yield regex("func *")
-    args = yield parens(sep_by(regex(r"\s*,\s*"), typed_id_decl()))
-    ret_type = yield optional(fn_ret_type())
+    args = yield _function_args()
+    ret_type = yield optional(_function_ret())
     return ast.FunctionType(args, ret_type)
 
 
@@ -282,7 +294,7 @@ def if_block():
 def return_statement():
     yield regex(r"return\b *")
     res = yield optional(expr())
-    return ast.FunctionReturn(res if res is not None else ast.VoidExpr())
+    return ast.FunctionReturn(res)
 
 
 @generate
@@ -313,7 +325,7 @@ def impl():
     yield regex("impl +")
     name = yield regex(r"\w+")
     yield regex(r" *:")
-    values = yield indented_block(choice(comment(), function_def()))
+    values = yield indented_block(choice(comment(), function_def(), macro_def()))
     values = [stmt for stmt in values if stmt is not None]
     return ast.TypeImpl(name, values)
 
@@ -336,6 +348,7 @@ def statement():
         impl(),
         type_def(),
         function_def(),
+        macro_def(),
         backtrack(assignment()),
         expr(),
     )

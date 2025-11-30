@@ -1,7 +1,7 @@
 type mat: (pair, pair)
 
 impl mat:
-    func print(self: Self):
+    func print(self: Self) -> ():
         bytes.print("[")
         self.0.print()
         bytes.print(", ")
@@ -20,7 +20,7 @@ impl mat_arr:
         asm: (array.new {Self.__asm_type} {default} {count})
 
 
-func main():
+func main() -> ():
     let arr: mat_arr = mat_arr.repeat(10)
     let i: i32 = 0
     arr[3] = mat(pair(3, 3), pair(3, 3))

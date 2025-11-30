@@ -20,6 +20,8 @@ def register_toplevel_decls(node: ast.Node, module: ir.Module):
                 enum_type.scope.register_type(val.name, ir.EnumValueType.translate(enum_type, i, val))
         case ast.FunctionDef():
             module.scope.register_var(node.name, ir.FunctionDef.translate(node, module.scope))
+        case ast.MacroDef():
+            module.scope.register_var(node.name, ir.MacroDef.translate(node, module.scope))
         case ast.Asm():
             module.add_asm(ir.Untranslated(node))
         case _:

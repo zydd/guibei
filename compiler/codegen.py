@@ -90,7 +90,7 @@ def type_declaration(node: ir.Node) -> list:
             fields = [["field", *type_reference(type_)] for type_ in node.field_types]
             return [["struct", *fields]]
 
-        case ir.TypeRef() | ir.FunctionDef() | ir.AsmType():
+        case ir.TypeRef() | ir.FunctionDef() | ir.AsmType() | ir.MacroDef():
             return []
 
     raise NotImplementedError(type(node))
@@ -380,9 +380,8 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
 
             return [*translate_wasm(node.match_expr), terms]
 
-        # case _:
-        #     print(type(node))
-        #     return traverse_ir.traverse(translate_wasm, node)
+        case ir.MacroDef():
+            return []
 
     return [str(node)]
     raise NotImplementedError(node)

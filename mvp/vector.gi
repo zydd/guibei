@@ -12,7 +12,7 @@ trait Iter:
     func next(mut self) -> Option[Type]
 
 
-macro repeat[T: Copy](n: isize, value: T) -> T[]:
+macro repeat[T: Copy](n: usize, value: T) -> T[]:
     [T.copy() for 0..n]
 
 
@@ -37,41 +37,101 @@ macro (..)(a: i32, b: i32):
     range(a, b)
 
 
+type i32
+
+impl i32:
+    macro __reference:
+        asm:
+            i32
+
+    macro __implicit_cast(val: __int) -> Self:
+        static_assert val.__leq(0x7fffffff)
+        asm:
+            (i32.const {val})
+
 
 # vector
 
 
-type vec[T]: (_data: T[], _len: isize)
+impl[T, N: usize] T[N]:
+    macro __declaration:
+        asm:
+            (array (mut {T.__reference}))
 
-impl[T] vec[T]:
-    func len(self) -> isize:
-        self._len
+    macro __reference:
+        asm:
+            (ref {Self.__qualified_name})
 
-    func capacity(self) -> isize:
-        asm: (array.len {self._data})
+    macro __implicit_cast(T[] arr) -> T[N]:
+        assert(arr.len() >= N)
+        __cast[T[N]] arr.__data
 
-    func reserve(self, additional: isize):
-        let current_capacity: isize = self.capacity()
-        let required_capacity: isize = self._len + additional
+    func len(self) -> usize:
+        N
+
+
+type __array[T]
+
+impl[T] __array[T]:
+    macro __declaration:
+        asm:
+            (array (mut {T.__reference}))
+
+    macro __reference:
+        asm:
+            (ref {Self.__qualified_name})
+
+    func len(self) -> usize:
+        asm:
+            (array.len {self})
+
+
+type __var_array[T]: (__data: __array[T], __len: usize)
+
+
+impl[T] T[]:
+    macro __declaration:
+        __var_array[T].__declaration
+
+    macro __reference:
+        __var_array[T].__reference
+
+    macro __implicit_cast[N: usize](T[N] arr) -> T[]:
+        __cast[T[]] (arr, arr.len())
+
+    func len(self) -> usize:
+        self.__len
+
+    func capacity(self) -> usize:
+        asm: (array.len {self.__data})
+
+    func reserve(mut self, additional: usize) -> &Self:
+        let current_capacity: usize = self.capacity()
+        let required_capacity: usize = self.__len + additional
         if required_capacity <= current_capacity:
             return
 
-        let new_capacity: isize = current_capacity + current_capacity // 2 + 1
+        let new_capacity: usize = current_capacity + current_capacity // 2 + 1
         if new_capacity < required_capacity:
             new_capacity = required_capacity
 
-        let new_data: T[] = T[].__new_uninitialized(new_capacity)
-        let i: isize = 0
-        while i < self._len:
-            new_data[i] = self._data[i]
+        mut new__data: T[] = T[].__new_uninitialized(new_capacity)
+        let i: usize = 0
+        while i < self.__len:
+            new__data[i] = self.__data[i]
             i = i + 1
 
-        self._data = new_data
+        self.__data = new__data
 
-    func [](self, i: isize) -> T:
-        assert(i < self._len)
-        self.data[i]
+    func [](self, i: usize) -> T:
+        assert(i < self.__len)
+        self.__data[i]
 
-    func [](mut self, i: isize, value: T) -> T:
-        assert(i < self._len)
-        self.data[i] = value
+    func [](mut self, i: usize, value: T) -> T:
+        assert(i < self.__len)
+        self.__data[i] = value
+
+    func append(mut self, value: T) -> &Self:
+        self.&reserve(1)
+        self.__data[self.__len] = value
+        self.__len = self.__len + 1

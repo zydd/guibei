@@ -177,6 +177,12 @@ class FunctionDef(Node):
 
 
 @dataclass(repr=_ast_repr)
+class MacroDef(Node):
+    name: str
+    func: FunctionDef
+
+
+@dataclass(repr=_ast_repr)
 class TypeImpl(Node):
     type_name: str
     methods: list[Node]
@@ -222,7 +228,7 @@ class Match(Node):
 
 @dataclass(repr=_ast_repr)
 class FunctionReturn(Node):
-    expr: Node
+    expr: Node | None
 
 
 @dataclass(repr=_ast_repr)

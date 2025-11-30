@@ -259,7 +259,7 @@ def test_cast_expr(code, par):
 @pytest.mark.parametrize(
     "code",
     [
-        "func a()",
+        "func a() -> ()",
     ],
 )
 def test_statement(code):

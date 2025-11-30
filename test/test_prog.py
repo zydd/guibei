@@ -56,9 +56,9 @@ def run(code, exit_ok=None, exit_err=None, stdout=None):
 
 
 def test_assert():
-    assert run(f"func main():\n assert(10)", exit_ok=True)
-    assert run(f"func main():\n assert(1)", exit_ok=True)
-    assert run(f"func main():\n assert(0)", exit_err=True)
+    assert run(f"func main() -> ():\n assert(10)", exit_ok=True)
+    assert run(f"func main() -> ():\n assert(1)", exit_ok=True)
+    assert run(f"func main() -> ():\n assert(0)", exit_err=True)
 
 
 @pytest.mark.parametrize(
@@ -88,7 +88,7 @@ def test_assert():
     ],
 )
 def test_i32(code):
-    assert run(f"func main():\n assert({code})", exit_ok=True)
+    assert run(f"func main() -> ():\n assert({code})", exit_ok=True)
 
 
 @pytest.mark.parametrize(
@@ -113,7 +113,7 @@ def test_i32(code):
     ],
 )
 def test_i32_fail(code):
-    assert run(f"func main():\n assert({code})", exit_err=True)
+    assert run(f"func main() -> ():\n assert({code})", exit_err=True)
 
 
 @pytest.mark.parametrize(
@@ -127,7 +127,7 @@ def test_i32_fail(code):
     ],
 )
 def test_option(code):
-    assert run(f"func main():\n" + textwrap.indent(code, "    "), exit_ok=True)
+    assert run(f"func main() -> ():\n" + textwrap.indent(code, "    "), exit_ok=True)
 
 
 @pytest.mark.parametrize(
@@ -142,7 +142,7 @@ def test_option(code):
     ],
 )
 def test_bytes(code):
-    assert run(f"func main():\n" + textwrap.indent(code, "    "), exit_ok=True)
+    assert run(f"func main() -> ():\n" + textwrap.indent(code, "    "), exit_ok=True)
 
 
 @pytest.mark.parametrize(
@@ -159,7 +159,7 @@ def test_bytes(code):
     ],
 )
 def test_print(code, stdout):
-    res = run(f"func main():\n" + textwrap.indent(code, "    "), exit_ok=True, stdout=stdout)
+    res = run(f"func main() -> ():\n" + textwrap.indent(code, "    "), exit_ok=True, stdout=stdout)
 
 
 @pytest.mark.parametrize(
@@ -173,7 +173,7 @@ def test_print(code, stdout):
     ],
 )
 def test_pair(code):
-    assert run(f"func main():\n" + textwrap.indent(code, "    "), exit_ok=True)
+    assert run(f"func main() -> ():\n" + textwrap.indent(code, "    "), exit_ok=True)
 
 
 @pytest.mark.parametrize(
@@ -196,7 +196,7 @@ def test_programs(file):
     ],
 )
 def test_integer_narrowing(code):
-    assert run(f"func main():\n" + textwrap.indent(code, "    "), exit_ok=True)
+    assert run(f"func main() -> ():\n" + textwrap.indent(code, "    "), exit_ok=True)
 
 
 @pytest.mark.skip
@@ -207,4 +207,4 @@ def test_integer_narrowing(code):
     ],
 )
 def test_integer_narrowing_fail(code):
-    assert run(f"func main():\n" + textwrap.indent(code, "    "), exit_err=True)
+    assert run(f"func main() -> ():\n" + textwrap.indent(code, "    "), exit_err=True)

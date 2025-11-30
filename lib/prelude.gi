@@ -64,11 +64,11 @@ func not(a: i32) -> i32:
 
 
 impl i32:
-    # func __from_literal(i: __int_literal):
+    # func __from_literal(i: __int_literal) -> ():
     #     asm:
     #         (i32.const {i})
 
-    func print(self: Self):
+    func print(self: Self) -> ():
         let n: i32 = self
         let i: i32 = 20
         let len: i32 = 0
@@ -109,7 +109,7 @@ type bytes: i8[]
 type str: bytes
 
 impl bytes:
-    # func __from_literal(i: __int_literal):
+    # func __from_literal(i: __int_literal) -> ():
     #     asm:
     #         (i32.const {i})
 
@@ -117,7 +117,7 @@ impl bytes:
         asm:
             (array.new {bytes.__asm_type} {chr} {count})
 
-    func print(self: Self):
+    func print(self: Self) -> ():
         let i: i32 = 0
         let len: i32 = asm: (array.len (local.get $self))
 
@@ -212,7 +212,7 @@ func __wasi_fd_write(fd: i32, iovs: i32, iovs_len: i32, out_nwritten: i32) -> i3
 func __wasi_fd_read(fd: i32, iovs: i32, iovs_len: i32, out_nread: i32) -> i32
 
 
-func __print_n(addr: i32, count: i32):
+func __print_n(addr: i32, count: i32) -> ():
     asm:
         (i32.store offset=4 (global.get $__stackp) {addr})
         (i32.store offset=8 (global.get $__stackp) {count})
@@ -234,7 +234,7 @@ func __read_n(addr: i32, count: i32) -> i32:
 # builtin
 
 
-func assert(cond: i32):
+func assert(cond: i32) -> ():
     if cond == 0:
         asm:
             unreachable
@@ -247,7 +247,7 @@ impl pair:
     func eq(self: Self, other: Self) -> i32:
         return (self.0 == other.0) & (self.1 == other.1)
 
-    func print(self: Self):
+    func print(self: Self) -> ():
         bytes.print("(")
         self.0.print()
         bytes.print(", ")

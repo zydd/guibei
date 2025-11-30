@@ -8,14 +8,12 @@ enum TypeExpr:
     Native(info: ParseInfo, name: str, packed: str, signed: bool)
     FunctionType(info: ParseInfo, args: Tuple, ret: Option<TypeExpr>)
     Void(info: ParseInfo)
-    Unspecified(info: ParseInfo)
 
 
 enum Expr:
     Module(info: ParseInfo, body: vec<Expr>)
 
     Name(info: ParseInfo, name: str)
-    TypeExpr(info: ParseInfo, TypeExpr)
     Placeholder(info: ParseInfo)
 
     IntLiteral(info: ParseInfo, value: str)

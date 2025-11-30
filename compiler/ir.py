@@ -553,7 +553,19 @@ class FunctionRef(Expr):
         self.func = func
 
     def __repr__(self):
-        return f"FunctionRef({self.func.name})"
+        return f'FunctionRef("{self.func.name}")'
+
+
+@dataclass
+class MacroRef(Node):
+    # func: MacroDef
+
+    def __init__(self, ast_node: ast.Node | None, func: MacroDef):
+        super().__init__(ast_node)
+        self.func = func
+
+    def __repr__(self):
+        return f'MacroRef("{self.func.name}")'
 
 
 @dataclass
@@ -629,19 +641,33 @@ class FunctionDef(Node):
     }
 
     @staticmethod
+    def get_name(name):
+        func_name = name
+        if func_name.startswith("("):
+            func_name = "__operator"
+            for c in name[1:-1]:
+                func_name += "$" + FunctionDef.operators[c]
+        return func_name
+
+    @staticmethod
     def translate(node: ast.FunctionDef, scope: Scope):
         func_type = FunctionType.translate(node.type_)
         body: list = [Untranslated(stmt) for stmt in node.body]
-
-        func_name = node.name
-        if func_name.startswith("("):
-            func_name = "__operator"
-            for c in node.name[1:-1]:
-                func_name += "$" + FunctionDef.operators[c]
-
+        func_name = FunctionDef.get_name(node.name)
         func = FunctionDef(node, f"{scope.name}.{func_name}", func_type, Scope(scope, node.name, body))
         func.scope.func = FunctionRef(None, func)
         return func
+
+
+@dataclass
+class MacroDef(Node):
+    name: str
+    func: FunctionDef
+
+    @staticmethod
+    def translate(node: ast.MacroDef, scope: Scope):
+        # TODO: add the macro itself to the scope to allow recursion?
+        return MacroDef(node, node.name, FunctionDef.translate(node.func, scope))
 
 
 @dataclass
@@ -675,7 +701,8 @@ class FunctionReturn(Node):
 
     @staticmethod
     def translate(node: ast.FunctionReturn, scope: Scope):
-        return FunctionReturn(node, scope.current_func(), Untranslated(node.expr))
+        expr = Untranslated(node.expr) if node.expr is not None else VoidExpr(None)
+        return FunctionReturn(node, scope.current_func(), expr)
 
 
 @dataclass
