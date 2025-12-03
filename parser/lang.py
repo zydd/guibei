@@ -137,14 +137,6 @@ def type_def():
 
 
 @generate
-def native_type():
-    yield regex(r"__native_type<")
-    args = yield sep_by(regex(r"\s*,\s*"), regex(r"\w+"))
-    yield string(">")
-    return ast.NativeType(args)
-
-
-@generate
 def int_literal():
     return ast.IntLiteral(int((yield regex(r"\d+"))))
 
@@ -428,7 +420,7 @@ def array_type_index(array):
 
 @generate
 def type_expr():
-    term = yield choice(tuple_def(), function_type(), native_type(), type_name())
+    term = yield choice(tuple_def(), function_type(), type_name())
 
     while True:
         term_ex = yield optional(attr_access(term))

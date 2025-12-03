@@ -42,11 +42,6 @@ class ArrayType(Type):
 
 
 @dataclass(repr=_ast_repr)
-class NativeType(Type):
-    args: list[str]
-
-
-@dataclass(repr=_ast_repr)
 class VoidType(Type):
     pass
 

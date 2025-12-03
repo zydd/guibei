@@ -302,26 +302,6 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
                     )
                 case ir.TypeRef():
                     match node.callee.primitive():
-                        case ir.NativeType() as cast_type:
-                            # TODO: generalize
-                            assert len(node.args) == 1
-                            if isinstance(node.args[0], ir.IntLiteral):
-                                return ir.Asm(
-                                    node.ast_node,
-                                    ir.WasmExpr(node.ast_node, ["i32.const", node.args[0].value]),
-                                    node.callee,
-                                )
-                            else:
-                                # Explicit casting
-                                assert isinstance(node.args[0], ir.Expr)
-                                arg_type = node.args[0].type_.primitive()
-                                assert isinstance(arg_type, ir.NativeType)
-                                assert cast_type.name == arg_type.name
-                                expr = node.args[0]
-                                # TODO: integer narrowing
-                                expr.type_ = node.callee
-                                return expr
-
                         case ir.EnumValueType() as enum_val:
                             assert all(isinstance(arg, ir.Expr) for arg in node.args)
                             args: list = node.args

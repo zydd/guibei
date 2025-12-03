@@ -31,9 +31,6 @@ def _wasm_repr_flat(expr):
 
 def type_reference(node: ir.Node) -> list:
     match node:
-        case ir.NativeType():
-            return [node.name]
-
         case ir.TypeDef():
             primitive = node.primitive()
             match primitive:
@@ -84,9 +81,6 @@ def type_declaration(node: ir.Node) -> list:
     decl: list
 
     match node:
-        case ir.NativeType():
-            return [node.name]
-
         case ir.EnumType():
             decl = [["type", f"${node.name}", "(sub $__enum (struct (field i32)))"]]
 

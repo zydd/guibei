@@ -5,7 +5,6 @@ enum TypeExpr:
     Name(info: ParseInfo, name: str)
     Tuple(info: ParseInfo, fields: vec<TupleField>)
     Array(info: ParseInfo, element_type: TypeExpr)
-    Native(info: ParseInfo, name: str, packed: str, signed: bool)
     FunctionType(info: ParseInfo, args: Tuple, ret: Option<TypeExpr>)
     Void(info: ParseInfo)
 

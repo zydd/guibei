@@ -301,20 +301,6 @@ class FunctionType(Type):
 
 
 @dataclass
-class NativeType(Type):
-    name: str
-    array_packed: str
-    signed: bool | None = None
-
-    @staticmethod
-    def translate(node: ast.NativeType, _scope):
-        name = node.args[0]
-        packed = node.args[1] if len(node.args) > 1 else name
-        signed = bool(node.args[2]) if len(node.args) > 2 else None
-        return NativeType(node, name, packed, signed)
-
-
-@dataclass
 class EnumTypeBase(TupleType):
     name: str = "__enum"
 
