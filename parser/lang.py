@@ -132,10 +132,8 @@ def tuple_def():
 def type_def():
     yield regex("type +")
     name = yield regex(r"\w+")
-    yield regex(r"\s*:")
-    body = yield indented_block(type_expr())
-    assert len(body) == 1
-    return ast.TypeDef(name, body[-1])
+    body = yield optional(sequence(regex(r"\s*:"), indented_block(type_expr()), index=1))
+    return ast.TypeDef(name, body[-1] if body else None)
 
 
 @generate

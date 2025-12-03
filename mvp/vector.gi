@@ -40,7 +40,7 @@ macro (..)(a: i32, b: i32):
 type i32
 
 impl i32:
-    macro __reference:
+    macro __type_reference:
         asm:
             i32
 
@@ -53,51 +53,26 @@ impl i32:
 # vector
 
 
-impl[T, N: usize] T[N]:
-    macro __declaration:
-        asm:
-            (array (mut {T.__reference}))
-
-    macro __reference:
-        asm:
-            (ref {Self.__qualified_name})
-
-    macro __implicit_cast(T[] arr) -> T[N]:
-        assert(arr.len() >= N)
-        __cast[T[N]] arr.__data
-
-    func len(self) -> usize:
-        N
-
-
 type __array[T]
 
 impl[T] __array[T]:
-    macro __declaration:
+    macro __type_declaration:
         asm:
-            (array (mut {T.__reference}))
+            (array (mut {T.__type_reference}))
 
-    macro __reference:
+    macro __type_reference:
         asm:
-            (ref {Self.__qualified_name})
+            (ref {Self.__asm_type})
 
-    func len(self) -> usize:
+    macro len(self) -> usize:
         asm:
             (array.len {self})
 
 
-type __var_array[T]: (__data: __array[T], __len: usize)
+type __var_array[T]: 
 
-
-impl[T] T[]:
-    macro __declaration:
-        __var_array[T].__declaration
-
-    macro __reference:
-        __var_array[T].__reference
-
-    macro __implicit_cast[N: usize](T[N] arr) -> T[]:
-        __cast[T[]] (arr, arr.len())
+impl[T] [T]:
+    type __super: (__data: __array[T], __len: usize)
 
     func len(self) -> usize:
         self.__len

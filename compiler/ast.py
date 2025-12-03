@@ -65,7 +65,7 @@ class FunctionType(Type):
 @dataclass(repr=_ast_repr)
 class TypeDef(Type):
     name: str
-    super_: Type
+    super_: Type | None
 
 
 @dataclass(repr=_ast_repr)

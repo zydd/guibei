@@ -212,11 +212,11 @@ class UntranslatedType(Type):
 
 @dataclass(init=False)
 class TypeDef(Type):
-    super_: Type
+    super_: Type | None
     name: str
     scope: Scope
 
-    def __init__(self, ast_node: ast.Node | None, super_: Type, name: str, scope: Scope):
+    def __init__(self, ast_node: ast.Node | None, super_: Type | None, name: str, scope: Scope):
         super().__init__(ast_node)
         assert not isinstance(super_, TypeDef)
         self.super_ = super_
@@ -232,10 +232,10 @@ class TypeDef(Type):
         self.scope.register_var(name, method)
 
     def primitive(self):
-        return self.super_.primitive()
+        return self.super_.primitive() if self.super_ else self
 
     def has_base_class(self, cls: Type):
-        current: Type = self
+        current: Type | None = self
         while True:
             if current == cls:
                 return True
@@ -246,6 +246,13 @@ class TypeDef(Type):
                     current = current.type_
             else:
                 return False
+
+    def __eq__(self, value):
+        if isinstance(value, TypeRef):
+            value = value.type_
+        if not isinstance(value, TypeDef):
+            return False
+        return self.name == value.name
 
 
 @dataclass
@@ -289,7 +296,7 @@ class FunctionType(Type):
     @staticmethod
     def translate(node: ast.FunctionType):
         args = [ArgDecl(arg, arg.name, UntranslatedType(arg.type_)) for arg in node.args]
-        ret_type = UntranslatedType(node.ret_type)
+        ret_type = UntranslatedType(node.ret_type) if node.ret_type else UnknownType()
         return FunctionType(node, args, ret_type)
 
 
@@ -311,8 +318,11 @@ class NativeType(Type):
 class EnumTypeBase(TupleType):
     name: str = "__enum"
 
-    def __init__(self):
-        super().__init__(None, [NativeType(None, "i32", "i32")])
+    def __init__(self, scope):
+        discr = scope.lookup_type("__enum_discr")
+        assert isinstance(discr, TypeDef)
+        discr = TypeRef(None, discr)
+        super().__init__(None, [discr])
 
     def __eq__(self, value):
         return isinstance(value, EnumTypeBase)
@@ -328,7 +338,7 @@ class EnumType(TypeDef):
 
     @staticmethod
     def translate(node: ast.EnumType, scope: Scope):
-        return EnumType(node, EnumTypeBase(), node.name, Scope(scope, node.name), len(node.values))
+        return EnumType(node, EnumTypeBase(scope), node.name, Scope(scope, node.name), len(node.values))
 
     # def add_method(self, name: str, method: Node):
     #     if self.scope.has_member(name):
@@ -453,11 +463,13 @@ class GetAttr(Expr):
 class GetItem(Expr):
     expr: Expr
     idx: Expr
+    idx_type: TypeRef
 
-    def __init__(self, ast_node, expr, idx, type_):
+    def __init__(self, ast_node, expr, idx, idx_type, type_):
         super().__init__(ast_node, type_)
         self.expr = expr
         self.idx = idx
+        self.idx_type = idx_type
 
 
 @dataclass
@@ -494,7 +506,7 @@ class IntLiteral(Expr):
     value: int
 
     def __init__(self, ast_node, value):
-        super().__init__(ast_node, AstType(None, "__int_literal"))
+        super().__init__(ast_node, AstType(None, "__int"))
         self.value = value
 
     @staticmethod
@@ -551,7 +563,7 @@ class WasmExpr(Node):
 @dataclass
 class Block(Expr):
     name: str
-    body: Scope
+    scope: Scope
 
 
 # ----------------------------------------------------------------------
@@ -569,6 +581,9 @@ class FunctionRef(Expr):
         super().__init__(ast_node, TypeRef(None, func.type_))
         self.func = func
 
+    def __deepcopy__(self, memo):
+        return FunctionRef(self.ast_node, self.func)
+
     def __repr__(self):
         return f'FunctionRef("{self.func.name}")'
 
@@ -580,6 +595,9 @@ class MacroRef(Node):
     def __init__(self, ast_node: ast.Node | None, macro: MacroDef):
         super().__init__(ast_node)
         self.macro = macro
+
+    def __deepcopy__(self, memo):
+        return MacroRef(self.ast_node, self.macro)
 
     def __repr__(self):
         return f'MacroRef("{self.macro.name}")'
@@ -601,6 +619,9 @@ class TypeRef(Type):
         value_type = value.type_ if isinstance(value, TypeRef) else value
         return self.type_ == value_type
 
+    def __deepcopy__(self, memo):
+        return TypeRef(self.ast_node, self.type_)
+
     def primitive(self):
         return self.type_.primitive()
 
@@ -619,6 +640,9 @@ class VarRef(Expr):
         super().__init__(ast_node, var.type_)
         self.var = var
 
+    def __deepcopy__(self, memo):
+        return VarRef(self.ast_node, self.var)
+
     def __repr__(self):
         return f"VarRef({self.var.name})"
 
@@ -632,6 +656,9 @@ class ArgRef(Expr):
         # if the var type changes, the reference becomes outdated
         super().__init__(ast_node, arg.type_)
         self.arg = arg
+
+    def __deepcopy__(self, memo):
+        return ArgRef(self.ast_node, self.arg)
 
     def __repr__(self):
         return f"ArgRef({self.arg.name})"
@@ -883,6 +910,7 @@ class BoundMethod(Expr):
 class SetItem(Node):
     expr: Expr
     idx: Expr
+    idx_type: TypeRef
     value: Expr
 
 

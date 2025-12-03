@@ -11,7 +11,12 @@ def register_toplevel_decls(node: ast.Node, module: ir.Module):
         case ast.TypeDef():
             module.scope.register_type(
                 node.name,
-                ir.TypeDef(node, ir.UntranslatedType(node.super_), node.name, ir.Scope(module.scope, node.name)),
+                ir.TypeDef(
+                    node,
+                    ir.UntranslatedType(node.super_) if node.super_ else None,
+                    node.name,
+                    ir.Scope(module.scope, node.name),
+                ),
             )
         case ast.EnumType():
             enum_type = ir.EnumType.translate(node, module.scope)
@@ -36,8 +41,13 @@ def register_toplevel_methods(node: ast.Node, module: ir.Module):
             type_ = module.scope.lookup_type(node.type_name)
             assert isinstance(type_, ir.TypeDef)
             for method in node.methods:
-                assert isinstance(method, ast.FunctionDef)
-                type_.add_method(method.name, ir.FunctionDef.translate(method, type_.scope))
+                match method:
+                    case ast.FunctionDef():
+                        type_.add_method(method.name, ir.FunctionDef.translate(method, type_.scope))
+                    case ast.MacroDef():
+                        type_.add_method(method.name, ir.MacroDef.translate(method, type_.scope))
+                    case _:
+                        raise NotImplementedError(type(method))
         case _:
             return node
 
@@ -201,7 +211,8 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
             idx = translate_function_defs(ir.Untranslated(ast_node.idx), scope)
             assert isinstance(expr, ir.Expr)
             assert isinstance(idx, ir.Expr)
-            return ir.GetItem(node.ast_node, expr, idx, expr.type_.primitive().element_type)
+            idx_type = scope.lookup_type("__array_index").super_
+            return ir.GetItem(node.ast_node, expr, idx, idx_type, expr.type_.primitive().element_type)
 
         case ir.Untranslated(ast.Call(callee=ast.Identifier("unary(-)"), arg=ast.IntLiteral() as value)):
             return ir.IntLiteral(value, -value.value)
@@ -317,10 +328,38 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
                             return ir.TupleInst(
                                 node.ast_node, node.callee, [ir.IntLiteral(None, enum_val.discr)] + args
                             )
+
                         case ir.TupleType():
                             assert all(isinstance(arg, ir.Expr) for arg in node.args)
                             tuple_args: list = node.args
                             return ir.TupleInst(node.ast_node, node.callee, tuple_args)
+
+                        case ir.TypeDef() as type_def:
+                            assert len(node.args) == 1
+                            match node.args[0]:
+                                case ir.IntLiteral():
+                                    from_literal = type_def.scope.lookup("__from_literal")
+                                    assert isinstance(from_literal, ir.MacroDef)
+                                    return ir.MacroInst(
+                                        node.ast_node,
+                                        from_literal.func.type_.ret_type,
+                                        ir.MacroRef(None, from_literal),
+                                        node.args,
+                                    )
+
+                                case obj:
+                                    # FIXME: __cast_from
+                                    int_types = ["i8", "u8", "i32", "u32"]
+                                    assert isinstance(obj, ir.Expr)
+                                    assert isinstance(obj.type_, ir.TypeRef)
+                                    if (
+                                        node.callee.name.split(".")[-1] in int_types
+                                        and obj.type_.name.split(".")[-1] in int_types
+                                    ):
+                                        # Override type
+                                        obj.type_ = node.callee
+                                        return obj
+                                    raise NotImplementedError
 
                         case _:
                             raise NotImplementedError(node.callee)
@@ -340,9 +379,19 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
             assert isinstance(expr, ir.Expr)
             node.expr = expr
             if isinstance(node.lvalue, ir.GetItem):
-                return ir.SetItem(node.ast_node, node.lvalue.expr, node.lvalue.idx, expr)
+                idx_type = scope.lookup_type("__array_index").super_
+                return ir.SetItem(node.ast_node, node.lvalue.expr, node.lvalue.idx, idx_type, expr)
             else:
                 return node
+
+            # TODO: after type deduction
+            # match node.lvalue:
+            #     case ir.GetItem():
+            #         return ir.SetItem(node.ast_node, node.lvalue.expr, node.lvalue.idx, expr)
+            #     case ir.VarRef():
+            #         return ir.SetLocal(node.ast_node, node.lvalue, node.expr)
+            #     case _:
+            #         raise NotImplementedError
 
         case ir.MatchCaseEnum():
             node.enum = translate_function_defs(node.enum, scope)
@@ -400,6 +449,15 @@ def propagate_types(node: ir.Node):
                 propagate_types(match_expr_type(arg, arg_decl.type_)) for arg, arg_decl in zip(node.args, func_args)
             ]
 
+        case ir.MacroDef():
+            if node.name in ["__type_declaration", "__type_reference", "__type_packed"]:
+                assert len(node.func.type_.args) == 0
+                assert isinstance(node.func.type_.ret_type, ir.VoidType)
+                node.func = propagate_types(node.func)
+                return node
+            else:
+                node.func = propagate_types(node.func)
+
         case ir.MacroInst():
             func_args = node.macro.macro.func.type_.args
             assert len(node.args) == len(func_args)
@@ -439,8 +497,11 @@ def propagate_types(node: ir.Node):
             if node.scope.body:
                 if isinstance(node.type_.ret_type, ir.VoidType):
                     if isinstance(node.scope.body[-1], ir.Expr):
-                        expr = propagate_types(node.scope.body[-1])
-                        assert not isinstance(expr.type_, ir.UnknownType)
+                        if isinstance(node.scope.body[-1].type_, ir.UnknownType):
+                            expr = propagate_types(match_expr_type(node.scope.body[-1], ir.VoidType(None)))
+                        else:
+                            expr = propagate_types(node.scope.body[-1])
+
                         node.scope.body[-1] = expr if isinstance(expr.type_, ir.VoidType) else ir.Drop(expr)
                     else:
                         node.scope.body[-1] = propagate_types(node.scope.body[-1])
@@ -450,6 +511,30 @@ def propagate_types(node: ir.Node):
                             node.scope.body[-1] = propagate_types(
                                 match_expr_type(node.scope.body[-1], node.type_.ret_type)
                             )
+                        case ir.FunctionReturn():
+                            node.scope.body[-1] = propagate_types(node.scope.body[-1])
+                        case _:
+                            # TODO: check if statements always return
+                            node.scope.body[-1] = propagate_types(node.scope.body[-1])
+                            # raise Exception(f"Unexpected node type in function body: {type(node.scope.body[-1])}")
+
+        case ir.Block():
+            assert not (node.scope.attrs)
+            if node.scope.body:
+                if isinstance(node.type_, ir.VoidType):
+                    if isinstance(node.scope.body[-1], ir.Expr):
+                        if isinstance(node.scope.body[-1].type_, ir.UnknownType):
+                            expr = propagate_types(match_expr_type(node.scope.body[-1], ir.VoidType(None)))
+                        else:
+                            expr = propagate_types(node.scope.body[-1])
+
+                        node.scope.body[-1] = expr if isinstance(expr.type_, ir.VoidType) else ir.Drop(expr)
+                    else:
+                        node.scope.body[-1] = propagate_types(node.scope.body[-1])
+                else:
+                    match node.scope.body[-1]:
+                        case ir.Expr():
+                            node.scope.body[-1] = propagate_types(match_expr_type(node.scope.body[-1], node.type_))
                         case ir.FunctionReturn():
                             node.scope.body[-1] = propagate_types(node.scope.body[-1])
                         case _:
@@ -471,21 +556,40 @@ def propagate_types(node: ir.Node):
 
             node.attrs = traverse_ir.traverse_dict(propagate_types, node.attrs)
 
+        case ir.Assignment():
+            assert isinstance(node.lvalue, ir.VarRef)
+            node.expr = propagate_types(match_expr_type(node.expr, node.lvalue.var.type_))
+            assert isinstance(node.expr, ir.Expr)
+            match node.lvalue:
+                case ir.VarRef():
+                    assert node.lvalue.var.type_ == node.expr.type_
+                case ir.ArgRef():
+                    raise ValueError("Setting argument not allowed")
+                case _:
+                    raise NotImplementedError(type(node.lvalue))
+
         case ir.SetLocal():
             node.expr = propagate_types(match_expr_type(node.expr, node.var.type_))
 
         case ir.SetItem():
             node.expr = propagate_types(node.expr)
-            node.idx = propagate_types(node.idx)
+            node.idx = propagate_types(match_expr_type(node.idx, node.idx_type))
             node.value = propagate_types(match_expr_type(node.value, node.expr.type_.primitive().element_type))
 
         case ir.GetItem():
             node.type_ = node.expr.type_.primitive().element_type
             node.expr = propagate_types(node.expr)
-            # TODO: match numeric type
-            node.idx = propagate_types(node.idx)
+            node.idx = propagate_types(match_expr_type(node.idx, node.idx_type))
 
         case ir.Match():
+            # FIXME: should be part of translation
+            assert isinstance(node.match_expr, ir.Assignment)
+            assert isinstance(node.match_expr.lvalue, ir.VarRef)
+            assert isinstance(node.match_expr.expr, ir.Expr)
+            # FIXME: VarRef type update
+            node.match_expr.lvalue.type_ = node.match_expr.expr.type_
+            node.match_expr.lvalue.var.type_ = node.match_expr.expr.type_
+
             node.match_expr = propagate_types(node.match_expr)
             for i, case in enumerate(node.cases):
                 match case:
@@ -527,8 +631,21 @@ def match_expr_type(expr: ir.Node, type_: ir.Type):
         case ir.UnknownType():
             assert isinstance(type_, (ir.TypeRef, ir.UnknownType, ir.VoidType))
             expr.type_ = type_
-        case ir.AstType(name="__int_literal"):
-            assert isinstance(type_.primitive(), ir.NativeType)
+        case ir.AstType(name="__int"):
+            match type_.primitive():
+                case ir.TypeDef() as type_primitive:
+                    # TODO: __from_literal overloading
+                    from_literal = type_primitive.scope.lookup("__from_literal")
+                    assert isinstance(from_literal, ir.MacroDef)
+                    assert len(from_literal.func.type_.args) == 1
+                    source_type = from_literal.func.type_.args[0].type_.primitive()
+                    assert source_type == expr.type_, source_type
+                    assert isinstance(type_, ir.TypeRef)
+                    return ir.MacroInst(expr.ast_node, type_, ir.MacroRef(None, from_literal), [expr])
+                case ir.AstType(name="__int"):
+                    return expr
+                case _:
+                    raise NotImplementedError
         case ir.AstType(name="__string_literal"):
             assert isinstance(type_.primitive(), ir.ArrayType)
             assert isinstance(expr, ir.StringLiteral)
@@ -621,7 +738,10 @@ ir_passes: list = [
 
 
 def run(prog: ast.Module):
-    module = ir.Module(prog, ir.Scope(None, "module"))
+    root_scope = ir.Scope(None, "root")
+    root_scope.register_type("__int", ir.AstType(None, "__int"))
+
+    module = ir.Module(prog, ir.Scope(root_scope, "module"))
     for pass_ in toplevel_ast_passes:
         print("Pass:", pass_.__name__)
         pass_(prog, module)
