@@ -30,7 +30,7 @@ def test_native_type_alias():
 
 
 def test_native_type_alias_array():
-    module = compile("type float\nimpl float:\n macro __type_reference() -> (): asm: f32\ntype float_arr: float[]")
+    module = compile("type float\nimpl float:\n macro __type_reference() -> (): asm: f32\ntype float_arr: [float]")
     assert "float" in module.scope.attrs
     assert module.scope.attrs["float"].super_ is None
     assert "float_arr" in module.scope.attrs

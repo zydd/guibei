@@ -157,7 +157,7 @@ impl i8:
 #             (array.get_s {Self.__asm_type} {self} {i})
 
 
-type bytes: i8[]
+type bytes: [i8]
 type str: bytes
 
 impl bytes:

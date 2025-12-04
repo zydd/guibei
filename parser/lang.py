@@ -403,25 +403,18 @@ def type_name():
             break
         term = term_ex
 
-    while True:
-        term_ex = yield optional(array_type_index(term))
-        if not term_ex:
-            break
-        term = term_ex
-
     return term
 
 
 @generate
-def array_type_index(array):
-    idx = yield brackets(regex(r" *"))
-    return ast.ArrayType(array)
+def array_type():
+    type_ = yield brackets(type_expr())
+    return ast.ArrayType(type_)
 
 
 @generate
 def type_expr():
-    term = yield choice(tuple_def(), function_type(), type_name())
-
+    term = yield choice(tuple_def(), function_type(), array_type(), type_name())
     while True:
         term_ex = yield optional(attr_access(term))
         if not term_ex:

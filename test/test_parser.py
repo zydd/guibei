@@ -52,7 +52,6 @@ def test_type_def(code):
     "code",
     [
         "i32",
-        "i32[]",
     ],
 )
 def test_type_identifier(code):
