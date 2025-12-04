@@ -64,6 +64,13 @@ class TypeDef(Type):
 
 
 @dataclass(repr=_ast_repr)
+class TemplateDef(Type):
+    name: str
+    args: list[Identifier]
+    super_: Type | None
+
+
+@dataclass(repr=_ast_repr)
 class TypeIdentifier(Type):
     name: str
 

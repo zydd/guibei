@@ -132,8 +132,13 @@ def tuple_def():
 def type_def():
     yield regex("type +")
     name = yield regex(r"\w+")
+    args = yield optional(bracers(sep_by(regex(r"\s*,\s*"), identifier(), min_count=1)))
     body = yield optional(sequence(regex(r"\s*:"), indented_block(type_expr()), index=1))
-    return ast.TypeDef(name, body[-1] if body else None)
+
+    if args:
+        return ast.TemplateDef(name, args, body[-1] if body else None)
+    else:
+        return ast.TypeDef(name, body[-1] if body else None)
 
 
 @generate

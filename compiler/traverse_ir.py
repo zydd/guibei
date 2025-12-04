@@ -90,9 +90,9 @@ def inline(node: ir.Node, func_scope: ir.Scope | None, args: list[ir.Node]) -> i
                         mapped_var = func_scope.register_local(var_name, ir.VarDecl(var.ast_node, var_name, var.type_))
                         arg_map[var.name] = ir.VarRef(None, mapped_var)
             body = [_inline_args(copy.deepcopy(stmt), block_name, arg_map) for stmt in node.func.scope.body]
-            # if len(body) == 1:
-            #     body[0].type_ = node.func.type_.ret_type
-            #     return body[0]
+            if len(body) == 1:
+                assert body[0].type_ == node.func.type_.ret_type
+                return body[0]
             return ir.Block(None, node.func.type_.ret_type, block_name, ir.Scope(func_scope, "macro", body))
 
         case ir.MacroRef():

@@ -688,7 +688,8 @@ def inline_macros(node: ir.Node, scope=None) -> ir.Node:
         case ir.FunctionDef():
             return traverse_ir.traverse(inline_macros, node, node.scope)
         case ir.MacroInst():
-            return traverse_ir.inline(node.macro, scope, node.args)
+            return traverse_ir.inline(node.macro, scope, [inline_macros(arg, scope) for arg in node.args])
+            # return inline_macros(traverse_ir.inline(node.macro, scope, node.args), scope)  # slow
         case _:
             return traverse_ir.traverse(inline_macros, node, scope)
 
