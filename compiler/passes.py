@@ -103,11 +103,22 @@ def translate_toplevel_type_decls(node: ir.Node, scope=None) -> ir.Node:
             assert isinstance(member, ir.TypeDef)
             return ir.TypeRef(ast_node, member)
 
+        case ir.UntranslatedType(ast.TemplateInst() as ast_node):
+            assert isinstance(ast_node.name, ast.TypeIdentifier)
+            template = scope.lookup(ast_node.name.name)
+            args = []
+            for arg in ast_node.args:
+                assert isinstance(arg, ast.TypeIdentifier)
+                args.append(scope.lookup_type(arg.name))
+            assert not any(isinstance(arg, ir.TypeRef) for arg in args)
+            args = [ir.TypeRef(None, arg) for arg in args]
+            return ir.TypeRef(ast_node, traverse_ir.instantiate(template, args))
+
         case ir.UntranslatedType():
             return node.translate(scope)
 
-        case ir.TypeRef():
-            pass
+        # case ir.TypeRef():
+        #     pass
 
         case ir.TypeDef():
             return traverse_ir.traverse(translate_toplevel_type_decls, node, node.scope)
@@ -629,8 +640,8 @@ def match_expr_type(expr: ir.Node, type_: ir.Type):
                     return ir.MacroInst(expr.ast_node, type_, ir.MacroRef(None, from_literal), [expr])
                 case ir.AstType(name="__int"):
                     return expr
-                case _:
-                    raise NotImplementedError
+                case other:
+                    raise NotImplementedError(type(other))
         case ir.AstType(name="__string_literal"):
             assert isinstance(type_.primitive(), ir.ArrayType)
             assert isinstance(expr, ir.StringLiteral)

@@ -120,7 +120,7 @@ class Scope(Node):
                         global_name = f"{global_name}${i}"
                         break
 
-            if isinstance(type_, TypeDef):
+            if isinstance(type_, (TypeDef, TemplateDef)):
                 type_.name = global_name
 
             # self.root.attrs[global_name] = type_
@@ -381,15 +381,17 @@ class TemplateDef(Node):
     name: str
     super_: Type | None
     scope: Scope
-    instances: dict[str, Type]
+    instances: dict[tuple[str, ...], TypeDef]
+    args: list[TemplateArg]
 
     @staticmethod
     def translate(node: ast.TemplateDef, scope: Scope):
         template_scope = Scope(scope, node.name)
-        for arg in node.args:
-            template_scope.register_type(arg.name, TemplateArg(arg, arg.name))
+        args = [TemplateArg(arg, arg.name) for arg in node.args]
+        for arg in args:
+            template_scope.register_type(arg.name, TypeRef(None, arg))
         template_type = TemplateDef(
-            node, node.name, UntranslatedType(node.super_) if node.super_ else None, template_scope, {}
+            node, node.name, UntranslatedType(node.super_) if node.super_ else None, template_scope, {}, args
         )
         return template_type
 

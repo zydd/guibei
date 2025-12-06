@@ -106,8 +106,12 @@ def type_declaration(node: ir.Node) -> list:
 
             decl = type_declaration(primitive)
 
-            if isinstance(node.super_, ir.TypeRef) and isinstance(node.super_.primitive(), ir.TupleType):
-                decl = [["sub", f"${node.super_.name}", *decl]]
+            assert node.super_
+            if isinstance(node.super_.primitive(), ir.TupleType):
+                if isinstance(node.super_, ir.TypeRef):
+                    decl = [["sub", f"${node.super_.name}", *decl]]
+                else:
+                    decl = [["sub", *decl]]
 
             return [["type", f"${node.name}", *decl]]
 
@@ -120,7 +124,7 @@ def type_declaration(node: ir.Node) -> list:
 
         case ir.TemplateDef():
             decl = []
-            for inst in node.scope.attrs.values():
+            for inst in node.instances.values():
                 decl.extend(type_declaration(inst))
             return decl
 
@@ -358,7 +362,7 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
             for arg in node.args:
                 args.extend(translate_wasm(arg))
 
-            return [["struct.new", f"${node.type_.type_.scope.name}", *args]]
+            return [["struct.new", f"${node.type_.type_.name}", *args]]
 
         case ir.MatchEnum():
             assert isinstance(node.match_expr, ir.Assignment)

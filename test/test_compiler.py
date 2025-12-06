@@ -48,7 +48,7 @@ def test_tuple_alias():
     assert "float_pair" in module.scope.attrs
     assert isinstance(module.scope.attrs["float_pair"].super_, ir.TupleType)
     wasm = codegen.type_declaration(module.scope.attrs["float_pair"])
-    assert wasm == [["type", "$root.module.float_pair", ["struct", ["field", "f32"], ["field", "f32"]]]]
+    assert wasm == [["type", "$root.module.float_pair", ["sub", ["struct", ["field", "f32"], ["field", "f32"]]]]]
 
 
 def test_tuple_nested():
@@ -64,12 +64,19 @@ def test_tuple_nested():
     assert isinstance(module.scope.attrs["float_mat"].super_.field_types[1].primitive(), ir.TupleType)
     wasm1 = codegen.type_declaration(module.scope.attrs["float_pair"])
     wasm2 = codegen.type_declaration(module.scope.attrs["float_mat"])
-    assert wasm1 == [["type", "$root.module.float_pair", ["struct", ["field", "f32"], ["field", "f32"]]]]
+    assert wasm1 == [["type", "$root.module.float_pair", ["sub", ["struct", ["field", "f32"], ["field", "f32"]]]]]
     assert wasm2 == [
         [
             "type",
             "$root.module.float_mat",
-            ["struct", ["field", ["ref", "$root.module.float_pair"]], ["field", ["ref", "$root.module.float_pair"]]],
+            [
+                "sub",
+                [
+                    "struct",
+                    ["field", ["ref", "$root.module.float_pair"]],
+                    ["field", ["ref", "$root.module.float_pair"]],
+                ],
+            ],
         ]
     ]
 

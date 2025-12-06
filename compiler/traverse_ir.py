@@ -100,3 +100,41 @@ def inline(node: ir.Node, func_scope: ir.Scope | None, args: list[ir.Node]) -> i
 
         case _:
             raise NotImplementedError(type(node))
+
+
+def _inline_template_args(node: ir.Node, args: dict[str, ir.Node]):
+    match node:
+        case ir.TypeRef():
+            if node.name in args:
+                assert isinstance(node.type_, ir.TemplateArg)
+                return args[node.name]
+            return node
+
+        case _:
+            return traverse(_inline_template_args, node, args)
+
+
+def instantiate(node: ir.TemplateDef, args: list[ir.TypeRef]) -> ir.TypeDef:
+    assert len(args) == len(node.args)
+    type_map: dict = dict(zip((arg.name for arg in node.args), args))
+
+    key = tuple(arg.name for arg in args)
+    if key in node.instances:
+        return node.instances[key]
+
+    if key in node.instances:
+        return node.instances[key]
+
+    assert node.super_
+    type_ = _inline_template_args(node.super_, type_map)
+
+    arg_names = "$" + "$".join([arg.name for arg in args])
+    instance_scope = ir.Scope(node.scope, arg_names)
+    instance = ir.TypeDef(
+        node.ast_node,
+        type_,
+        node.name + arg_names,
+        instance_scope,
+    )
+    node.instances[key] = instance
+    return instance
