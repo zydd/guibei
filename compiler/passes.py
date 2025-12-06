@@ -23,6 +23,8 @@ def register_toplevel_decls(node: ast.Node, module: ir.Module):
             module.scope.register_type(node.name, enum_type)
             for i, val in enumerate(node.values):
                 enum_type.scope.register_type(val.name, ir.EnumValueType.translate(enum_type, i, val))
+        case ast.TemplateDef():
+            module.scope.register_type(node.name, ir.TemplateDef.translate(node, module.scope))
         case ast.FunctionDef():
             module.scope.register_var(node.name, ir.FunctionDef.translate(node, module.scope))
         case ast.MacroDef():
@@ -108,6 +110,9 @@ def translate_toplevel_type_decls(node: ir.Node, scope=None) -> ir.Node:
             pass
 
         case ir.TypeDef():
+            return traverse_ir.traverse(translate_toplevel_type_decls, node, node.scope)
+
+        case ir.TemplateDef():
             return traverse_ir.traverse(translate_toplevel_type_decls, node, node.scope)
 
         case ir.FunctionDef():

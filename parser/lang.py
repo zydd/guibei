@@ -132,7 +132,7 @@ def tuple_def():
 def type_def():
     yield regex("type +")
     name = yield regex(r"\w+")
-    args = yield optional(bracers(sep_by(regex(r"\s*,\s*"), identifier(), min_count=1)))
+    args = yield optional(brackets(sep_by(regex(r"\s*,\s*"), identifier(), min_count=1)))
     body = yield optional(sequence(regex(r"\s*:"), indented_block(type_expr()), index=1))
 
     if args:
@@ -418,10 +418,16 @@ def array_type():
 
 
 @generate
+def template_args(term):
+    args = yield brackets(sep_by(regex(r"\s*,\s*"), type_expr(), min_count=1))
+    return ast.TemplateInst(term, args)
+
+
+@generate
 def type_expr():
     term = yield choice(tuple_def(), function_type(), array_type(), type_name())
     while True:
-        term_ex = yield optional(attr_access(term))
+        term_ex = yield optional(choice(attr_access(term), template_args(term)))
         if not term_ex:
             break
         term = term_ex

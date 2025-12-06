@@ -64,10 +64,16 @@ class TypeDef(Type):
 
 
 @dataclass(repr=_ast_repr)
-class TemplateDef(Type):
+class TemplateDef(Node):
     name: str
     args: list[Identifier]
     super_: Type | None
+
+
+@dataclass(repr=_ast_repr)
+class TemplateInst(Type):
+    name: str
+    args: list[Type]
 
 
 @dataclass(repr=_ast_repr)

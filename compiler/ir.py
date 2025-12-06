@@ -376,6 +376,32 @@ class UnknownType(Type):
         super().__init__(None)
 
 
+@dataclass
+class TemplateDef(Node):
+    name: str
+    super_: Type | None
+    scope: Scope
+    instances: dict[str, Type]
+
+    @staticmethod
+    def translate(node: ast.TemplateDef, scope: Scope):
+        template_scope = Scope(scope, node.name)
+        for arg in node.args:
+            template_scope.register_type(arg.name, TemplateArg(arg, arg.name))
+        template_type = TemplateDef(
+            node, node.name, UntranslatedType(node.super_) if node.super_ else None, template_scope, {}
+        )
+        return template_type
+
+
+@dataclass
+class TemplateArg(Type):
+    name: str
+
+    def primitive(self):
+        raise NotImplementedError
+
+
 # ----------------------------------------------------------------------
 # Expressions
 # ----------------------------------------------------------------------

@@ -118,7 +118,13 @@ def type_declaration(node: ir.Node) -> list:
             fields = [["field", *type_reference(type_)] for type_ in node.field_types]
             return [["struct", *fields]]
 
-        case ir.TypeRef() | ir.FunctionDef() | ir.AsmType() | ir.MacroDef():
+        case ir.TemplateDef():
+            decl = []
+            for inst in node.scope.attrs.values():
+                decl.extend(type_declaration(inst))
+            return decl
+
+        case ir.TypeRef() | ir.FunctionDef() | ir.AsmType() | ir.MacroDef() | ir.TemplateArg():
             return []
 
     raise NotImplementedError(type(node))
@@ -180,8 +186,8 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
         case ir.TypeDef():
             return translate_wasm(node.scope)
 
-        case ir.TypeRef():
-            return []
+        case ir.TemplateDef():
+            return translate_wasm(node.scope)
 
         case ir.FunctionDef():
             decls: list = [["param", f"${arg.name}", *type_reference(arg.type_)] for arg in node.type_.args]
@@ -212,7 +218,15 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
                     case ir.VarDecl() | ir.FunctionDef():
                         terms.extend(translate_wasm(expr))
 
-                    case ir.TypeRef() | ir.VarRef() | ir.ArgRef() | ir.AsmType() | ir.EnumValueType() | ir.MacroDef():
+                    case (
+                        ir.TypeRef()
+                        | ir.VarRef()
+                        | ir.ArgRef()
+                        | ir.AsmType()
+                        | ir.EnumValueType()
+                        | ir.MacroDef()
+                        | ir.TemplateArg()
+                    ):
                         pass
 
                     case _:
