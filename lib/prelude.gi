@@ -92,8 +92,8 @@ impl i32:
         asm:
             i32
 
-    # macro __cast_from(i: i8) -> i32:
-    #     __reinterpret_cast i
+    macro __cast_from(i: i8) -> i32:
+        __reinterpret_cast i
 
     func print(self: Self) -> ():
         let n: i32 = self

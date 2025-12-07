@@ -27,4 +27,5 @@ type array[T]
 
 func main() -> ():
     let val: i32 = 1
+    assert(i32(bytes.repeat(4, 13)[0]) != 4)
 

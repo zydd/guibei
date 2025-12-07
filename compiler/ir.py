@@ -693,16 +693,23 @@ class VarRef(Expr):
     # var: Node
 
     def __init__(self, ast_node: ast.Node | None, var: VarDecl):
-        # TODO: should not 'copy' type on reference creation
-        # if the var type changes, the reference becomes outdated
-        super().__init__(ast_node, var.type_)
+        # super().__init__(ast_node, var.type_)
+        self.ast_node = ast_node
         self.var = var
 
     def __deepcopy__(self, memo):
         return VarRef(self.ast_node, self.var)
 
     def __repr__(self):
-        return f"VarRef({self.var.name})"
+        return f'VarRef("{self.var.name}")'
+
+    @property  # type:ignore
+    def type_(self):
+        return self.var.type_
+
+    @type_.setter
+    def type_(self, value):
+        self.var.type_ = value
 
 
 @dataclass
@@ -710,9 +717,8 @@ class ArgRef(Expr):
     # arg: ArgDecl
 
     def __init__(self, ast_node: ast.Node | None, arg: ArgDecl):
-        # TODO: should not 'copy' type on reference creation
-        # if the var type changes, the reference becomes outdated
-        super().__init__(ast_node, arg.type_)
+        # super().__init__(ast_node, arg.type_)
+        self.ast_node = ast_node
         self.arg = arg
 
     def __deepcopy__(self, memo):
@@ -720,6 +726,14 @@ class ArgRef(Expr):
 
     def __repr__(self):
         return f"ArgRef({self.arg.name})"
+
+    @property  # type:ignore
+    def type_(self):
+        return self.arg.type_
+
+    @type_.setter
+    def type_(self, value):
+        self.arg.type_ = value
 
 
 @dataclass
@@ -1022,3 +1036,13 @@ class MacroInst(Expr):
         super().__init__(ast_node, type_)
         self.macro = macro
         self.args = args
+
+
+@dataclass
+class ReinterpretCast(Expr):
+    expr: Expr
+
+
+@dataclass
+class Cast(Expr):
+    expr: Expr
