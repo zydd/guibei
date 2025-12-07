@@ -72,7 +72,7 @@ class TemplateDef(Node):
 
 @dataclass(repr=_ast_repr)
 class TemplateInst(Type):
-    name: str
+    name: TypeIdentifier
     args: list[Type]
 
 
@@ -192,7 +192,14 @@ class MacroDef(Node):
 
 @dataclass(repr=_ast_repr)
 class TypeImpl(Node):
-    type_name: str
+    type_: str
+    methods: list[Node]
+
+
+@dataclass(repr=_ast_repr)
+class TemplateTypeImpl(Node):
+    args: list[Type]
+    type_: TypeIdentifier | TemplateInst
     methods: list[Node]
 
 

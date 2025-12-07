@@ -26,9 +26,9 @@ def register_toplevel_decls(node: ast.Node, module: ir.Module):
         case ast.TemplateDef():
             module.scope.register_type(node.name, ir.TemplateDef.translate(node, module.scope))
         case ast.FunctionDef():
-            module.scope.register_var(node.name, ir.FunctionDef.translate(node, module.scope))
+            module.scope.add_method(node.name, ir.FunctionDef.translate(node, module.scope))
         case ast.MacroDef():
-            module.scope.register_var(node.name, ir.MacroDef.translate(node, module.scope))
+            module.scope.add_method(node.name, ir.MacroDef.translate(node, module.scope))
         case ast.Asm():
             module.add_asm(ir.Untranslated(node))
         case _:
@@ -40,14 +40,31 @@ def register_toplevel_methods(node: ast.Node, module: ir.Module):
         case ast.Module():
             traverse_ast.traverse(register_toplevel_methods, node, module)
         case ast.TypeImpl():
-            type_ = module.scope.lookup_type(node.type_name)
+            assert isinstance(node.type_, ast.TypeIdentifier)
+            type_ = module.scope.lookup_type(node.type_.name)
             assert isinstance(type_, ir.TypeDef)
             for method in node.methods:
                 match method:
                     case ast.FunctionDef():
-                        type_.add_method(method.name, ir.FunctionDef.translate(method, type_.scope))
+                        type_.scope.add_method(method.name, ir.FunctionDef.translate(method, type_.scope))
                     case ast.MacroDef():
-                        type_.add_method(method.name, ir.MacroDef.translate(method, type_.scope))
+                        type_.scope.add_method(method.name, ir.MacroDef.translate(method, type_.scope))
+                    case _:
+                        raise NotImplementedError(type(method))
+
+        case ast.TemplateTypeImpl():
+            assert isinstance(node.type_, ast.TemplateInst)
+            template = module.scope.lookup(node.type_.name.name)
+            assert isinstance(template, ir.TemplateDef)
+            assert [arg.name for arg in node.args] == [arg.name for arg in node.type_.args]  # type:ignore
+            assert [arg.name for arg in node.args] == [arg.name for arg in template.args]  # type:ignore
+
+            for method in node.methods:
+                match method:
+                    case ast.FunctionDef():
+                        template.scope.add_method(method.name, ir.FunctionDef.translate(method, template.scope))
+                    case ast.MacroDef():
+                        template.scope.add_method(method.name, ir.MacroDef.translate(method, template.scope))
                     case _:
                         raise NotImplementedError(type(method))
         case _:
@@ -103,16 +120,16 @@ def translate_toplevel_type_decls(node: ir.Node, scope=None) -> ir.Node:
             assert isinstance(member, ir.TypeDef)
             return ir.TypeRef(ast_node, member)
 
-        case ir.UntranslatedType(ast.TemplateInst() as ast_node):
-            assert isinstance(ast_node.name, ast.TypeIdentifier)
-            template = scope.lookup(ast_node.name.name)
-            args = []
-            for arg in ast_node.args:
-                assert isinstance(arg, ast.TypeIdentifier)
-                args.append(scope.lookup_type(arg.name))
-            assert not any(isinstance(arg, ir.TypeRef) for arg in args)
-            args = [ir.TypeRef(None, arg) for arg in args]
-            return ir.TypeRef(ast_node, traverse_ir.instantiate(template, args))
+        # case ir.UntranslatedType(ast.TemplateInst() as ast_node):
+        #     assert isinstance(ast_node.name, ast.TypeIdentifier)
+        #     template = scope.lookup(ast_node.name.name)
+        #     args = []
+        #     for arg in ast_node.args:
+        #         assert isinstance(arg, ast.TypeIdentifier)
+        #         args.append(scope.lookup_type(arg.name))
+        #     assert not any(isinstance(arg, ir.TypeRef) for arg in args)
+        #     args = [ir.TypeRef(None, arg) for arg in args]
+        #     return ir.TypeRef(ast_node, traverse_ir.instantiate(template, args))
 
         case ir.UntranslatedType():
             return node.translate(scope)
@@ -155,7 +172,7 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
 
         case ir.FunctionDef():
             for arg in node.type_.args:
-                node.scope.register_var(arg.name, ir.ArgRef(None, arg))
+                node.scope.add_method(arg.name, ir.ArgRef(None, arg))
 
             node.scope = traverse_ir.traverse(translate_function_defs, node.scope, node.scope)
 
@@ -182,7 +199,7 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
                 assert isinstance(attr, ir.Type)
 
             match attr:
-                case ir.VarRef() | ir.ArgRef() | ir.TypeRef():
+                case ir.VarRef() | ir.ArgRef() | ir.TypeRef() | ir.SelfType():
                     return attr
                 case ir.VarDecl():
                     return ir.VarRef(id, attr)
@@ -193,10 +210,6 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
                 case ir.TypeDef():
                     return ir.TypeRef(id, attr)
                 case ir.MacroDef():
-                    # if len(attr.func.type_.args) == 0:
-                    #     assert isinstance(attr.func.type_.ret_type, (ir.TypeRef, ir.VoidType, ir.UnknownType))
-                    #     return ir.MacroInst(id, attr.func.type_.ret_type, ir.MacroRef(None, attr), [])
-                    # else:
                     return ir.MacroRef(id, attr)
                 case _:
                     raise NotImplementedError(attr)
@@ -255,7 +268,15 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
         case ir.GetAttr():
             node.obj = translate_function_defs(node.obj, scope)
             match node.obj:
+                case ir.SelfType():
+                    # FIXME: translate/annotate templated methods
+                    return node
+
                 case ir.TypeRef():
+                    if isinstance(node.obj.type_, ir.TemplateArg):
+                        # FIXME: translate/annotate templated methods
+                        return node
+
                     assert isinstance(node.obj.type_, ir.TypeDef)
                     attr = node.obj.type_.scope.lookup(node.attr)
                     match attr:

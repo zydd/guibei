@@ -69,7 +69,7 @@ class Scope(Node):
         self.children_names.add(name)
         return name
 
-    def register_var(self, name: str, var: Node):
+    def add_method(self, name: str, var: Node):
         assert not self.has_member(name)
         self.attrs[name] = var
 
@@ -227,10 +227,6 @@ class TypeDef(Type):
         self.scope.attrs["__asm_type"] = AsmType(None, f"${self.scope.name}")
         # self.scope.register_type(name, self_ref)
 
-    def add_method(self, name: str, method: Node):
-        assert not self.scope.has_member(name)
-        self.scope.register_var(name, method)
-
     def primitive(self):
         return self.super_.primitive() if self.super_ else self
 
@@ -377,6 +373,12 @@ class UnknownType(Type):
 
 
 @dataclass
+class SelfType(Type):
+    def __init__(self):
+        super().__init__(None)
+
+
+@dataclass
 class TemplateDef(Node):
     name: str
     super_: Type | None
@@ -384,12 +386,31 @@ class TemplateDef(Node):
     instances: dict[tuple[str, ...], TypeDef]
     args: list[TemplateArg]
 
+    def __init__(
+        self,
+        ast_node: ast.Node | None,
+        name: str,
+        super_: Type | None,
+        scope: Scope,
+        instances: dict[tuple[str, ...], TypeDef],
+        args: list[TemplateArg],
+    ):
+        super().__init__(ast_node)
+        assert not isinstance(super_, TypeDef)
+        self.name = name
+        self.super_ = super_
+        self.scope = scope
+        self.instances = instances
+        self.args = args
+        for arg in args:
+            self.scope.register_type(arg.name, TypeRef(None, arg))
+
+        self.scope.register_type("Self", SelfType())
+
     @staticmethod
     def translate(node: ast.TemplateDef, scope: Scope):
         template_scope = Scope(scope, node.name)
         args = [TemplateArg(arg, arg.name) for arg in node.args]
-        for arg in args:
-            template_scope.register_type(arg.name, TypeRef(None, arg))
         template_type = TemplateDef(
             node, node.name, UntranslatedType(node.super_) if node.super_ else None, template_scope, {}, args
         )
@@ -402,6 +423,20 @@ class TemplateArg(Type):
 
     def primitive(self):
         raise NotImplementedError
+
+
+@dataclass
+class TemplateInst(Type):
+    template: TemplateRef
+    args: list[Type]
+
+    @staticmethod
+    def translate(node: ast.TemplateInst, scope: Scope):
+        template_def = scope.lookup(node.name.name)
+        assert isinstance(template_def, TemplateDef)
+        template = TemplateRef(None, template_def)
+        args: list[Type] = [UntranslatedType(arg) for arg in node.args]
+        return TemplateInst(node, template, args)
 
 
 # ----------------------------------------------------------------------
@@ -627,7 +662,7 @@ class TypeRef(Type):
         self.type_ = type_
 
     def __repr__(self):
-        return f"TypeRef({self.type_.name})"
+        return f"TypeRef({getattr(self.type_, "name", "#" + str(type(self.type_)))})"
 
     def __eq__(self, value):
         value_type = value.type_ if isinstance(value, TypeRef) else value
@@ -676,6 +711,17 @@ class ArgRef(Expr):
 
     def __repr__(self):
         return f"ArgRef({self.arg.name})"
+
+
+@dataclass
+class TemplateRef(Type):
+    # template: TemplateDef
+    def __init__(self, ast_node: ast.Node | None, template: TemplateDef):
+        super().__init__(ast_node)
+        self.template = template
+
+    def __repr__(self):
+        return f"TemplateRef({self.template.name})"
 
 
 # ----------------------------------------------------------------------

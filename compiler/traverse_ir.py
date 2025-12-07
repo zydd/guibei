@@ -105,10 +105,12 @@ def inline(node: ir.Node, func_scope: ir.Scope | None, args: list[ir.Node]) -> i
 def _inline_template_args(node: ir.Node, args: dict[str, ir.Node]):
     match node:
         case ir.TypeRef():
-            if node.name in args:
-                assert isinstance(node.type_, ir.TemplateArg)
+            if isinstance(node.type_, ir.TemplateArg) and node.name in args:
                 return args[node.name]
             return node
+
+        case ir.SelfType():
+            return args["Self"]
 
         case _:
             return traverse(_inline_template_args, node, args)
@@ -125,16 +127,29 @@ def instantiate(node: ir.TemplateDef, args: list[ir.TypeRef]) -> ir.TypeDef:
     if key in node.instances:
         return node.instances[key]
 
-    assert node.super_
-    type_ = _inline_template_args(node.super_, type_map)
-
     arg_names = "$" + "$".join([arg.name for arg in args])
     instance_scope = ir.Scope(node.scope, arg_names)
+
     instance = ir.TypeDef(
         node.ast_node,
-        type_,
+        None,
         node.name + arg_names,
         instance_scope,
     )
+
+    type_map["Self"] = ir.TypeRef(None, instance)
+
+    instance.super_ = _inline_template_args(node.super_, type_map) if node.super_ else None
+    type_declaration = node.scope.attrs.get("__type_declaration")
+    type_declaration = _inline_template_args(type_declaration, type_map) if type_declaration else None
+    type_reference = node.scope.attrs.get("__type_reference")
+    type_reference = _inline_template_args(type_reference, type_map) if type_reference else None
+
+    if type_declaration:
+        instance_scope.attrs["__type_declaration"] = type_declaration
+
+    if type_reference:
+        instance_scope.attrs["__type_reference"] = type_reference
+
     node.instances[key] = instance
     return instance

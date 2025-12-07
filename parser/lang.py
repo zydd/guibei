@@ -317,12 +317,17 @@ def enum_def():
 
 @generate
 def impl():
-    yield regex("impl +")
-    name = yield regex(r"\w+")
+    yield string("impl")
+    args = yield optional(brackets(sep_by(regex(r"\s*,\s*"), type_expr(), min_count=1)))
+    yield regex(" +")
+    name = yield type_name()
     yield regex(r" *:")
-    values = yield indented_block(choice(comment(), function_def(), macro_def()))
-    values = [stmt for stmt in values if stmt is not None]
-    return ast.TypeImpl(name, values)
+    methods = yield indented_block(choice(comment(), function_def(), macro_def()))
+    methods = [stmt for stmt in methods if stmt is not None]
+    if args:
+        return ast.TemplateTypeImpl(args, name, methods)
+    else:
+        return ast.TypeImpl(name, methods)
 
 
 @generate
@@ -403,7 +408,7 @@ def type_name():
     term = ast.TypeIdentifier(name)
 
     while True:
-        term_ex = yield optional(attr_access(term))
+        term_ex = yield optional(choice(attr_access(term), template_args(term)))
         if not term_ex:
             break
         term = term_ex
@@ -426,11 +431,6 @@ def template_args(term):
 @generate
 def type_expr():
     term = yield choice(tuple_def(), function_type(), array_type(), type_name())
-    while True:
-        term_ex = yield optional(choice(attr_access(term), template_args(term)))
-        if not term_ex:
-            break
-        term = term_ex
     return term
 
 
