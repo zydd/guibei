@@ -54,6 +54,36 @@ def traverse(func, node: ir.Node, *args, **kwargs):
     return node
 
 
+def traverse_scoped(func, node: ir.Node, scope):
+    assert isinstance(node, ir.Node), type(node)
+
+    match node:
+        case ir.WasmExpr():
+            return traverse_wasm(func, node, scope)
+        case ir.Scope():
+            scope = node
+
+    for attr_name in node:
+        attr = node[attr_name]
+        if attr_name == "ast_node":
+            continue
+        match attr:
+            case ir.WasmExpr():
+                node[attr_name] = traverse_wasm(func, attr, scope)
+            case ir.Node():
+                node[attr_name] = func(attr, scope)
+                assert node[attr_name] is not None
+            case list():
+                node[attr_name] = traverse_list(func, attr, scope)
+            case dict():
+                node[attr_name] = traverse_dict(func, attr, scope)
+            case str() | int() | None:
+                pass
+            case _:
+                raise NotImplementedError(type(attr))
+    return node
+
+
 def _inline_args(node: ir.Node, block_name: str, args: dict[str, ir.Node]):
     match node:
         case ir.ArgRef():

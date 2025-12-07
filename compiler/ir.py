@@ -160,9 +160,15 @@ class Scope(Node):
 
 @dataclass
 class Module(Node):
+    asm: list[Node]
     scope: Scope
-    asm: list[Node] = field(default_factory=list)
     id_count: int = 0
+
+    def __init__(self, ast_node: ast.Node | None, scope: Scope):
+        super().__init__(ast_node)
+        self.asm = []
+        self.scope = scope
+        self.id_count = 0
 
     def next_id(self):
         self.id_count += 1
@@ -374,8 +380,11 @@ class UnknownType(Type):
 
 @dataclass
 class SelfType(Type):
-    def __init__(self):
+    ref: TemplateRef
+
+    def __init__(self, template: TemplateDef):
         super().__init__(None)
+        self.ref = TemplateRef(None, template)
 
 
 @dataclass
@@ -403,9 +412,9 @@ class TemplateDef(Node):
         self.instances = instances
         self.args = args
         for arg in args:
-            self.scope.register_type(arg.name, TypeRef(None, arg))
+            self.scope.register_type(arg.name, TemplateArgRef(None, arg))
 
-        self.scope.register_type("Self", SelfType())
+        self.scope.register_type("Self", SelfType(self))
 
     @staticmethod
     def translate(node: ast.TemplateDef, scope: Scope):
@@ -662,7 +671,7 @@ class TypeRef(Type):
         self.type_ = type_
 
     def __repr__(self):
-        return f"TypeRef({getattr(self.type_, "name", "#" + str(type(self.type_)))})"
+        return f'TypeRef("{getattr(self.type_, "name", "*" + str(type(self.type_).__name__))}")'
 
     def __eq__(self, value):
         value_type = value.type_ if isinstance(value, TypeRef) else value
@@ -720,8 +729,24 @@ class TemplateRef(Type):
         super().__init__(ast_node)
         self.template = template
 
+    def __deepcopy__(self, memo):
+        return ArgRef(self.ast_node, self.arg)
+
     def __repr__(self):
         return f"TemplateRef({self.template.name})"
+
+
+@dataclass
+class TemplateArgRef(Type):
+    def __init__(self, ast_node: ast.Node | None, arg: TemplateArg):
+        super().__init__(ast_node)
+        self.arg = arg
+
+    def __deepcopy__(self, memo):
+        return ArgRef(self.ast_node, self.arg)
+
+    def __repr__(self):
+        return f"TemplateArgRef({self.arg.name})"
 
 
 # ----------------------------------------------------------------------

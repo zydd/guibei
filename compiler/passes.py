@@ -4,6 +4,18 @@ from compiler import traverse_ast
 from compiler import traverse_ir
 
 
+def write_tree(filename):
+    import pprint
+
+    def write(node: ir.Node):
+        with open(filename, "w") as f:
+            pprint.pprint(node, stream=f)
+
+        return node
+
+    return write
+
+
 def register_toplevel_decls(node: ast.Node, module: ir.Module):
     match node:
         case ast.Module():
@@ -120,16 +132,16 @@ def translate_toplevel_type_decls(node: ir.Node, scope=None) -> ir.Node:
             assert isinstance(member, ir.TypeDef)
             return ir.TypeRef(ast_node, member)
 
-        # case ir.UntranslatedType(ast.TemplateInst() as ast_node):
-        #     assert isinstance(ast_node.name, ast.TypeIdentifier)
-        #     template = scope.lookup(ast_node.name.name)
-        #     args = []
-        #     for arg in ast_node.args:
-        #         assert isinstance(arg, ast.TypeIdentifier)
-        #         args.append(scope.lookup_type(arg.name))
-        #     assert not any(isinstance(arg, ir.TypeRef) for arg in args)
-        #     args = [ir.TypeRef(None, arg) for arg in args]
-        #     return ir.TypeRef(ast_node, traverse_ir.instantiate(template, args))
+        case ir.UntranslatedType(ast.TemplateInst() as ast_node):
+            assert isinstance(ast_node.name, ast.TypeIdentifier)
+            template = scope.lookup(ast_node.name.name)
+            args = []
+            for arg in ast_node.args:
+                assert isinstance(arg, ast.TypeIdentifier)
+                args.append(scope.lookup_type(arg.name))
+            assert not any(isinstance(arg, ir.TypeRef) for arg in args)
+            args = [ir.TypeRef(None, arg) for arg in args]
+            return ir.TemplateInst(ast_node, ir.TemplateRef(None, template), args)
 
         case ir.UntranslatedType():
             return node.translate(scope)
@@ -199,7 +211,7 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
                 assert isinstance(attr, ir.Type)
 
             match attr:
-                case ir.VarRef() | ir.ArgRef() | ir.TypeRef() | ir.SelfType():
+                case ir.VarRef() | ir.ArgRef() | ir.TypeRef() | ir.SelfType() | ir.TemplateArgRef():
                     return attr
                 case ir.VarDecl():
                     return ir.VarRef(id, attr)
@@ -265,18 +277,17 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
 
             return node
 
+        # case ir.TemplateDef():
+        #     return node
+
         case ir.GetAttr():
             node.obj = translate_function_defs(node.obj, scope)
             match node.obj:
-                case ir.SelfType():
+                case ir.TemplateArgRef():
                     # FIXME: translate/annotate templated methods
                     return node
 
                 case ir.TypeRef():
-                    if isinstance(node.obj.type_, ir.TemplateArg):
-                        # FIXME: translate/annotate templated methods
-                        return node
-
                     assert isinstance(node.obj.type_, ir.TypeDef)
                     attr = node.obj.type_.scope.lookup(node.attr)
                     match attr:
@@ -307,8 +318,7 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
                     if isinstance(obj_type_prim, ir.NamedTupleType) and node.attr in obj_type_prim.field_names:
                         field = obj_type_prim.field_names.index(node.attr)
                         return ir.GetTupleItem(node.ast_node, node.obj, field, obj_type_prim.field_types[field])
-                    else:
-                        assert isinstance(node.obj.type_.type_, ir.TypeDef)
+                    elif isinstance(node.obj.type_.type_, ir.TypeDef):
                         method = node.obj.type_.type_.scope.lookup(node.attr)
                         assert isinstance(method, ir.FunctionDef)
                         if method.type_.args[0].name == "self":
@@ -318,6 +328,8 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
                         else:
                             raise RuntimeError("Calling static method from object")
                             # return method
+                    else:
+                        raise NotImplementedError
                 case _:
                     # TODO
                     breakpoint()
@@ -746,6 +758,7 @@ ir_passes: list = [
     translate_toplevel_type_decls,
     check_no_untranslated_types,
     translate_function_defs,
+    # write_tree("inner.ir"),
     check_no_untranslated_nodes,
     propagate_types,
     specialize_match,
