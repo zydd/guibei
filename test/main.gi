@@ -27,9 +27,8 @@ impl[T] array[T]:
 
 
 func main() -> ():
-    # let val2: array[pair] = asm: unreachable
-
     let val: array[i32] = asm: (array.new_default $root.module.array.$root.module.i32 {i32 10})
-    val.len().print()
-    bytes.print("\n")
+    assert(val.len() == 10)
 
+    let val2: array[pair] = asm: (array.new $root.module.array.$root.module.pair {pair(1, 2)} {i32 12})
+    assert(val2.len() == 12)

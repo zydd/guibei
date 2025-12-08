@@ -691,6 +691,7 @@ class TypeRef(Type):
 @dataclass
 class VarRef(Expr):
     # var: Node
+    # TODO: only store index for args and variable references
 
     def __init__(self, ast_node: ast.Node | None, var: VarDecl):
         # super().__init__(ast_node, var.type_)
@@ -715,6 +716,7 @@ class VarRef(Expr):
 @dataclass
 class ArgRef(Expr):
     # arg: ArgDecl
+    # TODO: only store index for args and variable references
 
     def __init__(self, ast_node: ast.Node | None, arg: ArgDecl):
         # super().__init__(ast_node, arg.type_)
@@ -744,7 +746,7 @@ class TemplateRef(Type):
         self.template = template
 
     def __deepcopy__(self, memo):
-        return ArgRef(self.ast_node, self.arg)
+        return TemplateRef(self.ast_node, self.template)
 
     def __repr__(self):
         return f"TemplateRef({self.template.name})"
@@ -757,7 +759,7 @@ class TemplateArgRef(Type):
         self.arg = arg
 
     def __deepcopy__(self, memo):
-        return ArgRef(self.ast_node, self.arg)
+        return TemplateArgRef(self.ast_node, self.arg)
 
     def __repr__(self):
         return f"TemplateArgRef({self.arg.name})"

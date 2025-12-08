@@ -123,7 +123,13 @@ def translate_toplevel_type_decls(node: ir.Node, scope=None) -> ir.Node:
 
         case ir.UntranslatedType(ast.TypeIdentifier() | ast.Identifier() as ast_node):
             type_: ir.Type = scope.lookup_type(ast_node.name)
-            return ir.TypeRef(node.ast_node, type_)
+            match type_:
+                case ir.TypeDef():
+                    return ir.TypeRef(node.ast_node, type_)
+                case ir.SelfType() | ir.AstType() | ir.TemplateArgRef():
+                    return type_
+                case _:
+                    raise NotImplementedError(type_)
 
         case ir.UntranslatedType(ast.GetAttr(obj=ast.TypeIdentifier() as obj, attr=str()) as ast_node):
             type_ = scope.lookup_type(obj.name)
