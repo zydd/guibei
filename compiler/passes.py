@@ -349,24 +349,29 @@ def resolve_member_access(node: ir.Node, scope=None) -> ir.Node:
                             raise NotImplementedError(type(attr))
 
                 case ir.Expr():
-                    assert isinstance(node.obj.type_, ir.TypeRef)
-
-                    obj_type_prim = node.obj.type_.primitive()
-                    if isinstance(obj_type_prim, ir.NamedTupleType) and node.attr in obj_type_prim.field_names:
-                        field = obj_type_prim.field_names.index(node.attr)
-                        return ir.GetTupleItem(node.ast_node, node.obj, field, obj_type_prim.field_types[field])
-                    elif isinstance(node.obj.type_.type_, ir.TypeDef):
-                        method = node.obj.type_.type_.scope.lookup(node.attr)
-                        assert isinstance(method, ir.FunctionDef)
-                        if method.type_.args[0].name == "self":
-                            return ir.BoundMethod(
-                                node.ast_node, ir.UnknownType(), ir.FunctionRef(None, method), node.obj
-                            )
+                    if isinstance(node.obj.type_, ir.TypeRef):
+                        obj_type_prim = node.obj.type_.primitive()
+                        if isinstance(obj_type_prim, ir.NamedTupleType) and node.attr in obj_type_prim.field_names:
+                            field = obj_type_prim.field_names.index(node.attr)
+                            return ir.GetTupleItem(node.ast_node, node.obj, field, obj_type_prim.field_types[field])
+                        elif isinstance(node.obj.type_.type_, ir.TypeDef):
+                            method = node.obj.type_.type_.scope.lookup(node.attr)
+                            assert isinstance(method, ir.FunctionDef)
+                            if method.type_.args[0].name == "self":
+                                return ir.BoundMethod(
+                                    node.ast_node, ir.UnknownType(), ir.FunctionRef(None, method), node.obj
+                                )
+                            else:
+                                raise RuntimeError("Calling static method from object")
+                                # return method
                         else:
-                            raise RuntimeError("Calling static method from object")
-                            # return method
+                            raise NotImplementedError
                     else:
-                        raise NotImplementedError
+                        return node
+
+                case ir.SelfType():
+                    return node
+
                 case _:
                     # TODO
                     breakpoint()
@@ -374,20 +379,20 @@ def resolve_member_access(node: ir.Node, scope=None) -> ir.Node:
                     raise NotImplementedError(type(node.obj))
 
         case ir.GetTupleItem():
-            assert isinstance(node.type_, ir.UnknownType)
-            assert isinstance(node.expr.type_, ir.TypeRef)
+            if isinstance(node.type_, ir.UnknownType):
+                assert isinstance(node.expr.type_, ir.TypeRef)
 
-            expr_type = node.expr.type_.primitive()
-            if isinstance(expr_type, ir.EnumValueType):
-                node.idx += 1
-                expr_type = expr_type.fields
+                expr_type = node.expr.type_.primitive()
+                if isinstance(expr_type, ir.EnumValueType):
+                    node.idx += 1
+                    expr_type = expr_type.fields
 
-            assert isinstance(expr_type, ir.TupleType)
-            field_type = expr_type.field_types[node.idx]
-            assert isinstance(field_type, ir.TypeRef), field_type
-            node.type_ = field_type
+                assert isinstance(expr_type, ir.TupleType)
+                field_type = expr_type.field_types[node.idx]
+                assert isinstance(field_type, ir.TypeRef), field_type
+                node.type_ = field_type
 
-            return node
+                return node
 
         case ir.Assignment():
             node.lvalue = translate_function_defs(node.lvalue, scope)
@@ -446,8 +451,24 @@ def resolve_member_access(node: ir.Node, scope=None) -> ir.Node:
                             raise NotImplementedError(node.callee)
                 case ir.MacroRef():
                     return ir.MacroInst(node.ast_node, node.callee.macro.func.type_.ret_type, node.callee, node.args)
+
+                case ir.GetAttr():
+                    return node
+
                 case _:
                     raise NotImplementedError(type(node.callee))
+
+    return node
+
+
+def instantiate_templates(node: ir.Node, scope=None) -> ir.Node:
+    node = traverse_ir.traverse_scoped(instantiate_templates, node, scope)
+
+    match node:
+        case ir.TemplateInst():
+            assert all(isinstance(type_, ir.TypeRef) for type_ in node.args)
+            type_ = traverse_ir.instantiate(node.template.template, node.args)  # type:ignore[arg-type]
+            return ir.TypeRef(None, type_)
 
     return node
 
@@ -466,6 +487,9 @@ def propagate_types(node: ir.Node):
         case ir.Module():
             node.scope = propagate_types(node.scope)
             node.asm = [propagate_types(match_expr_type(asm, ir.VoidType(None))) for asm in node.asm]
+
+        # case ir.TemplateDef():
+        #     return node
 
         case ir.FunctionReturn():
             node.expr = propagate_types(match_expr_type(node.expr, node.func.func.type_.ret_type))
@@ -735,6 +759,11 @@ def check_no_unknown_types(node: ir.Node) -> ir.Node:
         case ir.UnknownType():
             raise Exception(f"Unknown type: {node}")
 
+        case ir.TemplateDef():
+            # Only check instances, not template
+            node.instances = traverse_ir.traverse_dict(check_no_unknown_types, node.instances)
+            return node
+
         case _:
             return traverse_ir.traverse(check_no_unknown_types, node)
     return node
@@ -768,9 +797,11 @@ ir_passes: list = [
     translate_function_defs,
     check_no_untranslated_nodes,
     resolve_member_access,
+    instantiate_templates,
+    resolve_member_access,
+    write_tree("inner.ir"),
     propagate_types,
     specialize_match,
-    # write_tree("inner.ir"),
     check_no_unknown_types,
     inline_macros,
     done,

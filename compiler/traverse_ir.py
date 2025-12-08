@@ -134,12 +134,10 @@ def inline(node: ir.Node, func_scope: ir.Scope | None, args: list[ir.Node]) -> i
 
 def _inline_template_args(node: ir.Node, args: dict[str, ir.Node]):
     match node:
-        case ir.TypeRef():
-            if isinstance(node.type_, ir.TemplateArg) and node.name in args:
-                return args[node.name]
-            return node
+        case ir.TemplateArgRef():
+            return args[node.arg.name]
 
-        case ir.SelfType():
+        case ir.SelfType() | ir.TypeRef(type_=ir.SelfType()):
             return args["Self"]
 
         case _:
@@ -148,7 +146,6 @@ def _inline_template_args(node: ir.Node, args: dict[str, ir.Node]):
 
 def instantiate(node: ir.TemplateDef, args: list[ir.TypeRef]) -> ir.TypeDef:
     assert len(args) == len(node.args)
-    type_map: dict = dict(zip((arg.name for arg in node.args), args))
 
     key = tuple(arg.name for arg in args)
     if key in node.instances:
@@ -163,23 +160,20 @@ def instantiate(node: ir.TemplateDef, args: list[ir.TypeRef]) -> ir.TypeDef:
     instance = ir.TypeDef(
         node.ast_node,
         None,
-        node.name + arg_names,
+        node.name + "." + arg_names,  # TODO: remove "."
         instance_scope,
     )
 
+    type_map: dict = dict(zip((arg.name for arg in node.args), args))
     type_map["Self"] = ir.TypeRef(None, instance)
 
     instance.super_ = _inline_template_args(node.super_, type_map) if node.super_ else None
-    type_declaration = node.scope.attrs.get("__type_declaration")
-    type_declaration = _inline_template_args(type_declaration, type_map) if type_declaration else None
-    type_reference = node.scope.attrs.get("__type_reference")
-    type_reference = _inline_template_args(type_reference, type_map) if type_reference else None
 
-    if type_declaration:
-        instance_scope.attrs["__type_declaration"] = type_declaration
+    for name, attr in node.scope.attrs.items():
+        if isinstance(attr, (ir.TemplateArgRef, ir.SelfType)):
+            continue
 
-    if type_reference:
-        instance_scope.attrs["__type_reference"] = type_reference
+        instance_scope.attrs[name] = _inline_template_args(attr, type_map)
 
     node.instances[key] = instance
     return instance

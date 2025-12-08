@@ -99,19 +99,19 @@ def type_declaration(node: ir.Node) -> list:
                 try:
                     type_ref_macro = primitive.scope.lookup("__type_declaration")
                     assert isinstance(type_ref_macro, ir.MacroDef)
-                    return translate_wasm(type_ref_macro.func.scope)
+                    decl = translate_wasm(type_ref_macro.func.scope)
                 except KeyError:
                     if primitive.super_ is None:
                         return []
+            else:
+                decl = type_declaration(primitive)
 
-            decl = type_declaration(primitive)
-
-            assert node.super_
-            if isinstance(node.super_.primitive(), ir.TupleType):
-                if isinstance(node.super_, ir.TypeRef):
-                    decl = [["sub", f"${node.super_.name}", *decl]]
-                else:
-                    decl = [["sub", *decl]]
+                assert node.super_
+                if isinstance(node.super_.primitive(), ir.TupleType):
+                    if isinstance(node.super_, ir.TypeRef):
+                        decl = [["sub", f"${node.super_.name}", *decl]]
+                    else:
+                        decl = [["sub", *decl]]
 
             return [["type", f"${node.name}", *decl]]
 
@@ -191,7 +191,10 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
             return translate_wasm(node.scope)
 
         case ir.TemplateDef():
-            return translate_wasm(node.scope)
+            terms = []
+            for attr in node.instances.values():
+                terms.extend(translate_wasm(attr))
+            return terms
 
         case ir.FunctionDef():
             decls: list = [["param", f"${arg.name}", *type_reference(arg.type_)] for arg in node.type_.args]
