@@ -1,12 +1,13 @@
 type pair2[T, U]: (T, U)
 
+# type pair3: pair2[i32, i32]
 
 type array[T]
 
 impl[T] array[T]:
     macro __type_declaration() -> ():
         asm:
-            (array (mut i32))
+            (array (mut {T.__type_reference}))
 
     macro __type_reference() -> ():
         asm:
@@ -26,6 +27,9 @@ impl[T] array[T]:
 
 
 func main() -> ():
+    # let val2: array[pair] = asm: unreachable
+
     let val: array[i32] = asm: (array.new_default $root.module.array.$root.module.i32 {i32 10})
     val.len().print()
     bytes.print("\n")
+

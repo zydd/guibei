@@ -261,7 +261,8 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
             return [["if", *translate_wasm(node.condition), ["then", *translate_wasm(node.scope_then)], *else_block]]
 
         case ir.Block():
-            return [["block", f"${node.name}", ["result", *type_reference(node.type_)], *translate_wasm(node.scope)]]
+            result = [["result", *type_reference(node.type_)]] if not isinstance(node.type_, ir.VoidType) else []
+            return [["block", f"${node.name}", *result, *translate_wasm(node.scope)]]
 
         case ir.Break():
             return [["br", f"${node.block_name}", *translate_wasm(node.expr)]]

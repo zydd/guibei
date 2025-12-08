@@ -325,6 +325,19 @@ def resolve_member_access(node: ir.Node, scope=None) -> ir.Node:
 
                 case ir.TypeRef():
                     assert isinstance(node.obj.type_, ir.TypeDef)
+
+                    if node.attr == "__type_reference":
+                        if isinstance(node.obj.primitive(), ir.TupleType):
+                            return ir.Asm(
+                                node.ast_node,
+                                ir.WasmExpr(None, [["ref", f"${node.obj.type_.scope.name}"]]),
+                                ir.VoidType(None),
+                            )
+                        else:
+                            type_ref_macro = node.obj.type_.scope.lookup("__type_reference")
+                            assert isinstance(type_ref_macro, ir.MacroDef)
+                            return type_ref_macro.func.scope
+
                     attr = node.obj.type_.scope.lookup(node.attr)
                     match attr:
                         case ir.FunctionDef():
@@ -345,6 +358,8 @@ def resolve_member_access(node: ir.Node, scope=None) -> ir.Node:
                             return attr
                         case ir.EnumValueType():
                             return ir.TypeRef(None, attr)
+                        case ir.MacroDef():
+                            return ir.MacroRef(None, attr)
                         case _:
                             raise NotImplementedError(type(attr))
 
