@@ -764,6 +764,10 @@ class TemplateArgRef(Type):
     def __repr__(self):
         return f"TemplateArgRef({self.arg.name})"
 
+    @property
+    def name(self):
+        return self.arg.name
+
 
 # ----------------------------------------------------------------------
 # Statements

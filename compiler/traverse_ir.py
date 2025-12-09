@@ -107,6 +107,8 @@ def _inline_args(node: ir.Node, block_name: str, args: dict[str, ir.Node]):
 
 
 def inline(node: ir.Node, func_scope: ir.Scope | None, args: list[ir.Node]) -> ir.Node:
+    node.ast_node = None  # FIXME: ast.Node deepcopy
+
     match node:
         # case ir.FunctionDef():
 
@@ -122,6 +124,7 @@ def inline(node: ir.Node, func_scope: ir.Scope | None, args: list[ir.Node]) -> i
                         assert func_scope.func
                         mapped_var = func_scope.register_local(var_name, ir.VarDecl(var.ast_node, var_name, var.type_))
                         arg_map[var.name] = ir.VarRef(None, mapped_var)
+
             body = [_inline_args(copy.deepcopy(stmt), block_name, arg_map) for stmt in node.func.scope.body]
             if len(body) == 1:
                 assert body[0].type_ == node.func.type_.ret_type
@@ -136,8 +139,11 @@ def inline(node: ir.Node, func_scope: ir.Scope | None, args: list[ir.Node]) -> i
 
 
 def _inline_template_args(node: ir.Node, template_args: dict[str, ir.TypeRef], template_name: str, function_args=None):
+    node.ast_node = None  # FIXME: ast.Node deepcopy
+
     match node:
         case ir.TemplateArgRef():
+            print(template_name, ": ", node, " -> ", template_args[node.arg.name], sep="")
             return template_args[node.arg.name]
 
         case ir.SelfType():

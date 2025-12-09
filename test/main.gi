@@ -26,9 +26,25 @@ impl[T] array[T]:
         return res
 
 
+type vec[T]: (__data: array[T], __len: i32)
+
+impl[T] vec[T]:
+    func new() -> Self:
+        (asm: (array.new_default {array[T].__asm_type} (i32.const 0)), 0)
+
+
+    func len(self: Self) -> i32:
+        self.__len
+
+# TODO: canonical names
+
+
 func main() -> ():
     let val: array[i32] = asm: (array.new_default $root.module.array.$root.module.i32 {i32 10})
     assert(val.len() == 10)
 
     let val2: array[pair] = asm: (array.new $root.module.array.$root.module.pair {pair(1, 2)} {i32 12})
     assert(val2.len() == 12)
+
+    let val3: vec[i32] = vec[i32].new()
+    assert(val3.len() == 0)

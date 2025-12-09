@@ -122,29 +122,39 @@ def translate_toplevel_type_decls(node: ir.Node, scope=None) -> ir.Node:
                 return ir.TupleType(ast_node, field_types)
 
         case ir.UntranslatedType(ast.TypeIdentifier() | ast.Identifier() as ast_node):
-            type_: ir.Type = scope.lookup_type(ast_node.name)
+            type_: ir.Type = scope.lookup(ast_node.name)
             match type_:
                 case ir.TypeDef():
                     return ir.TypeRef(node.ast_node, type_)
-                case ir.SelfType() | ir.AstType() | ir.TemplateArgRef():
+                case ir.TemplateDef():
+                    return ir.TemplateRef(ast_node, type_)
+                case ir.SelfType() | ir.AstType() | ir.TypeRef() | ir.TemplateArgRef():
                     return type_
                 case _:
-                    raise NotImplementedError(type_)
+                    raise NotImplementedError(type(type_))
 
         case ir.UntranslatedType(ast.GetAttr(obj=ast.TypeIdentifier() as obj, attr=str()) as ast_node):
-            type_ = scope.lookup_type(obj.name)
+            type_ = scope.lookup(obj.name)
             assert isinstance(type_, ir.TypeDef)
             member = type_.scope.attrs[ast_node.attr]
             assert isinstance(member, ir.TypeDef)
             return ir.TypeRef(ast_node, member)
 
+        case ir.UntranslatedType(ast.GetItem() as template_inst):
+            template = translate_toplevel_type_decls(ir.UntranslatedType(template_inst.expr), scope)
+            arg = translate_toplevel_type_decls(ir.UntranslatedType(template_inst.idx), scope)
+            assert isinstance(template, ir.TemplateRef)
+            assert isinstance(arg, (ir.TypeRef, ir.TemplateArgRef))
+            return ir.TemplateInst(node.ast_node, template, [arg])
+
         case ir.UntranslatedType(ast.TemplateInst() as ast_node):
             assert isinstance(ast_node.name, ast.TypeIdentifier)
             template = scope.lookup(ast_node.name.name)
+            assert isinstance(template, ir.TemplateDef)
             args = []
-            for arg in ast_node.args:
-                assert isinstance(arg, ast.TypeIdentifier)
-                args.append(scope.lookup_type(arg.name))
+            for template_arg in ast_node.args:
+                assert isinstance(template_arg, ast.TypeIdentifier)
+                args.append(scope.lookup_type(template_arg.name))
             assert not any(isinstance(arg, ir.TypeRef) for arg in args)
             args = [ir.TypeRef(None, arg) for arg in args]
             return ir.TemplateInst(ast_node, ir.TemplateRef(None, template), args)
@@ -229,8 +239,10 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
                     return ir.TypeRef(id, attr)
                 case ir.MacroDef():
                     return ir.MacroRef(id, attr)
+                case ir.TemplateDef():
+                    return ir.TemplateRef(id, attr)
                 case _:
-                    raise NotImplementedError(attr)
+                    raise NotImplementedError(type(attr))
 
         case ir.Untranslated(ast.TupleExpr() as ast_node):
             if len(ast_node.field_values) == 1:
@@ -251,17 +263,25 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
         case ir.Untranslated(ast.GetItem() as ast_node):
             expr = translate_function_defs(ir.Untranslated(ast_node.expr), scope)
             idx = translate_function_defs(ir.Untranslated(ast_node.idx), scope)
-            assert isinstance(expr, ir.Expr)
-            assert isinstance(idx, ir.Expr)
-            idx_type = scope.lookup_type("__array_index").super_
+            match expr:
+                case ir.Expr():
+                    assert isinstance(idx, ir.Expr)
+                    idx_type = scope.lookup_type("__array_index").super_
 
-            expr_type_prim = expr.type_.primitive()
-            if isinstance(expr_type_prim, ir.ArrayType):
-                element_type = expr_type_prim.element_type
-            else:
-                element_type = ir.UnknownType()
+                    expr_type_prim = expr.type_.primitive()
+                    if isinstance(expr_type_prim, ir.ArrayType):
+                        element_type = expr_type_prim.element_type
+                    else:
+                        element_type = ir.UnknownType()
 
-            return ir.GetItem(node.ast_node, expr, idx, idx_type, element_type)
+                    return ir.GetItem(node.ast_node, expr, idx, idx_type, element_type)
+
+                case ir.TemplateRef():
+                    assert isinstance(idx, ir.Type)
+                    return ir.TemplateInst(node.ast_node, expr, [idx])
+
+                case _:
+                    raise NotImplementedError(type(expr))
 
         case ir.Untranslated(ast.Call(callee=ast.Identifier("unary(-)"), arg=ast.IntLiteral() as value)):
             return ir.IntLiteral(value, -value.value)
@@ -390,7 +410,7 @@ def resolve_member_access(node: ir.Node, scope=None) -> ir.Node:
                     else:
                         return node
 
-                case ir.SelfType():
+                case ir.SelfType() | ir.TemplateInst():
                     return node
 
                 case _:
@@ -470,10 +490,11 @@ def resolve_member_access(node: ir.Node, scope=None) -> ir.Node:
 
                         case _:
                             raise NotImplementedError(node.callee)
+
                 case ir.MacroRef():
                     return ir.MacroInst(node.ast_node, node.callee.macro.func.type_.ret_type, node.callee, node.args)
 
-                case ir.GetAttr():
+                case ir.GetAttr() | ir.SelfType() | ir.TemplateInst():
                     return node
 
                 case _:
@@ -487,9 +508,20 @@ def instantiate_templates(node: ir.Node, scope=None) -> ir.Node:
 
     match node:
         case ir.TemplateInst():
+            if any(isinstance(type_, ir.TemplateArgRef) for type_ in node.args):
+                return node
+
             assert all(isinstance(type_, ir.TypeRef) for type_ in node.args)
             type_ = traverse_ir.instantiate(node.template.template, node.args)  # type:ignore[arg-type]
+            type_ = instantiate_templates(type_, scope)  # type:ignore[assignment]
+            assert isinstance(type_, ir.TypeDef)
             return ir.TypeRef(None, type_)
+
+        # case ir.TemplateDef():
+        #     return node
+
+        # case _:
+        #     return traverse_ir.traverse_scoped(instantiate_templates, node, scope)
 
     return node
 
@@ -509,8 +541,9 @@ def propagate_types(node: ir.Node):
             node.scope = propagate_types(node.scope)
             node.asm = [propagate_types(match_expr_type(asm, ir.VoidType(None))) for asm in node.asm]
 
-        # case ir.TemplateDef():
-        #     return node
+        case ir.TemplateDef():
+            node.instances = traverse_ir.traverse_dict(propagate_types, node.instances)
+            return node
 
         case ir.FunctionReturn():
             node.expr = propagate_types(match_expr_type(node.expr, node.func.func.type_.ret_type))
