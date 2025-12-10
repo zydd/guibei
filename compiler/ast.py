@@ -8,6 +8,8 @@ _ast_repr = False
 
 @dataclass(repr=_ast_repr)
 class Node:
+    info = None
+
     def __iter__(self):
         return iter(self.__dict__.keys())
 

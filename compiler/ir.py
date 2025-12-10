@@ -11,7 +11,7 @@ from . import ast
 
 @dataclass
 class Node:
-    ast_node: ast.Node | None
+    info: object
 
     def __iter__(self):
         return iter(self.__dataclass_fields__.keys())
@@ -27,7 +27,7 @@ class Node:
 
     # def __repr__(self):
     #     fields = ", ".join(
-    #         f"{f.name}={getattr(self, f.name)}" for f in dataclasses.fields(self) if f.name != "ast_node"
+    #         f"{f.name}={getattr(self, f.name)}" for f in dataclasses.fields(self) if f.name != "info"
     #     )
     #     return f"{self.__class__.__name__}({fields})"
 
@@ -47,9 +47,9 @@ class Scope(Node):
         name: str,
         body: list[Node] | None = None,
         func: FunctionRef | None = None,
-        ast_node=None,
+        info=None,
     ):
-        super().__init__(ast_node)
+        super().__init__(info)
         self.parent = parent
         self.root: Scope = parent.root if parent else self
         self.name: str = f"{parent.name}.{name}" if parent else name
@@ -164,8 +164,8 @@ class Module(Node):
     scope: Scope
     id_count: int = 0
 
-    def __init__(self, ast_node: ast.Node | None, scope: Scope):
-        super().__init__(ast_node)
+    def __init__(self, info, scope: Scope):
+        super().__init__(info)
         self.asm = []
         self.scope = scope
         self.id_count = 0
@@ -180,6 +180,12 @@ class Module(Node):
 
 @dataclass
 class Untranslated(Node):
+    ast_node: ast.Node
+
+    def __init__(self, ast_node: ast.Node):
+        super().__init__(ast_node.info)
+        self.ast_node = ast_node
+
     def __repr__(self):
         return f"Untranslated({self.ast_node})"
 
@@ -204,6 +210,12 @@ class Type(Node):
 
 @dataclass
 class UntranslatedType(Type):
+    ast_node: ast.Node
+
+    def __init__(self, ast_node: ast.Node):
+        super().__init__(None)
+        self.ast_node = ast_node
+
     def __repr__(self):
         return f"UntranslatedType({self.ast_node})"
 
@@ -222,8 +234,8 @@ class TypeDef(Type):
     name: str
     scope: Scope
 
-    def __init__(self, ast_node: ast.Node | None, super_: Type | None, name: str, scope: Scope):
-        super().__init__(ast_node)
+    def __init__(self, info, super_: Type | None, name: str, scope: Scope):
+        super().__init__(info)
         assert not isinstance(super_, TypeDef)
         self.super_ = super_
         self.name = name
@@ -268,15 +280,15 @@ class TupleType(Type):
 
     # @staticmethod
     # def translate(node: ast.TupleType, scope: Scope):
-    #     return TupleType(node, None, [UntranslatedType(t) for t in node.field_types])
+    #     return TupleType(node.info, None, [UntranslatedType(t) for t in node.field_types])
 
 
 @dataclass
 class NamedTupleType(TupleType):
     # field_names: list[str]
 
-    def __init__(self, ast_node: ast.Node | None, field_types: list[Type], field_names: list[str]):
-        super().__init__(ast_node, field_types)
+    def __init__(self, info, field_types: list[Type], field_names: list[str]):
+        super().__init__(info, field_types)
         self.field_names = field_names
 
 
@@ -297,9 +309,9 @@ class FunctionType(Type):
 
     @staticmethod
     def translate(node: ast.FunctionType):
-        args = [ArgDecl(arg, arg.name, UntranslatedType(arg.type_)) for arg in node.args]
+        args = [ArgDecl(arg.info, arg.name, UntranslatedType(arg.type_)) for arg in node.args]
         ret_type = UntranslatedType(node.ret_type) if node.ret_type else UnknownType()
-        return FunctionType(node, args, ret_type)
+        return FunctionType(node.info, args, ret_type)
 
 
 @dataclass
@@ -320,13 +332,13 @@ class EnumTypeBase(TupleType):
 class EnumType(TypeDef):
     count: int
 
-    def __init__(self, ast_node: ast.Node | None, super_: Type, name: str, scope: Scope, count: int):
-        super().__init__(ast_node, super_, name, scope)
+    def __init__(self, info, super_: Type, name: str, scope: Scope, count: int):
+        super().__init__(info, super_, name, scope)
         self.count = count
 
     @staticmethod
     def translate(node: ast.EnumType, scope: Scope):
-        return EnumType(node, EnumTypeBase(scope), node.name, Scope(scope, node.name), len(node.values))
+        return EnumType(node.info, EnumTypeBase(scope), node.name, Scope(scope, node.name), len(node.values))
 
     # def add_method(self, name: str, method: Node):
     #     if self.scope.has_member(name):
@@ -360,7 +372,7 @@ class EnumValueType(TypeDef):
         fields = TupleType(None, enum.super_.field_types + field_types)
 
         return EnumValueType(
-            node, TypeRef(None, enum), node.name, Scope(enum.scope, node.name), discr=discr, fields=fields
+            node.info, TypeRef(None, enum), node.name, Scope(enum.scope, node.name), discr=discr, fields=fields
         )
 
     def primitive(self):
@@ -397,14 +409,14 @@ class TemplateDef(Node):
 
     def __init__(
         self,
-        ast_node: ast.Node | None,
+        info,
         name: str,
         super_: Type | None,
         scope: Scope,
         instances: dict[tuple[str, ...], TypeDef],
         args: list[TemplateArg],
     ):
-        super().__init__(ast_node)
+        super().__init__(info)
         assert not isinstance(super_, TypeDef)
         self.name = name
         self.super_ = super_
@@ -421,7 +433,7 @@ class TemplateDef(Node):
         template_scope = Scope(scope, node.name)
         args = [TemplateArg(arg, arg.name) for arg in node.args]
         template_type = TemplateDef(
-            node, node.name, UntranslatedType(node.super_) if node.super_ else None, template_scope, {}, args
+            node.info, node.name, UntranslatedType(node.super_) if node.super_ else None, template_scope, {}, args
         )
         return template_type
 
@@ -445,7 +457,7 @@ class TemplateInst(Type):
         assert isinstance(template_def, TemplateDef)
         template = TemplateRef(None, template_def)
         args: list[Type] = [UntranslatedType(arg) for arg in node.args]
-        return TemplateInst(node, template, args)
+        return TemplateInst(node.info, template, args)
 
 
 # ----------------------------------------------------------------------
@@ -457,15 +469,15 @@ class TemplateInst(Type):
 class Expr(Node):
     type_: Type
 
-    def __init__(self, ast_node, type_=None):
-        super().__init__(ast_node)
+    def __init__(self, info, type_=None):
+        super().__init__(info)
         self.type_ = type_ or UnknownType()
 
 
 @dataclass
 class VoidExpr(Expr):
-    def __init__(self, ast_node):
-        super().__init__(ast_node, VoidType(None))
+    def __init__(self, info):
+        super().__init__(info, VoidType(None))
 
     @staticmethod
     def translate(node: ast.VoidExpr, _scope):
@@ -480,8 +492,8 @@ class Call(Expr):
     callee: Node
     args: list[Node]
 
-    def __init__(self, ast_node, callee, args):
-        super().__init__(ast_node)
+    def __init__(self, info, callee, args):
+        super().__init__(info)
         self.callee = callee
         self.args = args
 
@@ -492,7 +504,7 @@ class Call(Expr):
             args = [Untranslated(arg) for arg in node.arg.field_values]
         else:
             args = [Untranslated(node.arg)]
-        return Call(node, callee, args)
+        return Call(node.info, callee, args)
 
 
 # @dataclass
@@ -506,15 +518,15 @@ class GetAttr(Expr):
     obj: Node
     attr: str
 
-    def __init__(self, ast_node, obj, attr):
-        super().__init__(ast_node)
+    def __init__(self, info, obj, attr):
+        super().__init__(info)
         self.obj = obj
         self.attr = attr
 
     @staticmethod
     def translate(node: ast.GetAttr, _scope: Scope):
         obj = Untranslated(node.obj)
-        return GetAttr(node, obj, node.attr)
+        return GetAttr(node.info, obj, node.attr)
 
 
 @dataclass
@@ -523,8 +535,8 @@ class GetItem(Expr):
     idx: Expr
     idx_type: TypeRef
 
-    def __init__(self, ast_node, expr, idx, idx_type, type_):
-        super().__init__(ast_node, type_)
+    def __init__(self, info, expr, idx, idx_type, type_):
+        super().__init__(info, type_)
         self.expr = expr
         self.idx = idx
         self.idx_type = idx_type
@@ -535,41 +547,41 @@ class GetTupleItem(Expr):
     expr: Expr
     idx: int
 
-    def __init__(self, ast_node, expr, idx, type_=None):
-        super().__init__(ast_node, type_)
+    def __init__(self, info, expr, idx, type_=None):
+        super().__init__(info, type_)
         self.expr = expr
         self.idx = idx
 
     @staticmethod
     def translate(node: ast.GetTupleItem, _scope: Scope):
-        return GetTupleItem(node, Untranslated(node.expr), node.idx)
+        return GetTupleItem(node.info, Untranslated(node.expr), node.idx)
 
 
 @dataclass
 class Asm(Expr):
     terms: WasmExpr
 
-    def __init__(self, ast_node, terms, type_=None):
-        super().__init__(ast_node, type_)
+    def __init__(self, info, terms, type_=None):
+        super().__init__(info, type_)
         self.terms = terms
 
     @staticmethod
     def translate(node: ast.Asm, _scope: Scope):
         terms = Untranslated(node.terms)
-        return Asm(node, terms)
+        return Asm(node.info, terms)
 
 
 @dataclass
 class IntLiteral(Expr):
     value: int
 
-    def __init__(self, ast_node, value):
-        super().__init__(ast_node, AstType(None, "__int"))
+    def __init__(self, info, value):
+        super().__init__(info, AstType(None, "__int"))
         self.value = value
 
     @staticmethod
     def translate(node: ast.IntLiteral, _scope: Scope):
-        return IntLiteral(node, node.value)
+        return IntLiteral(node.info, node.value)
 
     def __repr__(self):
         return f"IntLiteral({self.value})"
@@ -580,8 +592,8 @@ class StringLiteral(Expr):
     value: str
     temp_var: VarRef
 
-    def __init__(self, ast_node, value, temp_var):
-        super().__init__(ast_node, AstType(None, "__string_literal"))
+    def __init__(self, info, value, temp_var):
+        super().__init__(info, AstType(None, "__string_literal"))
         self.value = value
         self.temp_var = temp_var
 
@@ -589,7 +601,7 @@ class StringLiteral(Expr):
     def translate(node: ast.StringLiteral, scope: Scope):
         temp_var = VarDecl(None, "__str", UnknownType())
         scope.register_local("__str", temp_var)
-        return StringLiteral(node, node.value, VarRef(None, temp_var))
+        return StringLiteral(node.info, node.value, VarRef(None, temp_var))
 
     def __repr__(self):
         return f"StringLiteral({self.value})"
@@ -601,21 +613,21 @@ class Placeholder(Expr):
 
     @staticmethod
     def translate(node: ast.Placeholder, _scope: Scope):
-        return Placeholder(node, UnknownType())
+        return Placeholder(node.info, UnknownType())
 
 
 @dataclass(init=False)
 class WasmExpr(Node):
     terms: list[WasmExpr | str | int]
 
-    def __init__(self, ast_node: ast.Node | None, terms):
-        super().__init__(ast_node)
+    def __init__(self, info, terms):
+        super().__init__(info)
         self.terms = [WasmExpr(None, t) if isinstance(t, list) else t for t in terms]
 
     @staticmethod
     def translate(node: ast.WasmExpr, _scope: Scope) -> Node:
         terms: list = [Untranslated(term) if isinstance(term, ast.Node) else term for term in node.terms]
-        return WasmExpr(node, terms)
+        return WasmExpr(node.info, terms)
 
 
 @dataclass
@@ -635,12 +647,12 @@ class Block(Expr):
 class FunctionRef(Expr):
     # function: FunctionDef
 
-    def __init__(self, ast_node: ast.Node | None, func: FunctionDef):
-        super().__init__(ast_node, TypeRef(None, func.type_))
+    def __init__(self, info, func: FunctionDef):
+        super().__init__(info, TypeRef(None, func.type_))
         self.func = func
 
     def __deepcopy__(self, memo):
-        return FunctionRef(self.ast_node, self.func)
+        return FunctionRef(self.info, self.func)
 
     def __repr__(self):
         return f'FunctionRef("{self.func.name}")'
@@ -650,12 +662,12 @@ class FunctionRef(Expr):
 class MacroRef(Node):
     # macro: MacroDef
 
-    def __init__(self, ast_node: ast.Node | None, macro: MacroDef):
-        super().__init__(ast_node)
+    def __init__(self, info, macro: MacroDef):
+        super().__init__(info)
         self.macro = macro
 
     def __deepcopy__(self, memo):
-        return MacroRef(self.ast_node, self.macro)
+        return MacroRef(self.info, self.macro)
 
     def __repr__(self):
         return f'MacroRef("{self.macro.name}")'
@@ -665,9 +677,9 @@ class MacroRef(Node):
 class TypeRef(Type):
     # type_: Type
 
-    def __init__(self, ast_node: ast.Node | None, type_: Type):
-        super().__init__(ast_node)
-        assert not isinstance(type_, TypeRef)
+    def __init__(self, info, type_: Type):
+        super().__init__(info)
+        assert not isinstance(type_, (TypeRef, TemplateArgRef))
         self.type_ = type_
 
     def __repr__(self):
@@ -678,7 +690,7 @@ class TypeRef(Type):
         return self.type_ == value_type
 
     def __deepcopy__(self, memo):
-        return TypeRef(self.ast_node, self.type_)
+        return TypeRef(self.info, self.type_)
 
     def primitive(self):
         return self.type_.primitive()
@@ -693,13 +705,13 @@ class VarRef(Expr):
     # var: Node
     # TODO: only store index for args and variable references
 
-    def __init__(self, ast_node: ast.Node | None, var: VarDecl):
-        # super().__init__(ast_node, var.type_)
-        self.ast_node = ast_node
+    def __init__(self, info, var: VarDecl):
+        # super().__init__(info, var.type_)
+        self.info = info
         self.var = var
 
     def __deepcopy__(self, memo):
-        return VarRef(self.ast_node, self.var)
+        return VarRef(self.info, self.var)
 
     def __repr__(self):
         return f'VarRef("{self.var.name}")'
@@ -718,13 +730,13 @@ class ArgRef(Expr):
     # arg: ArgDecl
     # TODO: only store index for args and variable references
 
-    def __init__(self, ast_node: ast.Node | None, arg: ArgDecl):
-        # super().__init__(ast_node, arg.type_)
-        self.ast_node = ast_node
+    def __init__(self, info, arg: ArgDecl):
+        # super().__init__(info, arg.type_)
+        self.info = info
         self.arg = arg
 
     def __deepcopy__(self, memo):
-        return ArgRef(self.ast_node, self.arg)
+        return ArgRef(self.info, self.arg)
 
     def __repr__(self):
         return f"ArgRef({self.arg.name})"
@@ -741,12 +753,12 @@ class ArgRef(Expr):
 @dataclass
 class TemplateRef(Type):
     # template: TemplateDef
-    def __init__(self, ast_node: ast.Node | None, template: TemplateDef):
-        super().__init__(ast_node)
+    def __init__(self, info, template: TemplateDef):
+        super().__init__(info)
         self.template = template
 
     def __deepcopy__(self, memo):
-        return TemplateRef(self.ast_node, self.template)
+        return TemplateRef(self.info, self.template)
 
     def __repr__(self):
         return f"TemplateRef({self.template.name})"
@@ -754,12 +766,12 @@ class TemplateRef(Type):
 
 @dataclass
 class TemplateArgRef(Type):
-    def __init__(self, ast_node: ast.Node | None, arg: TemplateArg):
-        super().__init__(ast_node)
+    def __init__(self, info, arg: TemplateArg):
+        super().__init__(info)
         self.arg = arg
 
     def __deepcopy__(self, memo):
-        return TemplateArgRef(self.ast_node, self.arg)
+        return TemplateArgRef(self.info, self.arg)
 
     def __repr__(self):
         return f"TemplateArgRef({self.arg.name})"
@@ -817,7 +829,7 @@ class FunctionDef(Node):
         func_type = FunctionType.translate(node.type_)
         body: list = [Untranslated(stmt) for stmt in node.body]
         func_name = FunctionDef.get_name(node.name)
-        func = FunctionDef(node, f"{scope.name}.{func_name}", func_type, Scope(scope, node.name, body))
+        func = FunctionDef(node.info, f"{scope.name}.{func_name}", func_type, Scope(scope, node.name, body))
         func.scope.func = FunctionRef(None, func)
         return func
 
@@ -830,7 +842,7 @@ class MacroDef(Node):
     @staticmethod
     def translate(node: ast.MacroDef, scope: Scope):
         # TODO: add the macro itself to the scope to allow recursion?
-        return MacroDef(node, node.name, FunctionDef.translate(node.func, scope))
+        return MacroDef(node.info, node.name, FunctionDef.translate(node.func, scope))
 
 
 @dataclass
@@ -865,7 +877,7 @@ class FunctionReturn(Node):
     @staticmethod
     def translate(node: ast.FunctionReturn, scope: Scope):
         expr = Untranslated(node.expr) if node.expr is not None else VoidExpr(None)
-        return FunctionReturn(node, scope.current_func(), expr)
+        return FunctionReturn(node.info, scope.current_func(), expr)
 
 
 @dataclass
@@ -873,8 +885,8 @@ class Break(Node):
     block_name: str
     expr: Expr
 
-    def __init__(self, ast_node: ast.Node | None, block_name: str, expr: Expr):
-        super().__init__(ast_node)
+    def __init__(self, info, block_name: str, expr: Expr):
+        super().__init__(info)
         self.block_name = block_name
         self.expr = expr
 
@@ -897,7 +909,7 @@ class IfElse(Node):
         condition = Untranslated(node.condition)
         scope_then = Scope(scope, "__if", body=[Untranslated(stmt) for stmt in node.body_then])
         scope_else = Scope(scope, "__else", body=[Untranslated(stmt) for stmt in node.body_else])
-        return IfElse(node, condition, scope_then, scope_else)
+        return IfElse(node.info, condition, scope_then, scope_else)
 
 
 @dataclass
@@ -923,7 +935,7 @@ class MatchCaseEnum(Node):
             assert isinstance(case.expr.callee, TypeRef)
             assert isinstance(case.expr.callee.primitive(), EnumValueType)
             return MatchCaseEnum(
-                case.ast_node,
+                case.info,
                 case.expr.callee,
                 [IntLiteral(None, case.expr.callee.primitive().discr)] + case.expr.args,
                 case.scope,
@@ -931,7 +943,7 @@ class MatchCaseEnum(Node):
         else:
             assert isinstance(case.expr, TupleInst), case.expr
             return MatchCaseEnum(
-                case.ast_node,
+                case.info,
                 case.expr.type_,
                 [IntLiteral(None, case.expr.type_.primitive().discr)],
                 case.scope,
@@ -951,7 +963,7 @@ class Match(Node):
         match_scope.register_local("__match_expr", expr_var)
         expr_assign = Assignment(None, VarRef(None, expr_var), Untranslated(node.expr))
         cases = [Match._translate_case(case, match_scope) for case in node.cases]
-        return Match(node, expr_assign, cases, match_scope)
+        return Match(node.info, expr_assign, cases, match_scope)
 
     @staticmethod
     def _translate_case(node: ast.MatchCase, scope: Scope):
@@ -963,13 +975,13 @@ class Match(Node):
                 statements: list = [Untranslated(stmt) for stmt in node.body]
                 case_scope = Scope(scope, "__case", statements)
                 # discriminant arg is added in MatchCaseEnum.from_case
-                return MatchCaseEnum(node, expr, args, case_scope)
+                return MatchCaseEnum(node.info, expr, args, case_scope)
 
             case _:
                 expr = Untranslated(node.expr)
                 statements = [Untranslated(stmt) for stmt in node.body]
                 case_scope = Scope(scope, "__case", statements)
-                return MatchCase(node, expr, case_scope)
+                return MatchCase(node.info, expr, case_scope)
 
 
 @dataclass
@@ -988,7 +1000,7 @@ class Assignment(Node):
     def translate(node: ast.Assignment, _scope: Scope):
         lvalue = Untranslated(node.lvalue)
         expr = Untranslated(node.expr)
-        return Assignment(node, lvalue, expr)
+        return Assignment(node.info, lvalue, expr)
 
 
 # Runtime
@@ -1038,8 +1050,8 @@ class MacroInst(Expr):
     macro: MacroRef
     args: list[Node]
 
-    def __init__(self, ast_node: ast.Node | None, type_: Type, macro: MacroRef, args: list[Node]):
-        super().__init__(ast_node, type_)
+    def __init__(self, info, type_: Type, macro: MacroRef, args: list[Node]):
+        super().__init__(info, type_)
         self.macro = macro
         self.args = args
 

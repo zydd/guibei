@@ -140,7 +140,7 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
             terms: list = ["module"]
 
             for attr in node.scope.attrs.values():
-                annotations = getattr(attr.ast_node, "annotations", None)
+                annotations = getattr(attr, "annotations", None)
                 if annotations:
                     assert isinstance(attr, ir.FunctionDef)
                     terms.append(
@@ -202,7 +202,7 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
                 decls.append(["result", *type_reference(node.type_.ret_type)])
 
             # TODO
-            if hasattr(node.ast_node, "annotations"):
+            if hasattr(node, "annotations"):
                 return [["type", f"${node.name}.__type", ["func", *decls]]]
 
             body = translate_wasm(node.scope)

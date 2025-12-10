@@ -6,7 +6,7 @@ from . import ir
 
 def traverse_wasm(func, node, *args, **kwargs):
     return ir.WasmExpr(
-        node.ast_node,
+        node.info,
         [
             (
                 traverse_wasm(func, a, *args, **kwargs)
@@ -36,7 +36,7 @@ def traverse(func, node: ir.Node, *args, **kwargs):
 
     for attr_name in node:
         attr = node[attr_name]
-        if attr_name == "ast_node":
+        if attr_name in ["info", "ast_node"]:
             continue
         match attr:
             case ir.WasmExpr():
@@ -68,7 +68,7 @@ def traverse_scoped(func, node: ir.Node, scope):
 
     for attr_name in node:
         attr = node[attr_name]
-        if attr_name == "ast_node":
+        if attr_name in ["info", "ast_node"]:
             continue
         match attr:
             case ir.WasmExpr():
@@ -107,8 +107,6 @@ def _inline_args(node: ir.Node, block_name: str, args: dict[str, ir.Node]):
 
 
 def inline(node: ir.Node, func_scope: ir.Scope | None, args: list[ir.Node]) -> ir.Node:
-    node.ast_node = None  # FIXME: ast.Node deepcopy
-
     match node:
         # case ir.FunctionDef():
 
@@ -122,7 +120,7 @@ def inline(node: ir.Node, func_scope: ir.Scope | None, args: list[ir.Node]) -> i
                         var_name = block_name + "." + var.name
                         assert func_scope
                         assert func_scope.func
-                        mapped_var = func_scope.register_local(var_name, ir.VarDecl(var.ast_node, var_name, var.type_))
+                        mapped_var = func_scope.register_local(var_name, ir.VarDecl(var.info, var_name, var.type_))
                         arg_map[var.name] = ir.VarRef(None, mapped_var)
 
             body = [_inline_args(copy.deepcopy(stmt), block_name, arg_map) for stmt in node.func.scope.body]
@@ -139,7 +137,7 @@ def inline(node: ir.Node, func_scope: ir.Scope | None, args: list[ir.Node]) -> i
 
 
 def _inline_template_args(node: ir.Node, template_args: dict[str, ir.TypeRef], template_name: str, function_args=None):
-    node.ast_node = None  # FIXME: ast.Node deepcopy
+    print("x", end="")
 
     match node:
         case ir.TemplateArgRef():
@@ -154,7 +152,7 @@ def _inline_template_args(node: ir.Node, template_args: dict[str, ir.TypeRef], t
 
         case ir.ArgRef():
             # Update arg reference due to deepcopy
-            return ir.ArgRef(node.ast_node, function_args[node.arg.name])
+            return ir.ArgRef(node.info, function_args[node.arg.name])
 
         case ir.FunctionDef():
             function_args = {arg.name: arg for arg in node.type_.args}
@@ -175,14 +173,11 @@ def instantiate(node: ir.TemplateDef, args: list[ir.TypeRef]) -> ir.TypeDef:
     if key in node.instances:
         return node.instances[key]
 
-    if key in node.instances:
-        return node.instances[key]
-
     arg_names = "$" + "$".join([arg.name for arg in args])
     instance_scope = ir.Scope(node.scope, arg_names)
 
     instance = ir.TypeDef(
-        node.ast_node,
+        node.info,
         None,
         node.name + "." + arg_names,  # TODO: remove "."
         instance_scope,
