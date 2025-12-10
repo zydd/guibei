@@ -59,6 +59,19 @@ class Scope(Node):
         self.children_names: set[str] = set()
         self.name = parent.new_child_name(name) if parent else name
 
+    def __deepcopy__(self, memo):
+        import copy
+
+        new_scope = Scope(
+            self.parent,
+            self.name,
+            body=copy.deepcopy(self.body, memo),
+            func=self.func,
+            info=self.info,
+        )
+        new_scope.attrs = copy.deepcopy(self.attrs, memo)
+        return new_scope
+
     def new_child_name(self, name):
         name = f"{self.name}.{name}"
         if name in self.children_names:
