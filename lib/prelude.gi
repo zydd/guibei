@@ -95,6 +95,9 @@ impl i32:
     macro __cast_from(i: i8) -> i32:
         __reinterpret_cast i
 
+    func __default() -> Self:
+        0
+
     func print(self: Self) -> ():
         let n: i32 = self
         let i: i32 = 20
@@ -296,6 +299,9 @@ type pair: (first: i32, second: i32)
 
 
 impl pair:
+    func __default() -> Self:
+        (0, 0)
+
     func eq(self: Self, other: Self) -> i32:
         return (self.0 == other.0) & (self.1 == other.1)
 

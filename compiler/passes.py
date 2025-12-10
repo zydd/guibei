@@ -374,7 +374,13 @@ def resolve_member_access(node: ir.Node, scope=None) -> ir.Node:
                                     assert isinstance(type_ref_macro, ir.MacroDef)
                                     return type_ref_macro.func.scope
 
-                            attr = node.obj.type_.scope.lookup(node.attr)
+                            try:
+                                attr = node.obj.type_.scope.lookup(node.attr)
+                            except KeyError as e:
+                                raise KeyError(
+                                    f"Type '{node.obj.type_.name}' has no member '{node.attr}'",
+                                ) from e
+
                             match attr:
                                 case ir.FunctionDef():
                                     if (

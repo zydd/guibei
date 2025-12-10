@@ -1,6 +1,9 @@
 type pair2[T, U]: (T, U)
 
-# type pair3: pair2[i32, i32]
+impl[T, U] pair2[T, U]:
+    func __default() -> Self:
+        (T.__default(), U.__default())
+
 
 type array[T]
 
@@ -15,7 +18,7 @@ impl[T] array[T]:
 
     func __new_uninitialized(capacity: i32) -> Self:
         asm:
-            (array.new_default {Self.__asm_type} {capacity})
+            (array.new {Self.__asm_type} {T.__default()} {capacity})
 
     func len(self: Self) -> i32:
         asm:
@@ -37,7 +40,7 @@ type vec[T]: (__data: array[T], __len: i32)
 
 impl[T] vec[T]:
     func new() -> Self:
-        (asm: (array.new_default {array[T].__asm_type} (i32.const 0)), 0)
+        (array[T].__new_uninitialized(0), 0)
 
     func len(self: Self) -> i32:
         self.__len
@@ -67,25 +70,40 @@ impl[T] vec[T]:
         assert(i < self.__len)
         self.__data.at(i)
 
-    # func set(self: Self, i: i32, value: T) -> T:
-    #     assert(i < self.__len)
-    #     self.__data[i] = value
+    func set(self: Self, i: i32, value: T) -> ():
+        assert(i < self.__len)
+        self.__data.set(i, value)
 
-    # func append(self: Self, value: T) -> Self:
-    #     self.reserve(1)
-    #     self.__data[self.__len] = value
-    #     self.__len = self.__len + 1
+    func append(self: Self, value: T) -> ():
+        self.reserve(1)
+        self.__data.set(self.__len, value)
+        self.__len = self.__len + 1
 
 
-# TODO: canonical names
+# TODO:
+# - canonical names
+# - argument/variable indexing
+# - operator overloading
+# - automatic __default method for tuples
+# - disallow implicit conversion from tuple to named tuple
+# - allow template instances as template arguments
 
 
 func main() -> ():
-    # let val: array[i32] = asm: (array.new_default $root.module.array.$root.module.i32 {i32 10})
-    # assert(val.len() == 10)
+    let arr: vec[i32] = vec[i32].new()
+    assert(arr.len() == 0)
 
-    # let val2: array[pair] = asm: (array.new $root.module.array.$root.module.pair {pair(1, 2)} {i32 12})
-    # assert(val2.len() == 12)
+    arr.append(123)
+    assert(arr.len() == 1)
+    assert(arr.at(0) == 123)
 
-    let val3: vec[i32] = vec[i32].new()
-    assert(val3.len() == 0)
+    let arr2: vec[pair] = vec[pair].new()
+    assert(arr2.len() == 0)
+
+    arr2.append((123, 456))
+    assert(arr2.len() == 1)
+    assert(arr2.at(0).eq((123, 456)))
+
+    arr2.append((789, 100))
+    assert(arr2.len() == 2)
+    assert(arr2.at(1).eq((789, 100)))
