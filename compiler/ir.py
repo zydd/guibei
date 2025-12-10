@@ -558,6 +558,19 @@ class GetTupleItem(Expr):
 
 
 @dataclass
+class SetTupleItem(Expr):
+    expr: Expr
+    idx: int
+    value: Expr
+
+    def __init__(self, info, expr, idx, value):
+        super().__init__(info)
+        self.expr = expr
+        self.idx = idx
+        self.value = value
+
+
+@dataclass
 class Asm(Expr):
     terms: WasmExpr
 
@@ -716,7 +729,11 @@ class VarRef(Expr):
     def __repr__(self):
         return f'VarRef("{self.var.name}")'
 
-    @property  # type:ignore
+    @property
+    def name(self):
+        return self.var.name
+
+    @property  # type:ignore[misc]
     def type_(self):
         return self.var.type_
 
@@ -952,7 +969,7 @@ class MatchCaseEnum(Node):
 
 @dataclass
 class Match(Node):
-    match_expr: Node
+    match_expr: SetLocal
     cases: list[MatchCase]
     scope: Scope
 
@@ -961,7 +978,7 @@ class Match(Node):
         match_scope = Scope(scope, "__match")
         expr_var = VarDecl(None, "__match_expr", UnknownType())
         match_scope.register_local("__match_expr", expr_var)
-        expr_assign = Assignment(None, VarRef(None, expr_var), Untranslated(node.expr))
+        expr_assign = SetLocal(None, VarRef(None, expr_var), Untranslated(node.expr))
         cases = [Match._translate_case(case, match_scope) for case in node.cases]
         return Match(node.info, expr_assign, cases, match_scope)
 
@@ -986,7 +1003,7 @@ class Match(Node):
 
 @dataclass
 class MatchEnum(Node):
-    match_expr: Node
+    match_expr: SetLocal
     cases: list[MatchCaseEnum]
     scope: Scope
 

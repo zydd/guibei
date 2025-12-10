@@ -453,15 +453,25 @@ def resolve_member_access(node: ir.Node, scope=None) -> ir.Node:
                 return node
 
         case ir.Assignment():
-            node.lvalue = translate_function_defs(node.lvalue, scope)
+            lvalue = translate_function_defs(node.lvalue, scope)
             expr = translate_function_defs(node.expr, scope)
             assert isinstance(expr, ir.Expr)
-            node.expr = expr
-            if isinstance(node.lvalue, ir.GetItem):
-                idx_type = scope.lookup_type("__array_index").super_
-                return ir.SetItem(node.info, node.lvalue.expr, node.lvalue.idx, idx_type, expr)
-            else:
-                return node
+            match lvalue:
+                case ir.GetItem():
+                    idx_type = scope.lookup_type("__array_index").super_
+                    return ir.SetItem(node.info, lvalue.expr, lvalue.idx, idx_type, expr)
+
+                case ir.VarRef():
+                    return ir.SetLocal(node.info, lvalue, expr)
+
+                case ir.GetAttr():
+                    return node
+
+                case ir.GetTupleItem():
+                    return ir.SetTupleItem(node.info, lvalue.expr, lvalue.idx, expr)
+
+                case _:
+                    raise NotImplementedError(type(lvalue))
 
         case ir.Call():
             match node.callee:
@@ -715,11 +725,8 @@ def propagate_types(node: ir.Node):
             return ir.MacroInst(node.info, node.type_, ir.MacroRef(None, cast_from), [expr])
 
         case ir.Match():
-            # FIXME: should be part of translation
-            assert isinstance(node.match_expr, ir.Assignment)
-            assert isinstance(node.match_expr.lvalue, ir.VarRef)
             assert isinstance(node.match_expr.expr, ir.Expr)
-            node.match_expr.lvalue.type_ = node.match_expr.expr.type_
+            node.match_expr.var.type_ = node.match_expr.expr.type_
 
             node.match_expr = propagate_types(node.match_expr)
             for i, case in enumerate(node.cases):
@@ -735,7 +742,6 @@ def propagate_types(node: ir.Node):
                         case.scope = propagate_types(case.scope)
 
                     case ir.MatchCase():
-                        assert isinstance(node.match_expr, ir.Assignment)
                         assert isinstance(node.match_expr.expr, ir.Expr)
                         case.expr = propagate_types(match_expr_type(case.expr, node.match_expr.expr.type_))
                         case.scope = propagate_types(case.scope)
@@ -808,10 +814,8 @@ def match_expr_type(expr: ir.Node, type_: ir.Type):
 def specialize_match(node: ir.Node) -> ir.Node:
     match node:
         case ir.Match():
-            assert isinstance(node.match_expr, ir.Assignment)
-            assert isinstance(node.match_expr.lvalue, ir.VarRef)
             assert isinstance(node.match_expr.expr, ir.Expr)
-            node.match_expr.lvalue.type_ = node.match_expr.expr.type_
+            assert node.match_expr.var.type_ == node.match_expr.expr.type_
             if isinstance(node.match_expr.expr.type_.primitive(), ir.EnumType):
                 cases = [ir.MatchCaseEnum.from_case(case) for case in node.cases]
                 return ir.MatchEnum(node.info, node.match_expr, cases, node.scope)

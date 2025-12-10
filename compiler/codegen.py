@@ -82,7 +82,8 @@ def type_declaration(node: ir.Node) -> list:
 
     match node:
         case ir.EnumType():
-            decl = [["type", f"${node.name}", "(sub $__enum (struct (field i32)))"]]
+            # TODO: remove "mut"
+            decl = [["type", f"${node.name}", "(sub $__enum (struct (field (mut i32))))"]]
 
             for attr in node.scope.attrs.values():
                 decl.extend(type_declaration(attr))
@@ -119,7 +120,7 @@ def type_declaration(node: ir.Node) -> list:
             return [["array", ["mut", *type_packed(node.element_type)]]]
 
         case ir.TupleType():
-            fields = [["field", *type_reference(type_)] for type_ in node.field_types]
+            fields = [["field", ["mut", *type_reference(type_)]] for type_ in node.field_types]
             return [["struct", *fields]]
 
         case ir.TemplateDef():
@@ -318,6 +319,19 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
             assert isinstance(node.expr.type_.type_, ir.TypeDef)
             return [["struct.get", f"${node.expr.type_.type_.name}", node.idx, *translate_wasm(node.expr)]]
 
+        case ir.SetTupleItem():
+            assert isinstance(node.expr.type_, ir.TypeRef)
+            assert isinstance(node.expr.type_.type_, ir.TypeDef)
+            return [
+                [
+                    "struct.set",
+                    f"${node.expr.type_.type_.name}",
+                    node.idx,
+                    *translate_wasm(node.expr),
+                    *translate_wasm(node.value),
+                ]
+            ]
+
         case ir.GetItem():
             elem_primitive = node.expr.type_.primitive().element_type.primitive()
             assert isinstance(node.expr.type_, ir.TypeRef)
@@ -370,9 +384,7 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
             return [["struct.new", f"${node.type_.type_.name}", *args]]
 
         case ir.MatchEnum():
-            assert isinstance(node.match_expr, ir.Assignment)
             assert isinstance(node.match_expr.expr, ir.Expr)
-            assert isinstance(node.match_expr.lvalue, ir.VarRef)
             enum_type = node.match_expr.expr.type_.primitive()
             enum_values = [val for val in enum_type.scope.attrs.values() if isinstance(val, ir.EnumValueType)]
             enum_values.sort(key=lambda v: v.discr)
@@ -392,7 +404,7 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
                 [
                     "br_table",
                     *block_names,
-                    ["struct.get", "$__enum", 0, ["local.get", f"${node.match_expr.lvalue.var.name}"]],
+                    ["struct.get", "$__enum", 0, ["local.get", f"${node.match_expr.var.name}"]],
                 ],
                 *default_case,
             ]
@@ -415,7 +427,7 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
                                         "ref.cast",
                                         f"(ref ${case.enum.type_.name})",
                                         "local.get",
-                                        f"${node.match_expr.lvalue.var.name}",
+                                        f"${node.match_expr.var.name}",
                                     ],
                                 ],
                             ]

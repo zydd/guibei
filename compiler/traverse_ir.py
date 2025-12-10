@@ -137,8 +137,6 @@ def inline(node: ir.Node, func_scope: ir.Scope | None, args: list[ir.Node]) -> i
 
 
 def _inline_template_args(node: ir.Node, template_args: dict[str, ir.TypeRef], template_name: str, function_args=None):
-    print("x", end="")
-
     match node:
         case ir.TemplateArgRef():
             print(template_name, ": ", node, " -> ", template_args[node.arg.name], sep="")
@@ -154,9 +152,15 @@ def _inline_template_args(node: ir.Node, template_args: dict[str, ir.TypeRef], t
             # Update arg reference due to deepcopy
             return ir.ArgRef(node.info, function_args[node.arg.name])
 
+        case ir.VarRef():
+            # Update var reference due to deepcopy
+            return ir.VarRef(node.info, function_args[node.var.name])
+
         case ir.FunctionDef():
             function_args = {arg.name: arg for arg in node.type_.args}
-            node = traverse(_inline_template_args, node, template_args, template_name, function_args)
+            function_vars = {var.name: var for var in node.scope.attrs.values() if isinstance(var, ir.VarDecl)}
+            function_vars.update(function_args)
+            node = traverse(_inline_template_args, node, template_args, template_name, function_vars)
             assert isinstance(node, ir.FunctionDef)
             assert isinstance(template_args["Self"].type_, ir.TypeDef)
             node.name = node.name.replace(template_name, template_args["Self"].type_.name)
