@@ -54,6 +54,7 @@ def register_toplevel_methods(node: ast.Node, module: ir.Module):
     match node:
         case ast.Module():
             traverse_ast.traverse(register_toplevel_methods, node, module)
+
         case ast.TypeImpl():
             assert isinstance(node.type_, ast.TypeIdentifier)
             type_ = module.scope.lookup_type(node.type_.name)
@@ -82,6 +83,7 @@ def register_toplevel_methods(node: ast.Node, module: ir.Module):
                         template.scope.add_method(method.name, ir.MacroDef.translate(method, template.scope))
                     case _:
                         raise NotImplementedError(type(method))
+
         case _:
             return node
 
@@ -293,8 +295,21 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
                 case _:
                     raise NotImplementedError(type(expr))
 
-        case ir.Untranslated(ast_node=ast.Call(callee=ast.Identifier("unary(-)"), arg=ast.IntLiteral() as value)):
+        case ir.Untranslated(ast_node=ast.BinOp() as ast_node):
+            func = scope.lookup(f"({ast_node.op})")
+            assert isinstance(func, ir.FunctionDef)
+            lhs = translate_function_defs(ir.Untranslated(ast_node.lhs), scope)
+            rhs = translate_function_defs(ir.Untranslated(ast_node.rhs), scope)
+            return ir.Call(ast_node, ir.FunctionRef(None, func), [lhs, rhs])
+
+        case ir.Untranslated(ast_node=ast.UnaryL(op="-", arg=ast.IntLiteral() as value)):
             return ir.IntLiteral(value, -value.value)
+
+        case ir.Untranslated(ast_node=ast.UnaryL() | ast.UnaryR() as ast_node):
+            func = scope.lookup(f"({ast_node.op})")
+            assert isinstance(func, ir.FunctionDef)
+            tr_arg = translate_function_defs(ir.Untranslated(ast_node.arg), scope)
+            return ir.Call(ast_node, ir.FunctionRef(None, func), [tr_arg])
 
         case ir.Untranslated(ast_node=ast.Call(callee=ast.Identifier("__reinterpret_cast"), arg=arg)):
             return ir.ReinterpretCast(

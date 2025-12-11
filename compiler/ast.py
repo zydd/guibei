@@ -161,6 +161,25 @@ class Call(Node):
 
 
 @dataclass(repr=_ast_repr)
+class BinOp(Node):
+    op: str
+    lhs: Node
+    rhs: Node
+
+
+@dataclass(repr=_ast_repr)
+class UnaryL(Node):
+    op: str
+    arg: Node
+
+
+@dataclass(repr=_ast_repr)
+class UnaryR(Node):
+    op: str
+    arg: Node
+
+
+@dataclass(repr=_ast_repr)
 class GetAttr(Node):
     obj: Node
     attr: str

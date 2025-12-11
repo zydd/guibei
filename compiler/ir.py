@@ -519,11 +519,18 @@ class Call(Expr):
             args = [Untranslated(node.arg)]
         return Call(node.info, callee, args)
 
+    @staticmethod
+    def translate_args(arg: ast.Node):
+        if isinstance(arg, ast.TupleExpr):
+            return [Untranslated(arg) for arg in arg.field_values]
+        else:
+            return [Untranslated(arg)]
 
-# @dataclass
-# class BoundMethod(Expr):
-#     instance: Node
-#     method: Node
+
+@dataclass
+class OpCall(Expr):
+    callee: Node
+    args: list[Node]
 
 
 @dataclass

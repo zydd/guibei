@@ -116,7 +116,7 @@ def test_expr_fail(code):
 def test_op_parser(code, par):
     res1 = parser.run_parser(expr(), code)
     res2 = parser.run_parser(expr(), par)
-    assert isinstance(res1, ast.Call)
+    assert isinstance(res1, (ast.BinOp, ast.UnaryL, ast.UnaryR))
     assert res1 == reduce_tuple(res2)
 
 

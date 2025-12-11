@@ -208,7 +208,7 @@ def unaryop(unop):
         ops = yield many(unop)
         term = yield unit
         for op in reversed(ops):
-            term = ast.Call(ast.Identifier(f"unary({op})"), term)
+            term = ast.UnaryL(op, term)
         return term
 
     return _unaryop
@@ -232,9 +232,8 @@ def binop(binop):
             terms.append(rhs)
 
         # TODO: right-association
-        # TODO: BinOp AST node - it should be possible to retrieve the original input from the AST
         for op, rhs in zip(operators, terms):
-            res = ast.Call(ast.Identifier(f"({op})"), ast.TupleExpr([res, rhs]))
+            res = ast.BinOp(op, res, rhs)
 
         return res
 
