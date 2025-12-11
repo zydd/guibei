@@ -23,64 +23,12 @@ type __array_index: i32
 # i32
 
 
-type i32
-
-
-func (+)(a: i32, b: i32) -> i32:
-    asm: {a} {b} i32.add
-
-
-func (-)(a: i32, b: i32) -> i32:
-    asm: (i32.sub {a} {b})
-
-
-func (<)(a: i32, b: i32) -> i32:
-    asm: (i32.lt_s {a} {b})
-
-
-func (<=)(a: i32, b: i32) -> i32:
-    asm: (i32.le_s {a} {b})
-
-
-func (>)(a: i32, b: i32) -> i32:
-    asm: (i32.gt_s {a} {b})
-
-
-func (>=)(a: i32, b: i32) -> i32:
-    asm: (i32.ge_s {a} {b})
-
-
-func (*)(a: i32, b: i32) -> i32:
-    asm: (i32.mul {a} {b})
-
-
-func (//)(a: i32, b: i32) -> i32:
-    asm: (i32.div_s {a} {b})
-
-
-func (%)(a: i32, b: i32) -> i32:
-    asm: (i32.rem_s {a} {b})
-
-
-func (==)(a: i32, b: i32) -> i32:
-    asm: (i32.eq {a} {b})
-
-
-func (!=)(a: i32, b: i32) -> i32:
-    asm: (i32.ne {a} {b})
-
-
-func (|)(a: i32, b: i32) -> i32:
-    asm: (i32.or {a} {b})
-
-
-func (&)(a: i32, b: i32) -> i32:
-    asm: (i32.and {a} {b})
-
 
 func not(a: i32) -> i32:
     asm: (i32.eqz {a})
 
+
+type i32
 
 impl i32:
     macro __from_literal(i: __int) -> i32:
@@ -97,6 +45,45 @@ impl i32:
 
     func __default() -> Self:
         0
+
+    func (+)(self: i32, rhs: i32) -> i32:
+        asm: {self} {rhs} i32.add
+
+    func (-)(self: i32, rhs: i32) -> i32:
+        asm: (i32.sub {self} {rhs})
+
+    func (<)(self: i32, rhs: i32) -> i32:
+        asm: (i32.lt_s {self} {rhs})
+
+    func (<=)(self: i32, rhs: i32) -> i32:
+        asm: (i32.le_s {self} {rhs})
+
+    func (>)(self: i32, rhs: i32) -> i32:
+        asm: (i32.gt_s {self} {rhs})
+
+    func (>=)(self: i32, rhs: i32) -> i32:
+        asm: (i32.ge_s {self} {rhs})
+
+    func (*)(self: i32, rhs: i32) -> i32:
+        asm: (i32.mul {self} {rhs})
+
+    func (//)(self: i32, rhs: i32) -> i32:
+        asm: (i32.div_s {self} {rhs})
+
+    func (%)(self: i32, rhs: i32) -> i32:
+        asm: (i32.rem_s {self} {rhs})
+
+    func (==)(self: i32, rhs: i32) -> i32:
+        asm: (i32.eq {self} {rhs})
+
+    func (!=)(self: i32, rhs: i32) -> i32:
+        asm: (i32.ne {self} {rhs})
+
+    func (|)(self: i32, rhs: i32) -> i32:
+        asm: (i32.or {self} {rhs})
+
+    func (&)(self: i32, rhs: i32) -> i32:
+        asm: (i32.and {self} {rhs})
 
     func print(self: Self) -> ():
         let n: i32 = self

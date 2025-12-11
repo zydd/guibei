@@ -62,7 +62,10 @@ def register_toplevel_methods(node: ast.Node, module: ir.Module):
             for method in node.methods:
                 match method:
                     case ast.FunctionDef():
-                        type_.scope.add_method(method.name, ir.FunctionDef.translate(method, type_.scope))
+                        tr_method = ir.FunctionDef.translate(method, type_.scope)
+                        if method.name.startswith("("):
+                            module.scope.add_method(method.name, ir.FunctionRef(method.name, tr_method))
+                        type_.scope.add_method(method.name, tr_method)
                     case ast.MacroDef():
                         type_.scope.add_method(method.name, ir.MacroDef.translate(method, type_.scope))
                     case _:
@@ -297,19 +300,21 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
 
         case ir.Untranslated(ast_node=ast.BinOp() as ast_node):
             func = scope.lookup(f"({ast_node.op})")
-            assert isinstance(func, ir.FunctionDef)
+            if isinstance(func, ir.FunctionDef):
+                func = ir.FunctionRef(None, func)
             lhs = translate_function_defs(ir.Untranslated(ast_node.lhs), scope)
             rhs = translate_function_defs(ir.Untranslated(ast_node.rhs), scope)
-            return ir.Call(ast_node, ir.FunctionRef(None, func), [lhs, rhs])
+            return ir.Call(ast_node, func, [lhs, rhs])
 
         case ir.Untranslated(ast_node=ast.UnaryL(op="-", arg=ast.IntLiteral() as value)):
             return ir.IntLiteral(value, -value.value)
 
         case ir.Untranslated(ast_node=ast.UnaryL() | ast.UnaryR() as ast_node):
             func = scope.lookup(f"({ast_node.op})")
-            assert isinstance(func, ir.FunctionDef)
+            if isinstance(func, ir.FunctionDef):
+                func = ir.FunctionRef(None, func)
             tr_arg = translate_function_defs(ir.Untranslated(ast_node.arg), scope)
-            return ir.Call(ast_node, ir.FunctionRef(None, func), [tr_arg])
+            return ir.Call(ast_node, func, [tr_arg])
 
         case ir.Untranslated(ast_node=ast.Call(callee=ast.Identifier("__reinterpret_cast"), arg=arg)):
             return ir.ReinterpretCast(

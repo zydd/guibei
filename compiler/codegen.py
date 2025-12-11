@@ -129,7 +129,7 @@ def type_declaration(node: ir.Node) -> list:
                 decl.extend(type_declaration(inst))
             return decl
 
-        case ir.TypeRef() | ir.FunctionDef() | ir.AsmType() | ir.MacroDef() | ir.TemplateArg():
+        case ir.TypeRef() | ir.FunctionDef() | ir.FunctionRef() | ir.AsmType() | ir.MacroDef() | ir.TemplateArg():
             return []
 
     raise NotImplementedError(type(node))
@@ -173,9 +173,6 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
 
         case ir.AsmType():
             return [node.name]
-
-        case ir.VoidExpr():
-            return []
 
         case ir.WasmExpr():
             terms = []
@@ -443,7 +440,7 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
 
             return [*translate_wasm(node.match_expr), terms]
 
-        case ir.MacroDef():
+        case ir.MacroDef() | ir.VoidExpr() | ir.FunctionRef():
             return []
 
         case ir.ReinterpretCast():
