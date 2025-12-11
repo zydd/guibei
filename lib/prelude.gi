@@ -170,7 +170,7 @@ impl bytes:
         __print_n(0, len)
 
     func read(count: i32) -> bytes:
-        let buffer: i32 = asm: (global.get $__stackp) + 16
+        let buffer: i32 = i32 asm: (global.get $__stackp) + 16
         let read_count: i32 = __read_n(buffer, count)
         let result: bytes = bytes.repeat(read_count, 0)
         let i: i32 = 0
@@ -259,7 +259,7 @@ func __print_n(addr: i32, count: i32) -> ():
         (i32.store offset=4 (global.get $__stackp) {addr})
         (i32.store offset=8 (global.get $__stackp) {count})
 
-    __wasi_fd_write(1, asm: (global.get $__stackp) + 4, 1, asm: (global.get $__stackp))
+    __wasi_fd_write(1, i32 asm: (global.get $__stackp) + 4, 1, asm: (global.get $__stackp))
 
 
 func __read_n(addr: i32, count: i32) -> i32:
@@ -267,7 +267,7 @@ func __read_n(addr: i32, count: i32) -> i32:
         (i32.store offset=4 (global.get $__stackp) {addr})
         (i32.store offset=8 (global.get $__stackp) {count - 1})
 
-    __wasi_fd_read(0, asm: (global.get $__stackp) + 4, 1, asm: (global.get $__stackp))
+    __wasi_fd_read(0, i32 asm: (global.get $__stackp) + 4, 1, asm: (global.get $__stackp))
 
     asm:
         (i32.load (global.get $__stackp))

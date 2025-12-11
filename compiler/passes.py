@@ -64,7 +64,7 @@ def register_toplevel_methods(node: ast.Node, module: ir.Module):
                     case ast.FunctionDef():
                         tr_method = ir.FunctionDef.translate(method, type_.scope)
                         if method.name.startswith("("):
-                            module.scope.add_method(method.name, ir.FunctionRef(method.name, tr_method))
+                            module.scope.add_method(method.name, ir.FunctionRef(method.name, tr_method), overload=True)
                         type_.scope.add_method(method.name, tr_method)
                     case ast.MacroDef():
                         type_.scope.add_method(method.name, ir.MacroDef.translate(method, type_.scope))
@@ -503,6 +503,7 @@ def resolve_member_access(node: ir.Node, scope=None) -> ir.Node:
             match node.callee:
                 case ir.FunctionRef():
                     return ir.FunctionCall(node.info, node.callee.func.type_.ret_type, node.callee, node.args)
+
                 case ir.BoundMethod():
                     return ir.FunctionCall(
                         node.info,
@@ -510,6 +511,7 @@ def resolve_member_access(node: ir.Node, scope=None) -> ir.Node:
                         node.callee.func,
                         [node.callee.obj] + node.args,
                     )
+
                 case ir.TypeRef():
                     match node.callee.primitive():
                         case ir.EnumValueType() as enum_val:
@@ -547,6 +549,32 @@ def resolve_member_access(node: ir.Node, scope=None) -> ir.Node:
 
                 case ir.GetAttr() | ir.SelfType() | ir.TemplateInst():
                     return node
+
+                case ir.OverloadedFunction():
+                    assert all(isinstance(arg, ir.Expr) for arg in node.args)
+                    arg_types = [arg.type_ for arg in node.args]  # type:ignore[attr-defined]
+                    matches: list[ir.Node] = []
+                    for method in node.callee.overloads:
+                        assert isinstance(method, ir.FunctionRef)
+                        method_arg_types = [arg.type_ for arg in method.func.type_.args]
+                        if arg_types == method_arg_types:
+                            return ir.FunctionCall(node.info, method.func.type_.ret_type, method, node.args)
+
+                        m = [t1 == t2 for t1, t2 in zip(arg_types, method_arg_types)]
+                        if any(m):
+                            matches.append(method)
+
+                    if not matches:
+                        raise TypeError(
+                            f"No matching overload for function '{node.callee.name}' with argument types {arg_types}"
+                        )
+
+                    if len(matches) == 1:
+                        method = matches[0]
+                        assert isinstance(method, ir.FunctionRef)
+                        return ir.FunctionCall(node.info, method.func.type_.ret_type, method, node.args)
+                    else:
+                        return ir.OverloadedFunction(node.info, node.callee.name, matches)
 
                 case _:
                     raise NotImplementedError(type(node.callee))
@@ -741,9 +769,13 @@ def propagate_types(node: ir.Node):
         case ir.Cast():
             assert isinstance(node.type_, ir.TypeRef)
             assert isinstance(node.type_.type_, ir.TypeDef)
-            cast_from = node.type_.type_.scope.lookup("__cast_from")
             expr = propagate_types(node.expr)
+            if isinstance(expr.type_, ir.UnknownType):
+                expr.type_ = node.type_
+                return expr
+
             # TODO: overloaded
+            cast_from = node.type_.type_.scope.lookup("__cast_from")
             assert isinstance(cast_from, ir.MacroDef)
             assert len(cast_from.func.type_.args) == 1
             cast_type = cast_from.func.type_.args[0].type_

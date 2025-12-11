@@ -82,9 +82,20 @@ class Scope(Node):
         self.children_names.add(name)
         return name
 
-    def add_method(self, name: str, var: Node):
-        assert not self.has_member(name)
-        self.attrs[name] = var
+    def add_method(self, name: str, method: Node, overload=False):
+        if self.has_member(name):
+            if overload:
+                assert isinstance(method, FunctionRef)
+                cur = self.attrs[name]
+                if not isinstance(overload, OverloadedFunction):
+                    cur = OverloadedFunction(None, name, [cur])
+                assert isinstance(cur, OverloadedFunction)
+                cur.overloads.append(method)
+                self.attrs[name] = cur
+            else:
+                raise RuntimeError(f"Method '{name}' already defined in '{self.name}'")
+        else:
+            self.attrs[name] = method
 
     def register_local(self, name: str, var: VarDecl):
         if name in self.attrs:

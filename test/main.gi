@@ -22,6 +22,10 @@ impl usize:
     func __default() -> Self:
         0
 
+    func (+)(self: Self, rhs: Self) -> Self:
+        asm: (i64.add {self} {rhs})
+
 
 func main() -> ():
-    usize(0)
+    i32(0) + 1
+    usize(0) + 1
