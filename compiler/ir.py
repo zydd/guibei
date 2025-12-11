@@ -52,6 +52,7 @@ class Scope(Node):
         super().__init__(info)
         self.parent = parent
         self.root: Scope = parent.root if parent else self
+        self.module_scope: Scope | None = parent.module_scope if parent else None
         self.name: str = f"{parent.name}.{name}" if parent else name
         self.attrs = OrderedDict()
         self.body = body or list()
@@ -87,7 +88,7 @@ class Scope(Node):
             if overload:
                 assert isinstance(method, FunctionRef)
                 cur = self.attrs[name]
-                if not isinstance(overload, OverloadedFunction):
+                if not isinstance(cur, OverloadedFunction):
                     cur = OverloadedFunction(None, name, [cur])
                 assert isinstance(cur, OverloadedFunction)
                 cur.overloads.append(method)
@@ -230,6 +231,9 @@ class Untranslated(Node):
 class Type(Node):
     def primitive(self):
         return self
+
+    def has_base_class(self, _cls: Type):
+        return False
 
 
 @dataclass
@@ -516,8 +520,8 @@ class Call(Expr):
     callee: Node
     args: list[Node]
 
-    def __init__(self, info, callee, args):
-        super().__init__(info)
+    def __init__(self, info, callee, args, type_=None):
+        super().__init__(info, type_)
         self.callee = callee
         self.args = args
 
@@ -742,6 +746,9 @@ class TypeRef(Type):
     @property
     def name(self):
         return self.type_.name
+
+    def has_base_class(self, cls: Type):
+        return self.type_.has_base_class(cls)
 
 
 @dataclass

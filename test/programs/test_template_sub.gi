@@ -17,7 +17,7 @@ impl[T] array[T]:
         asm:
             (array.len {self})
 
-    func is_empty(self: Self) -> i32:
+    func is_empty(self: Self) -> bool:
         self.len() == 0
 
     func at(self: Self, i: i32) -> T:

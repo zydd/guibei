@@ -24,7 +24,7 @@ type __array_index: i32
 
 
 
-func not(a: i32) -> i32:
+func not(a: bool) -> bool:
     asm: (i32.eqz {a})
 
 
@@ -40,56 +40,56 @@ impl i32:
         asm:
             i32
 
-    macro __cast_from(i: i8) -> i32:
+    macro __cast_from(i: i8) -> Self:
         __reinterpret_cast i
 
     func __default() -> Self:
         0
 
-    func (+)(self: i32, rhs: i32) -> i32:
-        asm: {self} {rhs} i32.add
-
-    func (-)(self: i32, rhs: i32) -> i32:
-        asm: (i32.sub {self} {rhs})
-
-    func (<)(self: i32, rhs: i32) -> i32:
-        asm: (i32.lt_s {self} {rhs})
-
-    func (<=)(self: i32, rhs: i32) -> i32:
-        asm: (i32.le_s {self} {rhs})
-
-    func (>)(self: i32, rhs: i32) -> i32:
-        asm: (i32.gt_s {self} {rhs})
-
-    func (>=)(self: i32, rhs: i32) -> i32:
-        asm: (i32.ge_s {self} {rhs})
-
-    func (*)(self: i32, rhs: i32) -> i32:
+    func (*)(self: Self, rhs: Self) -> Self:
         asm: (i32.mul {self} {rhs})
 
-    func (//)(self: i32, rhs: i32) -> i32:
+    func (//)(self: Self, rhs: Self) -> Self:
         asm: (i32.div_s {self} {rhs})
 
-    func (%)(self: i32, rhs: i32) -> i32:
+    func (%)(self: Self, rhs: Self) -> Self:
         asm: (i32.rem_s {self} {rhs})
 
-    func (==)(self: i32, rhs: i32) -> i32:
-        asm: (i32.eq {self} {rhs})
+    func (+)(self: Self, rhs: Self) -> Self:
+        asm: {self} {rhs} i32.add
 
-    func (!=)(self: i32, rhs: i32) -> i32:
-        asm: (i32.ne {self} {rhs})
+    func (-)(self: Self, rhs: Self) -> Self:
+        asm: (i32.sub {self} {rhs})
 
-    func (|)(self: i32, rhs: i32) -> i32:
+    func (&)(self: Self, rhs: Self) -> Self:
+        asm: (i32.and {self} {rhs})
+
+    func (|)(self: Self, rhs: Self) -> Self:
         asm: (i32.or {self} {rhs})
 
-    func (&)(self: i32, rhs: i32) -> i32:
-        asm: (i32.and {self} {rhs})
+    func (<)(self: Self, rhs: Self) -> bool:
+        asm: (i32.lt_s {self} {rhs})
+
+    func (<=)(self: Self, rhs: Self) -> bool:
+        asm: (i32.le_s {self} {rhs})
+
+    func (>)(self: Self, rhs: Self) -> bool:
+        asm: (i32.gt_s {self} {rhs})
+
+    func (>=)(self: Self, rhs: Self) -> bool:
+        asm: (i32.ge_s {self} {rhs})
+
+    func (==)(self: Self, rhs: Self) -> bool:
+        asm: (i32.eq {self} {rhs})
+
+    func (!=)(self: Self, rhs: Self) -> bool:
+        asm: (i32.ne {self} {rhs})
 
     func print(self: Self) -> ():
         let n: i32 = self
         let i: i32 = 20
         let len: i32 = 0
-        let buffer: i32 = asm: (global.get $__stackp) + 16
+        let buffer: i32 = i32 asm: (global.get $__stackp) + 16
 
         if n == 0:
             asm: (i32.store8 {buffer} (i32.const 48))
@@ -116,6 +116,208 @@ impl i32:
             i = i + 1
 
         __print_n(buffer, len)
+
+
+type u32
+
+impl u32:
+    macro __from_literal(i: __int) -> Self:
+        # static_assert val.__geq(0)
+        # static_assert val.__leq(0xffffffff)
+        asm:
+            (i32.const {i})
+
+    macro __type_reference() -> ():
+        asm:
+            i32
+
+    func __default() -> Self:
+        0
+
+    func (*)(self: Self, rhs: Self) -> Self:
+        asm: (i32.mul {self} {rhs})
+
+    func (//)(self: Self, rhs: Self) -> Self:
+        asm: (i32.div_u {self} {rhs})
+
+    func (%)(self: Self, rhs: Self) -> Self:
+        asm: (i32.rem_u {self} {rhs})
+
+    func (+)(self: Self, rhs: Self) -> Self:
+        asm: (i32.add {self} {rhs})
+
+    func (-)(self: Self, rhs: Self) -> Self:
+        asm: (i32.sub {self} {rhs})
+
+    func (&)(self: Self, rhs: Self) -> Self:
+        asm: (i32.and {self} {rhs})
+
+    func (|)(self: Self, rhs: Self) -> Self:
+        asm: (i32.or {self} {rhs})
+
+    func (<)(self: Self, rhs: Self) -> bool:
+        asm: (i32.lt_u {self} {rhs})
+
+    func (<=)(self: Self, rhs: Self) -> bool:
+        asm: (i32.le_u {self} {rhs})
+
+    func (>)(self: Self, rhs: Self) -> bool:
+        asm: (i32.gt_u {self} {rhs})
+
+    func (>=)(self: Self, rhs: Self) -> bool:
+        asm: (i32.ge_u {self} {rhs})
+
+    func (==)(self: Self, rhs: Self) -> bool:
+        asm: (i32.eq {self} {rhs})
+
+    func (!=)(self: Self, rhs: Self) -> bool:
+        asm: (i32.ne {self} {rhs})
+
+    func print(self: Self) -> ():
+        let n: Self = self
+        let i: Self = 20
+        let len: Self = 0
+        let buffer: Self = Self asm: (global.get $__stackp) + 16
+
+        if n == 0:
+            asm: (i32.store8 {buffer} (i32.const 48))
+            __print_n(__reinterpret_cast buffer, 1)
+            return
+
+        while n:
+            asm: (i32.store8 {buffer + i} {n % 10 + 48})
+            i = i - 1
+            len = len + 1
+            n = n // 10
+
+        i = 0
+        while i < len:
+            asm: (i32.store8 {buffer + i} (i32.load {buffer + 21 + i - len}))
+            i = i + 1
+
+        __print_n(__reinterpret_cast buffer, __reinterpret_cast len)
+
+
+type usize
+
+impl usize:
+    macro __from_literal(i: __int) -> Self:
+        # static_assert val.__geq(0)
+        # static_assert val.__leq(0xffffffffffffffff)
+        asm:
+            (i64.const {i})
+
+    macro __type_reference() -> ():
+        asm:
+            i64
+
+    func __default() -> Self:
+        0
+
+    func (*)(self: Self, rhs: Self) -> Self:
+        assert((rhs == 0) || (self <= asm: (i64.div_u {usize 0xffffffffffffffff} {rhs})))
+        asm: (i64.mul {self} {rhs})
+
+    func (+)(self: Self, rhs: Self) -> Self:
+        let res: Self = asm: (i64.add {self} {rhs})
+        assert(asm: (i64.gt_u {res} {self}))
+        res
+
+    func (//)(self: Self, rhs: Self) -> Self:
+        asm: (i64.div_u {self} {rhs})
+
+    func (%)(self: Self, rhs: Self) -> Self:
+        asm: (i64.rem_u {self} {rhs})
+
+    func (-)(self: Self, rhs: Self) -> Self:
+        let res: Self = asm: (i64.sub {self} {rhs})
+        assert(asm: (i64.lt_u {res} {self}))
+        res
+
+    func (&)(self: Self, rhs: Self) -> Self:
+        asm: (i64.and {self} {rhs})
+
+    func (|)(self: Self, rhs: Self) -> Self:
+        asm: (i64.or {self} {rhs})
+
+    func (<)(self: Self, rhs: Self) -> bool:
+        asm: (i64.lt_u {self} {rhs})
+
+    func (<=)(self: Self, rhs: Self) -> bool:
+        asm: (i64.le_u {self} {rhs})
+
+    func (>)(self: Self, rhs: Self) -> bool:
+        asm: (i64.gt_u {self} {rhs})
+
+    func (>=)(self: Self, rhs: Self) -> bool:
+        asm: (i64.ge_u {self} {rhs})
+
+    func (==)(self: Self, rhs: Self) -> bool:
+        asm: (i64.eq {self} {rhs})
+
+    func (!=)(self: Self, rhs: Self) -> bool:
+        asm: (i64.ne {self} {rhs})
+
+    func print(self: Self) -> ():
+        let n: Self = self
+        let i: i32 = 20
+        let len: i32 = 0
+        let buffer: i32 = i32 asm: (global.get $__stackp) + 16
+
+        if n == 0:
+            asm: (i32.store8 {buffer} (i32.const 48))
+            __print_n(buffer, 1)
+            return
+
+        if self < 0:
+            n = 0 - n
+
+        while n != 0:
+            asm: (i32.store8 {buffer + i} (i32.wrap_i64 {n % 10 + 48}))
+            i = i - 1
+            len = len + 1
+            n = n // 10
+
+        i = 0
+        if self < 0:
+            asm: (i32.store8 {buffer + i} {i32 45})
+            i = i + 1
+            len = len + 1
+
+        while i < len:
+            asm: (i32.store8 {buffer + i} (i32.load {buffer + 21 + i - len}))
+            i = i + 1
+
+        __print_n(buffer, len)
+
+
+type bool
+
+impl bool:
+    macro __from_literal(i: __int) -> Self:
+        # static_assert val.__geq(0)
+        # static_assert val.__leq(0xffffffff)
+        asm:
+            (i32.const {i})
+
+    macro __type_reference() -> ():
+        asm:
+            i32
+
+    func __default() -> Self:
+        0
+
+    func (==)(self: Self, rhs: Self) -> bool:
+        asm: (i32.eq {self} {rhs})
+
+    func (!=)(self: Self, rhs: Self) -> bool:
+        asm: (i32.ne {self} {rhs})
+
+    func (&&)(self: Self, rhs: Self) -> Self:
+        asm: (i32.and {self} {rhs})
+
+    func (||)(self: Self, rhs: Self) -> Self:
+        asm: (i32.or {self} {rhs})
 
 
 # bytes
@@ -183,23 +385,23 @@ impl bytes:
     func len(self: Self) -> i32:
         asm: (array.len (local.get $self))
 
-    func eq(self: Self, other: Self) -> i32:
+    func eq(self: Self, other: Self) -> bool:
         if self.len() != other.len():
             return 0
 
         let i: i32 = 0
         while i < self.len():
             # FIXME: remove explicit cast
+            # FIXME: boolean literals
             if i32 self[i] != i32 other[i]:
-                return 0
+                return i32 0 == 1
             i = i + 1
 
-        return 1
+        return i32 1 == 1 
 
     func slice(self: Self, start: i32, end: i32) -> bytes:
         let len: i32 = self.len()
-        # FIXME: use logical operators
-        if (start < 0) | (end < 0) | (start > len) | (end > len) | (start > end):
+        if (start < 0) || (end < 0) || (start > len) || (end > len) || (start > end):
             asm: unreachable
 
         let result: bytes = bytes.repeat(end - start, 0)
@@ -220,12 +422,14 @@ enum Option:
 
 
 impl Option:
-    func is_some(self: Self) -> i32:
+    func is_some(self: Self) -> bool:
         match self:
             case Option.None:
-                return 0
+                # FIXME: boolean literals
+                return i32 0 == 1
             case Option.Some(_):
-                return 1
+                # FIXME: boolean literals
+                return i32 1 == 1
         asm: unreachable
 
     func unwrap(self: Self) -> i32:
@@ -276,7 +480,7 @@ func __read_n(addr: i32, count: i32) -> i32:
 # builtin
 
 
-func assert(cond: i32) -> ():
+func assert(cond: bool) -> ():
     if cond == 0:
         asm:
             unreachable
@@ -289,8 +493,8 @@ impl pair:
     func __default() -> Self:
         (0, 0)
 
-    func eq(self: Self, other: Self) -> i32:
-        return (self.0 == other.0) & (self.1 == other.1)
+    func eq(self: Self, other: Self) -> bool:
+        return (self.0 == other.0) && (self.1 == other.1)
 
     func print(self: Self) -> ():
         bytes.print("(")

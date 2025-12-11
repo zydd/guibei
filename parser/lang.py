@@ -17,7 +17,7 @@ def asm():
     def wast_term():
         @generate
         def int_literal():
-            return int((yield regex(r"-?\d+")))
+            return int((yield regex(r"-?(0x)?\d+")))
 
         term = yield choice(
             regex(r"[a-z]+=\d+"),
@@ -143,7 +143,12 @@ def type_def():
 
 @generate
 def int_literal():
-    return ast.IntLiteral(int((yield regex(r"\d+"))))
+    val = yield regex(r"0x[a-fA-F0-9]+|\d+")
+    if val.startswith("0x"):
+        val = int(val, 16)
+    else:
+        val = int(val)
+    return ast.IntLiteral(val)
 
 
 @generate
@@ -388,10 +393,11 @@ precedence = [
     unaryop(regex(r"\+|-")),
     binop(regex(r"\*|//|/|%")),
     binop(regex(r"\+|-")),
-    binop(regex(r"&")),
-    binop(regex(r"\&")),
-    binop(regex(r"\|")),
+    binop(regex(r"&(?!&)")),
+    binop(regex(r"\|(?!\|)")),
     binop(regex(r"<=|>=|>|<|==|!=")),
+    binop(regex(r"&&")),
+    binop(regex(r"\|\|")),
 ]
 for op in precedence:
     expr_term = op(expr_term)

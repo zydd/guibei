@@ -299,12 +299,12 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
                     raise NotImplementedError(type(expr))
 
         case ir.Untranslated(ast_node=ast.BinOp() as ast_node):
-            func = scope.lookup(f"({ast_node.op})")
+            func = scope.module_scope.lookup(f"({ast_node.op})")
             if isinstance(func, ir.FunctionDef):
                 func = ir.FunctionRef(None, func)
             lhs = translate_function_defs(ir.Untranslated(ast_node.lhs), scope)
             rhs = translate_function_defs(ir.Untranslated(ast_node.rhs), scope)
-            return ir.Call(ast_node, func, [lhs, rhs])
+            return ir.Call(ast_node.info, func, [lhs, rhs])
 
         case ir.Untranslated(ast_node=ast.UnaryL(op="-", arg=ast.IntLiteral() as value)):
             return ir.IntLiteral(value, -value.value)
@@ -557,14 +557,19 @@ def resolve_member_access(node: ir.Node, scope=None) -> ir.Node:
                     for method in node.callee.overloads:
                         assert isinstance(method, ir.FunctionRef)
                         method_arg_types = [arg.type_ for arg in method.func.type_.args]
-                        if arg_types == method_arg_types:
+                        comp = [t1.has_base_class(t2) for t1, t2 in zip(arg_types, method_arg_types)]
+
+                        if all(comp):
                             return ir.FunctionCall(node.info, method.func.type_.ret_type, method, node.args)
 
-                        m = [t1 == t2 for t1, t2 in zip(arg_types, method_arg_types)]
-                        if any(m):
+                        if any(comp):
                             matches.append(method)
 
                     if not matches:
+                        if any(isinstance(arg_type, ir.UnknownType) for arg_type in arg_types):
+                            # Possibly before template substitution
+                            return node
+
                         raise TypeError(
                             f"No matching overload for function '{node.callee.name}' with argument types {arg_types}"
                         )
@@ -574,7 +579,8 @@ def resolve_member_access(node: ir.Node, scope=None) -> ir.Node:
                         assert isinstance(method, ir.FunctionRef)
                         return ir.FunctionCall(node.info, method.func.type_.ret_type, method, node.args)
                     else:
-                        return ir.OverloadedFunction(node.info, node.callee.name, matches)
+                        overloads = ir.OverloadedFunction(node.info, node.callee.name, matches)
+                        return ir.Call(node.info, overloads, node.args, node.type_)
 
                 case _:
                     raise NotImplementedError(type(node.callee))
@@ -860,7 +866,7 @@ def match_expr_type(expr: ir.Node, type_: ir.Type):
 
         case ir.TypeRef(type_=ir.TypeDef() as expr_type):
             if not expr_type.has_base_class(type_):
-                raise Exception(f"{expr.type_} is not compatible with {type_}")
+                raise Exception(f"Expected {type_}, got {expr.type_}")
 
         case _:
             if expr.type_ != type_:
@@ -943,7 +949,10 @@ def run(prog: ast.Module):
     root_scope = ir.Scope(None, "root")
     root_scope.register_type("__int", ir.AstType(None, "__int"))
 
-    module = ir.Module(prog.info, ir.Scope(root_scope, "module"))
+    module_scope = ir.Scope(root_scope, "module")
+    module_scope.module_scope = module_scope
+
+    module = ir.Module(prog.info, module_scope)
     for pass_ in toplevel_ast_passes:
         print("Pass:", pass_.__name__)
         pass_(prog, module)
