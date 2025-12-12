@@ -20,6 +20,7 @@ def register_toplevel_decls(node: ast.Node, module: ir.Module):
     match node:
         case ast.Module():
             traverse_ast.traverse(register_toplevel_decls, node, module)
+
         case ast.TypeDef():
             module.scope.register_type(
                 node.name,
@@ -30,22 +31,51 @@ def register_toplevel_decls(node: ast.Node, module: ir.Module):
                     ir.Scope(module.scope, node.name),
                 ),
             )
+
         case ast.EnumType():
-            enum_type = ir.EnumType.translate(node, module.scope)
+            enum_scope = ir.Scope(module.scope, node.name)
+
+            if all(value.fields is None for value in node.values):
+                enum_repr = module.scope.lookup_type("__enum_discr")
+                assert isinstance(enum_repr, ir.TypeDef)
+                enum_repr = ir.TypeRef(None, enum_repr)
+                enum_type: ir.Type = ir.EnumIntType(node.info, enum_repr, node.name, enum_scope)
+                for i, val in enumerate(node.values):
+                    enum_scope.add_method(
+                        val.name,
+                        ir.ConstDecl(
+                            enum_type.info,
+                            val.name,
+                            ir.Cast(None, ir.TypeRef(None, enum_type), ir.IntLiteral(val.info, i)),
+                        ),
+                    )
+            else:
+                enum_type = ir.EnumType(
+                    node.info, ir.EnumTypeBase(module.scope), node.name, enum_scope, len(node.values)
+                )
+                for i, val in enumerate(node.values):
+                    enum_scope.register_type(val.name, ir.EnumValueType.translate(enum_type, i, val))
+
             module.scope.register_type(node.name, enum_type)
-            for i, val in enumerate(node.values):
-                enum_type.scope.register_type(val.name, ir.EnumValueType.translate(enum_type, i, val))
+
         case ast.TemplateDef():
             module.scope.register_type(node.name, ir.TemplateDef.translate(node, module.scope))
+
         case ast.FunctionDef():
             fn_def = ir.FunctionDef.translate(node, module.scope)
             if hasattr(node, "annotations"):
                 fn_def.annotations = node.annotations
             module.scope.add_method(node.name, fn_def)
+
         case ast.MacroDef():
             module.scope.add_method(node.name, ir.MacroDef.translate(node, module.scope))
+
         case ast.Asm():
             module.add_asm(ir.Untranslated(node))
+
+        case ast.ConstDecl():
+            module.scope.add_method(node.name, ir.ConstDecl.translate(node, module.scope))
+
         case _:
             return node
 
@@ -270,6 +300,8 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
                     return ir.MacroRef(id, attr)
                 case ir.TemplateDef():
                     return ir.TemplateRef(id, attr)
+                case ir.ConstDecl():
+                    return ir.ConstRef(id, attr)
                 case _:
                     raise NotImplementedError(type(attr))
 
@@ -444,6 +476,8 @@ def resolve_member_access(node: ir.Node, scope=None) -> ir.Node:
                                     return ir.TypeRef(None, attr)
                                 case ir.MacroDef():
                                     return ir.MacroRef(None, attr)
+                                case ir.ConstDecl():
+                                    return ir.ConstRef(None, attr)
                                 case _:
                                     raise NotImplementedError(type(attr))
                         case _:
@@ -543,20 +577,8 @@ def resolve_member_access(node: ir.Node, scope=None) -> ir.Node:
 
                         case ir.TypeDef() as type_def:
                             assert len(node.args) == 1
-                            match node.args[0]:
-                                case ir.IntLiteral():
-                                    from_literal = type_def.scope.lookup("__from_literal")
-                                    assert isinstance(from_literal, ir.MacroDef)
-                                    return ir.MacroInst(
-                                        node.info,
-                                        from_literal.func.type_.ret_type,
-                                        ir.MacroRef(None, from_literal),
-                                        node.args,
-                                    )
-
-                                case obj:
-                                    assert isinstance(obj, ir.Expr)
-                                    return ir.Cast(node.info, node.callee, obj)
+                            assert isinstance(node.args[0], ir.Expr)
+                            return ir.Cast(node.info, node.callee, node.args[0])
 
                         case _:
                             raise NotImplementedError(node.callee)
@@ -793,17 +815,41 @@ def propagate_types(node: ir.Node):
             assert isinstance(node.type_, ir.TypeRef)
             assert isinstance(node.type_.type_, ir.TypeDef)
             expr = propagate_types(node.expr)
-            if isinstance(expr.type_, ir.UnknownType):
-                expr.type_ = node.type_
-                return expr
+            match expr:
+                case ir.Asm():
+                    assert isinstance(expr.type_, ir.UnknownType)
+                    expr.type_ = node.type_
+                    return expr
 
-            # TODO: overloaded
-            cast_from = node.type_.type_.scope.lookup("__cast_from")
-            assert isinstance(cast_from, ir.MacroDef)
-            assert len(cast_from.func.type_.args) == 1
-            cast_type = cast_from.func.type_.args[0].type_
-            assert cast_type == expr.type_
-            return ir.MacroInst(node.info, node.type_, ir.MacroRef(None, cast_from), [expr])
+                case ir.IntLiteral():
+                    cast_type = node.type_.type_
+                    while cast_type:
+                        try:
+                            from_literal = cast_type.scope.attrs["__from_literal"]
+                            break
+                        except KeyError:
+                            if cast_type.super_ is not None:
+                                assert isinstance(cast_type.super_, ir.TypeRef)
+                                assert isinstance(cast_type.super_.type_, ir.TypeDef)
+                                cast_type = cast_type.super_.type_
+                    else:
+                        raise RuntimeError(f"Cannot cast int literal to {node.type_}")
+                    assert isinstance(from_literal, ir.MacroDef)
+                    assert node.type_.has_base_class(from_literal.func.type_.ret_type)
+                    return ir.MacroInst(
+                        node.info,
+                        node.type_,
+                        ir.MacroRef(None, from_literal),
+                        [expr],
+                    )
+
+                case _:  # Implicit casting
+                    # TODO: overloaded
+                    cast_from = node.type_.type_.scope.attrs["__cast_from"]
+                    assert isinstance(cast_from, ir.MacroDef)
+                    assert len(cast_from.func.type_.args) == 1
+                    assert cast_from.func.type_.args[0].type_ == expr.type_
+                    return ir.MacroInst(node.info, node.type_, ir.MacroRef(None, cast_from), [expr])
 
         case ir.Match():
             assert isinstance(node.match_expr.expr, ir.Expr)
@@ -927,9 +973,14 @@ def inline_macros(node: ir.Node, scope=None) -> ir.Node:
     match node:
         case ir.FunctionDef():
             return traverse_ir.traverse(inline_macros, node, node.scope)
+
         case ir.MacroInst():
             return traverse_ir.inline(node.macro, scope, [inline_macros(arg, scope) for arg in node.args])
             # return inline_macros(traverse_ir.inline(node.macro, scope, node.args), scope)  # slow
+
+        case ir.ConstRef():
+            return node.const.expr
+
         case _:
             return traverse_ir.traverse(inline_macros, node, scope)
 
@@ -953,8 +1004,8 @@ ir_passes: list = [
     resolve_member_access,
     instantiate_templates,
     resolve_member_access,
-    write_tree("inner.ir"),
     propagate_types,
+    write_tree("inner.ir"),
     specialize_match,
     check_no_unknown_types,
     inline_macros,

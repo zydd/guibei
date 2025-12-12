@@ -232,6 +232,13 @@ class VarDecl(Node):
 
 
 @dataclass(repr=_ast_repr)
+class ConstDecl(Node):
+    name: str
+    type_: Type | None
+    init: Node
+
+
+@dataclass(repr=_ast_repr)
 class ArgDecl(Node):
     name: str
     type_: Type | None

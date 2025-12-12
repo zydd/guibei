@@ -291,21 +291,17 @@ impl usize:
         __print_n(buffer, len)
 
 
-type bool
+enum bool:
+    False
+    True
+
+const True = bool.True
+const False = bool.False
+
 
 impl bool:
-    macro __from_literal(i: __int) -> Self:
-        # static_assert val.__geq(0)
-        # static_assert val.__leq(0xffffffff)
-        asm:
-            (i32.const {i})
-
-    macro __type_reference() -> ():
-        asm:
-            i32
-
     func __default() -> Self:
-        0
+        False
 
     func (==)(self, rhs: Self) -> bool:
         asm: (i32.eq {self} {rhs})
@@ -392,12 +388,11 @@ impl bytes:
         let i: i32 = 0
         while i < self.len():
             # FIXME: remove explicit cast
-            # FIXME: boolean literals
             if i32 self[i] != i32 other[i]:
-                return i32 0 == 1
+                return False
             i = i + 1
 
-        return i32 1 == 1 
+        return True
 
     func slice(self, start: i32, end: i32) -> bytes:
         let len: i32 = self.len()
@@ -425,11 +420,9 @@ impl Option:
     func is_some(self) -> bool:
         match self:
             case Option.None:
-                # FIXME: boolean literals
-                return i32 0 == 1
+                return False
             case Option.Some(_):
-                # FIXME: boolean literals
-                return i32 1 == 1
+                return True
         asm: unreachable
 
     func unwrap(self) -> i32:
@@ -481,7 +474,7 @@ func __read_n(addr: i32, count: i32) -> i32:
 
 
 func assert(cond: bool) -> ():
-    if cond == 0:
+    if not cond:
         asm:
             unreachable
 

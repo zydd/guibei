@@ -13,3 +13,7 @@ func main() -> ():
     usize 0x100000000 * 0xffffffff
     (usize (-1)).print()
     bytes.print("\n")
+
+    let a: i32 = 777
+    bool.True
+    False

@@ -57,6 +57,14 @@ def var_decl():
 
 
 @generate
+def const_decl():
+    yield regex("const +")
+    name, type_ = yield _typed_id_decl()
+    init = yield sequence(regex(r"\s*=\s*"), expr(), index=1)
+    return ast.ConstDecl(name, type_, init)
+
+
+@generate
 def assignment():
     lvalue = yield expr()
     yield regex(r"\s*=\s*")
@@ -347,6 +355,7 @@ def statement():
         match_block(),
         return_statement(),
         var_decl(),
+        const_decl(),
         enum_def(),
         impl(),
         type_def(),

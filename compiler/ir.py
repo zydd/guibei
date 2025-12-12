@@ -346,6 +346,12 @@ class FunctionType(Type):
 
 
 @dataclass
+class EnumIntType(TypeDef):
+    def __init__(self, info, super_: Type | None, name: str, scope: Scope):
+        super().__init__(info, super_, name, scope)
+
+
+@dataclass
 class EnumTypeBase(TupleType):
     name: str = "__enum"
 
@@ -366,25 +372,6 @@ class EnumType(TypeDef):
     def __init__(self, info, super_: Type, name: str, scope: Scope, count: int):
         super().__init__(info, super_, name, scope)
         self.count = count
-
-    @staticmethod
-    def translate(node: ast.EnumType, scope: Scope):
-        return EnumType(node.info, EnumTypeBase(scope), node.name, Scope(scope, node.name), len(node.values))
-
-    # def add_method(self, name: str, method: Node):
-    #     if self.scope.has_member(name):
-    #         # TODO: ensure all overloaded functions/methods are defined together
-    #         assert name in self.scope.attrs
-    #         # Look up only in current scope
-    #         match self.scope.attrs[name]:
-    #             case FunctionDef() as fn:
-    #                 self.scope.attrs[name] = OverloadedFunction(None, name, [fn, method])
-    #             case OverloadedFunction() as overloads:
-    #                 overloads.overloads.append(method)
-    #             case _:
-    #                 raise NotImplementedError
-    #     else:
-    #         self.scope.register_var(name, method)
 
     def primitive(self):
         return self
@@ -710,6 +697,26 @@ class FunctionRef(Expr):
 
 
 @dataclass
+class ConstRef(Expr):
+    # const: ConstDecl
+
+    def __init__(self, info, const: ConstDecl):
+        # super().__init__(info, None)
+        self.info = info
+        self.const = const
+
+    def __deepcopy__(self, memo):
+        return ConstRef(self.info, self.const)
+
+    def __repr__(self):
+        return f'ConstRef("{self.const.name}")'
+
+    @property  # type:ignore[misc]
+    def type_(self):
+        return self.const.expr.type_
+
+
+@dataclass
 class MacroRef(Node):
     # macro: MacroDef
 
@@ -913,6 +920,17 @@ class ArgDecl(Node):
 class VarDecl(Node):
     name: str
     type_: Type
+
+
+@dataclass
+class ConstDecl(Node):
+    name: str
+    expr: Expr
+
+    @staticmethod
+    def translate(node: ast.ConstDecl, scope: Scope):
+        # TODO: UntranslatedExpr
+        return ConstDecl(node.info, node.name, Untranslated(node.init))  # type:ignore[arg-type]
 
 
 @dataclass

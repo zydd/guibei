@@ -35,7 +35,7 @@ def type_reference(node: ir.Node) -> list:
             primitive = node.primitive()
             match primitive:
                 case ir.TypeDef() if "__type_reference" in primitive.scope.attrs:
-                    type_ref_macro = primitive.scope.lookup("__type_reference")
+                    type_ref_macro = primitive.scope.attrs["__type_reference"]
                     assert isinstance(type_ref_macro, ir.MacroDef)
                     return translate_wasm(type_ref_macro.func.scope)
 
@@ -64,7 +64,7 @@ def type_packed(node: ir.Node) -> list:
     match node:
         case ir.TypeDef():
             try:
-                type_ref_macro = node.scope.lookup("__type_packed")
+                type_ref_macro = node.scope.attrs["__type_packed"]
                 assert isinstance(type_ref_macro, ir.MacroDef)
                 return translate_wasm(type_ref_macro.func.scope)
             except KeyError:
@@ -98,7 +98,7 @@ def type_declaration(node: ir.Node) -> list:
             primitive = node.primitive()
             if isinstance(primitive, ir.TypeDef):
                 try:
-                    type_ref_macro = primitive.scope.lookup("__type_declaration")
+                    type_ref_macro = primitive.scope.attrs["__type_declaration"]
                     assert isinstance(type_ref_macro, ir.MacroDef)
                     decl = translate_wasm(type_ref_macro.func.scope)
                 except KeyError:
@@ -137,6 +137,7 @@ def type_declaration(node: ir.Node) -> list:
             | ir.MacroDef()
             | ir.TemplateArg()
             | ir.OverloadedFunction()
+            | ir.ConstDecl()
         ):
             return []
 
@@ -240,6 +241,7 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
                         | ir.MacroDef()
                         | ir.TemplateArgRef()
                         | ir.SelfType()
+                        | ir.ConstDecl()
                     ):
                         pass
 
@@ -343,7 +345,7 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
             assert isinstance(node.expr.type_.type_, ir.TypeDef)
             match elem_primitive:
                 case ir.TypeDef():
-                    getter = elem_primitive.scope.lookup("__array_unpack")
+                    getter = elem_primitive.scope.attrs["__array_unpack"]
                     assert isinstance(getter, ir.MacroDef)
                     inlined = traverse_ir.inline(getter, getter.func.scope, [node.expr, node.idx])
                     return translate_wasm(inlined)
@@ -448,7 +450,7 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
 
             return [*translate_wasm(node.match_expr), terms]
 
-        case ir.MacroDef() | ir.VoidExpr() | ir.FunctionRef() | ir.OverloadedFunction():
+        case ir.MacroDef() | ir.VoidExpr() | ir.FunctionRef() | ir.OverloadedFunction() | ir.ConstDecl():
             return []
 
         case ir.ReinterpretCast():
