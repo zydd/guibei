@@ -227,14 +227,14 @@ class TemplateTypeImpl(Node):
 @dataclass(repr=_ast_repr)
 class VarDecl(Node):
     name: str
-    type_: Type
+    type_: Type | None
     init: Node
 
 
 @dataclass(repr=_ast_repr)
 class ArgDecl(Node):
     name: str
-    type_: Type
+    type_: Type | None
 
 
 @dataclass(repr=_ast_repr)

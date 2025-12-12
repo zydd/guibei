@@ -91,3 +91,26 @@ def test_void_alias():
     assert module.scope.attrs["none"].super_ is None
     wasm = codegen.type_declaration(module.scope.attrs["none"])
     assert wasm == []
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        "type test\nimpl test:\n func fn(self: Self) -> (): ()",
+        "type test\nimpl test:\n func fn(self: test) -> (): ()",
+        "type test\nimpl test:\n func fn(self) -> (): ()",
+    ],
+)
+def test_self_type(code):
+    module = compile(code)
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        "type other\ntype test\nimpl test:\n func fn(self: other) -> (): ()",
+    ],
+)
+def test_self_type_fail(code):
+    with pytest.raises(AssertionError):
+        compile(code)

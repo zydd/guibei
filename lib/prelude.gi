@@ -46,46 +46,46 @@ impl i32:
     func __default() -> Self:
         0
 
-    func (*)(self: Self, rhs: Self) -> Self:
+    func (*)(self, rhs: Self) -> Self:
         asm: (i32.mul {self} {rhs})
 
-    func (//)(self: Self, rhs: Self) -> Self:
+    func (//)(self, rhs: Self) -> Self:
         asm: (i32.div_s {self} {rhs})
 
-    func (%)(self: Self, rhs: Self) -> Self:
+    func (%)(self, rhs: Self) -> Self:
         asm: (i32.rem_s {self} {rhs})
 
-    func (+)(self: Self, rhs: Self) -> Self:
+    func (+)(self, rhs: Self) -> Self:
         asm: {self} {rhs} i32.add
 
-    func (-)(self: Self, rhs: Self) -> Self:
+    func (-)(self, rhs: Self) -> Self:
         asm: (i32.sub {self} {rhs})
 
-    func (&)(self: Self, rhs: Self) -> Self:
+    func (&)(self, rhs: Self) -> Self:
         asm: (i32.and {self} {rhs})
 
-    func (|)(self: Self, rhs: Self) -> Self:
+    func (|)(self, rhs: Self) -> Self:
         asm: (i32.or {self} {rhs})
 
-    func (<)(self: Self, rhs: Self) -> bool:
+    func (<)(self, rhs: Self) -> bool:
         asm: (i32.lt_s {self} {rhs})
 
-    func (<=)(self: Self, rhs: Self) -> bool:
+    func (<=)(self, rhs: Self) -> bool:
         asm: (i32.le_s {self} {rhs})
 
-    func (>)(self: Self, rhs: Self) -> bool:
+    func (>)(self, rhs: Self) -> bool:
         asm: (i32.gt_s {self} {rhs})
 
-    func (>=)(self: Self, rhs: Self) -> bool:
+    func (>=)(self, rhs: Self) -> bool:
         asm: (i32.ge_s {self} {rhs})
 
-    func (==)(self: Self, rhs: Self) -> bool:
+    func (==)(self, rhs: Self) -> bool:
         asm: (i32.eq {self} {rhs})
 
-    func (!=)(self: Self, rhs: Self) -> bool:
+    func (!=)(self, rhs: Self) -> bool:
         asm: (i32.ne {self} {rhs})
 
-    func print(self: Self) -> ():
+    func print(self) -> ():
         let n: i32 = self
         let i: i32 = 20
         let len: i32 = 0
@@ -134,46 +134,46 @@ impl u32:
     func __default() -> Self:
         0
 
-    func (*)(self: Self, rhs: Self) -> Self:
+    func (*)(self, rhs: Self) -> Self:
         asm: (i32.mul {self} {rhs})
 
-    func (//)(self: Self, rhs: Self) -> Self:
+    func (//)(self, rhs: Self) -> Self:
         asm: (i32.div_u {self} {rhs})
 
-    func (%)(self: Self, rhs: Self) -> Self:
+    func (%)(self, rhs: Self) -> Self:
         asm: (i32.rem_u {self} {rhs})
 
-    func (+)(self: Self, rhs: Self) -> Self:
+    func (+)(self, rhs: Self) -> Self:
         asm: (i32.add {self} {rhs})
 
-    func (-)(self: Self, rhs: Self) -> Self:
+    func (-)(self, rhs: Self) -> Self:
         asm: (i32.sub {self} {rhs})
 
-    func (&)(self: Self, rhs: Self) -> Self:
+    func (&)(self, rhs: Self) -> Self:
         asm: (i32.and {self} {rhs})
 
-    func (|)(self: Self, rhs: Self) -> Self:
+    func (|)(self, rhs: Self) -> Self:
         asm: (i32.or {self} {rhs})
 
-    func (<)(self: Self, rhs: Self) -> bool:
+    func (<)(self, rhs: Self) -> bool:
         asm: (i32.lt_u {self} {rhs})
 
-    func (<=)(self: Self, rhs: Self) -> bool:
+    func (<=)(self, rhs: Self) -> bool:
         asm: (i32.le_u {self} {rhs})
 
-    func (>)(self: Self, rhs: Self) -> bool:
+    func (>)(self, rhs: Self) -> bool:
         asm: (i32.gt_u {self} {rhs})
 
-    func (>=)(self: Self, rhs: Self) -> bool:
+    func (>=)(self, rhs: Self) -> bool:
         asm: (i32.ge_u {self} {rhs})
 
-    func (==)(self: Self, rhs: Self) -> bool:
+    func (==)(self, rhs: Self) -> bool:
         asm: (i32.eq {self} {rhs})
 
-    func (!=)(self: Self, rhs: Self) -> bool:
+    func (!=)(self, rhs: Self) -> bool:
         asm: (i32.ne {self} {rhs})
 
-    func print(self: Self) -> ():
+    func print(self) -> ():
         let n: Self = self
         let i: Self = 20
         let len: Self = 0
@@ -214,51 +214,51 @@ impl usize:
     func __default() -> Self:
         0
 
-    func (*)(self: Self, rhs: Self) -> Self:
+    func (*)(self, rhs: Self) -> Self:
         assert((rhs == 0) || (self <= asm: (i64.div_u {usize 0xffffffffffffffff} {rhs})))
         asm: (i64.mul {self} {rhs})
 
-    func (+)(self: Self, rhs: Self) -> Self:
+    func (+)(self, rhs: Self) -> Self:
         let res: Self = asm: (i64.add {self} {rhs})
         assert(asm: (i64.gt_u {res} {self}))
         res
 
-    func (//)(self: Self, rhs: Self) -> Self:
+    func (//)(self, rhs: Self) -> Self:
         asm: (i64.div_u {self} {rhs})
 
-    func (%)(self: Self, rhs: Self) -> Self:
+    func (%)(self, rhs: Self) -> Self:
         asm: (i64.rem_u {self} {rhs})
 
-    func (-)(self: Self, rhs: Self) -> Self:
+    func (-)(self, rhs: Self) -> Self:
         let res: Self = asm: (i64.sub {self} {rhs})
         assert(asm: (i64.lt_u {res} {self}))
         res
 
-    func (&)(self: Self, rhs: Self) -> Self:
+    func (&)(self, rhs: Self) -> Self:
         asm: (i64.and {self} {rhs})
 
-    func (|)(self: Self, rhs: Self) -> Self:
+    func (|)(self, rhs: Self) -> Self:
         asm: (i64.or {self} {rhs})
 
-    func (<)(self: Self, rhs: Self) -> bool:
+    func (<)(self, rhs: Self) -> bool:
         asm: (i64.lt_u {self} {rhs})
 
-    func (<=)(self: Self, rhs: Self) -> bool:
+    func (<=)(self, rhs: Self) -> bool:
         asm: (i64.le_u {self} {rhs})
 
-    func (>)(self: Self, rhs: Self) -> bool:
+    func (>)(self, rhs: Self) -> bool:
         asm: (i64.gt_u {self} {rhs})
 
-    func (>=)(self: Self, rhs: Self) -> bool:
+    func (>=)(self, rhs: Self) -> bool:
         asm: (i64.ge_u {self} {rhs})
 
-    func (==)(self: Self, rhs: Self) -> bool:
+    func (==)(self, rhs: Self) -> bool:
         asm: (i64.eq {self} {rhs})
 
-    func (!=)(self: Self, rhs: Self) -> bool:
+    func (!=)(self, rhs: Self) -> bool:
         asm: (i64.ne {self} {rhs})
 
-    func print(self: Self) -> ():
+    func print(self) -> ():
         let n: Self = self
         let i: i32 = 20
         let len: i32 = 0
@@ -307,16 +307,16 @@ impl bool:
     func __default() -> Self:
         0
 
-    func (==)(self: Self, rhs: Self) -> bool:
+    func (==)(self, rhs: Self) -> bool:
         asm: (i32.eq {self} {rhs})
 
-    func (!=)(self: Self, rhs: Self) -> bool:
+    func (!=)(self, rhs: Self) -> bool:
         asm: (i32.ne {self} {rhs})
 
-    func (&&)(self: Self, rhs: Self) -> Self:
+    func (&&)(self, rhs: Self) -> Self:
         asm: (i32.and {self} {rhs})
 
-    func (||)(self: Self, rhs: Self) -> Self:
+    func (||)(self, rhs: Self) -> Self:
         asm: (i32.or {self} {rhs})
 
 
@@ -361,7 +361,7 @@ impl bytes:
         asm:
             (array.new {bytes.__asm_type} {chr} {count})
 
-    func print(self: Self) -> ():
+    func print(self) -> ():
         let i: i32 = 0
         let len: i32 = asm: (array.len (local.get $self))
 
@@ -382,10 +382,10 @@ impl bytes:
             i = i + 1
         return result
 
-    func len(self: Self) -> i32:
+    func len(self) -> i32:
         asm: (array.len (local.get $self))
 
-    func eq(self: Self, other: Self) -> bool:
+    func eq(self, other: Self) -> bool:
         if self.len() != other.len():
             return 0
 
@@ -399,7 +399,7 @@ impl bytes:
 
         return i32 1 == 1 
 
-    func slice(self: Self, start: i32, end: i32) -> bytes:
+    func slice(self, start: i32, end: i32) -> bytes:
         let len: i32 = self.len()
         if (start < 0) || (end < 0) || (start > len) || (end > len) || (start > end):
             asm: unreachable
@@ -422,7 +422,7 @@ enum Option:
 
 
 impl Option:
-    func is_some(self: Self) -> bool:
+    func is_some(self) -> bool:
         match self:
             case Option.None:
                 # FIXME: boolean literals
@@ -432,7 +432,7 @@ impl Option:
                 return i32 1 == 1
         asm: unreachable
 
-    func unwrap(self: Self) -> i32:
+    func unwrap(self) -> i32:
         match self:
             case Option.None:
                 asm: unreachable
@@ -493,10 +493,10 @@ impl pair:
     func __default() -> Self:
         (0, 0)
 
-    func eq(self: Self, other: Self) -> bool:
+    func eq(self, other: Self) -> bool:
         return (self.0 == other.0) && (self.1 == other.1)
 
-    func print(self: Self) -> ():
+    func print(self) -> ():
         bytes.print("(")
         self.0.print()
         bytes.print(", ")

@@ -66,8 +66,10 @@ def register_toplevel_methods(node: ast.Node, module: ir.Module):
                         if method.name.startswith("("):
                             module.scope.add_method(method.name, ir.FunctionRef(method.name, tr_method), overload=True)
                         type_.scope.add_method(method.name, tr_method)
+
                     case ast.MacroDef():
                         type_.scope.add_method(method.name, ir.MacroDef.translate(method, type_.scope))
+
                     case _:
                         raise NotImplementedError(type(method))
 
@@ -219,6 +221,16 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
 
             node.scope = traverse_ir.traverse(translate_function_defs, node.scope, node.scope)
 
+            if node.type_.args and node.type_.args[0].name == "self":
+                try:
+                    self_type = scope.lookup("Self")
+                    if isinstance(node.type_.args[0].type_, ir.UnknownType):
+                        node.type_.args[0].type_ = self_type
+                    else:
+                        assert node.type_.args[0].type_ == self_type, "Self type mismatch"
+                except KeyError:
+                    print("Warning: self argument outside `impl` block")
+
             # TODO: Can't do this transformation here because we might need to drop the result of expr if the function returns void
             # if node.scope.body and isinstance(node.scope.body[-1], ir.Expr):
             #     node.scope.body[-1] = ir.FunctionReturn(None, ir.FunctionRef(None, node), node.scope.body[-1])
@@ -226,7 +238,9 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
             return node
 
         case ir.Untranslated(ast_node=ast.VarDecl() as var):
-            var_type = translate_toplevel_type_decls(ir.UntranslatedType(var.type_), scope)
+            var_type = translate_toplevel_type_decls(
+                ir.UntranslatedType(var.type_) if var.type_ else ir.UnknownType(), scope
+            )
             assert isinstance(var_type, ir.Type)
             var_decl = ir.VarDecl(var.info, var.name, var_type)
             scope.register_local(var_decl.name, var_decl)
@@ -266,8 +280,11 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
                 fields: list = [
                     translate_function_defs(ir.Untranslated(field), scope) for field in ast_node.field_values
                 ]
-                assert all(isinstance(field, ir.Expr) for field in fields)
-                return ir.TupleInst(ast_node.info, ir.UnknownType(), fields)
+                if not fields:
+                    return ir.VoidExpr(ast_node.info)
+                else:
+                    assert all(isinstance(field, ir.Expr) for field in fields)
+                    return ir.TupleInst(ast_node.info, ir.UnknownType(), fields)
 
         case ir.Untranslated(ast_node=ast.While() as while_stmt):
             pre_condition = ir.Untranslated(while_stmt.condition)

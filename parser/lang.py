@@ -44,8 +44,7 @@ def asm():
 @generate
 def _typed_id_decl():
     name = yield regex(r"\w+")
-    yield regex(r"\s*:\s*")
-    type_ = yield type_expr()
+    type_ = yield optional(sequence(regex(r"\s*:\s*"), type_expr(), index=1))
     return (name, type_)
 
 

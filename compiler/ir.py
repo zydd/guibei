@@ -337,7 +337,10 @@ class FunctionType(Type):
 
     @staticmethod
     def translate(node: ast.FunctionType):
-        args = [ArgDecl(arg.info, arg.name, UntranslatedType(arg.type_)) for arg in node.args]
+        args = [
+            ArgDecl(arg.info, arg.name, UntranslatedType(arg.type_) if arg.type_ else UnknownType())
+            for arg in node.args
+        ]
         ret_type = UntranslatedType(node.ret_type) if node.ret_type else UnknownType()
         return FunctionType(node.info, args, ret_type)
 
