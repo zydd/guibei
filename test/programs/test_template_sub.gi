@@ -1,14 +1,6 @@
-type array[T]
+type array[T]: [T]
 
 impl[T] array[T]:
-    macro __type_declaration() -> ():
-        asm:
-            (array (mut {T.__type_reference}))
-
-    macro __type_reference() -> ():
-        asm:
-            (ref {Self.__asm_type})
-
     func __new_uninitialized(capacity: i32) -> Self:
         asm:
             (array.new {Self.__asm_type} {T.__default()} {capacity})

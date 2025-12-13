@@ -41,6 +41,13 @@ class ArrayType(Type):
 
 
 @dataclass
+class IntegralType(Type):
+    native_type: str
+    array_packed: str
+    array_get: str
+
+
+@dataclass
 class VoidType(Type):
     pass
 

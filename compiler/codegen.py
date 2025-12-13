@@ -34,13 +34,17 @@ def type_reference(node: ir.Node) -> list:
         case ir.TypeDef():
             primitive = node.primitive()
             match primitive:
-                case ir.TypeDef() if "__type_reference" in primitive.scope.attrs:
-                    type_ref_macro = primitive.scope.attrs["__type_reference"]
-                    assert isinstance(type_ref_macro, ir.MacroDef)
-                    return translate_wasm(type_ref_macro.func.scope)
+                case ir.TypeDef():
+                    try:
+                        return translate_wasm(primitive.get_type_reference())
+                    except KeyError:
+                        return [["ref", f"${node.name}"]]
 
                 case ir.TupleType() | ir.ArrayType() | ir.EnumType():
                     return [["ref", f"${node.name}"]]
+
+                case ir.IntegralType():
+                    return [primitive.native_type]
 
                 case _:
                     raise NotImplementedError(type(primitive))
@@ -52,23 +56,6 @@ def type_reference(node: ir.Node) -> list:
             raise NotImplementedError(type(node))
 
     raise NotImplementedError
-
-
-def type_packed(node: ir.Node) -> list:
-    match node:
-        case ir.TypeDef():
-            try:
-                type_ref_macro = node.scope.attrs["__type_packed"]
-                assert isinstance(type_ref_macro, ir.MacroDef)
-                return translate_wasm(type_ref_macro.func.scope)
-            except KeyError:
-                return type_reference(node)
-
-        case ir.TypeRef():
-            return type_packed(node.type_)
-
-        case _:
-            raise NotImplementedError(type(node))
 
 
 def type_declaration(node: ir.Node) -> list:
@@ -94,6 +81,9 @@ def type_declaration(node: ir.Node) -> list:
 
         case ir.TypeDef():
             primitive = node.primitive()
+            if isinstance(primitive, ir.IntegralType):
+                return []
+
             if isinstance(primitive, ir.TypeDef):
                 try:
                     type_ref_macro = primitive.scope.attrs["__type_declaration"]
@@ -115,7 +105,14 @@ def type_declaration(node: ir.Node) -> list:
             return [["type", f"${node.name}", *decl]]
 
         case ir.ArrayType():
-            return [["array", ["mut", *type_packed(node.element_type)]]]
+            match node.element_type.primitive():
+                case ir.IntegralType() as prim:
+                    field = [prim.array_packed]
+                case ir.TupleType() | ir.EnumType() as prim:
+                    field = type_reference(node.element_type)
+                case _:
+                    raise NotImplementedError
+            return [["array", ["mut", *field]]]
 
         case ir.TupleType():
             fields = [["field", ["mut", *type_reference(type_)]] for type_ in node.field_types]
@@ -338,11 +335,6 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
             assert isinstance(node.expr.type_, ir.TypeRef)
             assert isinstance(node.expr.type_.type_, ir.TypeDef)
             match elem_primitive:
-                case ir.TypeDef():
-                    getter = elem_primitive.scope.attrs["__array_unpack"]
-                    assert isinstance(getter, ir.MacroDef)
-                    inlined = traverse_ir.inline(getter, getter.func.scope, [node.expr, node.idx])
-                    return translate_wasm(inlined)
                 case ir.TupleType():
                     return [
                         [
@@ -352,8 +344,16 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
                             *translate_wasm(node.idx),
                         ]
                     ]
+                case ir.IntegralType():
+                    return [
+                        [
+                            elem_primitive.array_get,
+                            f"${node.expr.type_.type_.name}",
+                            *translate_wasm(node.expr),
+                            *translate_wasm(node.idx),
+                        ]
+                    ]
                 case _:
-                    breakpoint()
                     raise NotImplementedError(elem_primitive)
 
         case ir.StringLiteral():
@@ -444,7 +444,7 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
 
             return [*translate_wasm(node.match_expr), terms]
 
-        case ir.MacroDef() | ir.VoidExpr() | ir.FunctionRef() | ir.OverloadedFunction() | ir.ConstDecl():
+        case ir.MacroDef() | ir.VoidExpr() | ir.FunctionRef() | ir.OverloadedFunction() | ir.ConstDecl() | ir.AstType():
             return []
 
         case ir.ReinterpretCast():

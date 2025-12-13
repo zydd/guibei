@@ -34,12 +34,12 @@ def register_toplevel_decls(node: ast.Node, module: ir.Module):
 
         case ast.EnumType():
             enum_scope = ir.Scope(module.scope, node.name)
-            enum_repr = module.scope.attrs["__enum_discr"]
-            assert isinstance(enum_repr, ir.TypeDef)
-            enum_repr = ir.TypeRef(None, enum_repr)
+            discr_type = module.scope.attrs["__enum_discr"]
+            assert isinstance(discr_type, ir.TypeDef)
+            discr_type = ir.TypeRef(None, discr_type)
 
             if all(value.fields is None for value in node.values):
-                enum_type: ir.Type = ir.EnumIntType(node.info, enum_repr, node.name, enum_scope)
+                enum_type: ir.Type = ir.EnumIntType(node.info, discr_type, node.name, enum_scope)
                 for i, val in enumerate(node.values):
                     enum_scope.add_method(
                         val.name,
@@ -50,9 +50,9 @@ def register_toplevel_decls(node: ast.Node, module: ir.Module):
                         ),
                     )
             else:
-                enum_type = ir.EnumType(node.info, node.name, enum_scope, len(node.values), enum_repr)
+                enum_type = ir.EnumType(node.info, node.name, enum_scope, len(node.values), discr_type)
                 for i, val in enumerate(node.values):
-                    enum_scope.register_type(val.name, ir.EnumValueType.translate(enum_type, i, val))
+                    enum_scope.register_type(val.name, ir.EnumValueType.translate(enum_type, i, discr_type, val))
 
             module.scope.register_type(node.name, enum_type)
 
@@ -121,7 +121,7 @@ def register_toplevel_methods(node: ast.Node, module: ir.Module):
             return node
 
 
-def check_unallowed_toplevel_decls(node: ast.Node, module: ir.Module):
+def check_disallowed_toplevel_decls(node: ast.Node, module: ir.Module):
     assert isinstance(node, ast.Module)
     assert len(node.stmts) == 0, f"{type(node.stmts[0]).__name__} not allowed as a top level declaration"
 
@@ -450,19 +450,10 @@ def resolve_member_access(node: ir.Node, scope=None) -> ir.Node:
                     match node.expr.type_:
                         case ir.TypeDef():
                             if node.attr == "__type_reference":
-                                if isinstance(node.expr.primitive(), ir.TupleType):
-                                    return ir.Asm(
-                                        node.info,
-                                        ir.WasmExpr(None, [["ref", f"${node.expr.type_.scope.name}"]]),
-                                        ir.VoidType(None),
-                                    )
-                                else:
-                                    type_ref_macro = node.expr.type_.scope.lookup("__type_reference")
-                                    assert isinstance(type_ref_macro, ir.MacroDef)
-                                    return type_ref_macro.func.scope
+                                return node.expr.type_.get_type_reference()
 
                             try:
-                                attr = node.expr.type_.scope.lookup(node.attr)
+                                attr = node.expr.type_.get_attr(node.attr)
                             except KeyError as e:
                                 raise KeyError(
                                     f"Type '{node.expr.type_.name}' has no member '{node.attr}'",
@@ -573,7 +564,7 @@ def resolve_member_access(node: ir.Node, scope=None) -> ir.Node:
                             tuple_args: list = node.args
                             return ir.TupleInst(node.info, node.callee, tuple_args)
 
-                        case ir.TypeDef():
+                        case ir.TypeDef() | ir.IntegralType():
                             assert len(node.args) == 1
                             assert isinstance(node.args[0], ir.Expr)
                             return ir.Cast(node.info, node.callee, node.args[0])
@@ -907,19 +898,26 @@ def convert_enum_inst(node: ir.Node) -> ir.Node:
         #     return ir.GetTupleItem(node.info, node.type_, node.expr, node.idx + 1)
 
         case ir.EnumInst():
-            discr_type = ir.TypeRef(None, node.type_.primitive().super_.primitive().discr_type.primitive())
+            enum_value_type = node.type_.primitive()
+            assert isinstance(enum_value_type, ir.EnumValueType)
             return ir.TupleInst(
-                node.info, node.type_, [match_expr_type(ir.IntLiteral(None, node.discr), discr_type)] + node.args
+                node.info,
+                node.type_,
+                [match_expr_type(ir.IntLiteral(None, node.discr), enum_value_type.discr_type)] + node.args,
             )
 
         case ir.EnumInt():
-            discr_type = ir.TypeRef(None, node.type_.primitive())
-            return match_expr_type(ir.IntLiteral(None, node.discr), discr_type)
+            assert isinstance(node.type_, ir.TypeRef)
+            assert isinstance(node.type_.type_, ir.EnumIntType)
+            assert node.type_.type_.super_
+            return match_expr_type(ir.IntLiteral(None, node.discr), node.type_.type_.super_)
 
     return node
 
 
 def match_expr_type(expr: ir.Node, type_: ir.Type):
+    assert not isinstance(type_, ir.TypeDef)
+
     match expr:
         case ir.TypeRef():
             match expr.primitive():
@@ -941,10 +939,9 @@ def match_expr_type(expr: ir.Node, type_: ir.Type):
             expr.type_ = type_
 
         case ir.AstType(name="__int"):
-            match type_.primitive():
-                case ir.TypeDef() as type_primitive:
+            match type_:
+                case ir.TypeRef():
                     # TODO: __from_literal overloading
-                    assert isinstance(type_, ir.TypeRef)
                     assert isinstance(type_.type_, ir.TypeDef)
                     cast_type = type_.type_
                     try:
@@ -1037,7 +1034,7 @@ def done(node: ir.Node) -> ir.Node:
 toplevel_ast_passes: list = [
     register_toplevel_decls,
     register_toplevel_methods,
-    check_unallowed_toplevel_decls,
+    check_disallowed_toplevel_decls,
 ]
 
 
@@ -1062,11 +1059,9 @@ ir_passes: list = [
 def run(prog: ast.Module):
     root_scope = ir.Scope(None, "root")
     root_scope.register_type("__int", ir.AstType("__int"))
+    root_scope.module_scope = root_scope
 
-    module_scope = ir.Scope(root_scope, "module")
-    module_scope.module_scope = module_scope
-
-    module = ir.Module(prog.info, module_scope)
+    module = ir.Module(prog.info, root_scope)
     for pass_ in toplevel_ast_passes:
         print("Pass:", pass_.__name__)
         pass_(prog, module)

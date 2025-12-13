@@ -438,8 +438,15 @@ def template_args(term):
 
 
 @generate
+def integral_type():
+    yield string("__integral")
+    args = yield brackets(sep_by(regex(r"\s*,\s*"), regex(r"[\w.]+")))
+    return ast.IntegralType(*args)
+
+
+@generate
 def type_expr():
-    term = yield choice(tuple_def(), function_type(), array_type(), type_name())
+    term = yield choice(integral_type(), tuple_def(), function_type(), array_type(), type_name())
     return term
 
 

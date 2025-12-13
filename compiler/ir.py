@@ -235,6 +235,19 @@ class Type(Node):
     def has_base_class(self, _cls: Type):
         return False
 
+    def get_attr(self, attr):
+        raise KeyError(attr)
+
+    def get_type_reference(self):
+        type_ref = self.get_attr("__type_reference")
+        match type_ref:
+            case MacroDef():
+                return type_ref.func.scope
+            case Asm():
+                return type_ref
+            case _:
+                raise NotImplementedError
+
 
 @dataclass
 class UntranslatedType(Type):
@@ -289,12 +302,34 @@ class TypeDef(Type):
             else:
                 return False
 
+    def get_attr(self, attr):
+        if attr in self.scope.attrs:
+            return self.scope.attrs[attr]
+        if self.super_ is None:
+            raise KeyError(attr)
+        return self.super_.get_attr(attr)
+
     def __eq__(self, value):
         if isinstance(value, TypeRef):
             value = value.type_
         if not isinstance(value, TypeDef):
             return False
         return self.name == value.name
+
+
+@dataclass
+class IntegralType(Type):
+    native_type: str
+    array_packed: str
+    array_get: str
+
+    @staticmethod
+    def translate(node: ast.IntegralType, _scope):
+        return IntegralType(node.info, node.native_type, node.array_packed, node.array_get)
+
+    def get_attr(self, attr):
+        attrs = {"__type_reference": Asm(None, WasmExpr(None, [self.native_type]), AstType("__type"))}
+        return attrs[attr]
 
 
 @dataclass
@@ -368,10 +403,11 @@ class EnumType(TypeDef):
 @dataclass(kw_only=True)
 class EnumValueType(TypeDef):
     discr: int
+    discr_type: TypeRef
     field_types: list[Type]
 
     @staticmethod
-    def translate(enum: EnumType, discr: int, node: ast.EnumValueType):
+    def translate(enum: EnumType, discr: int, discr_type: TypeRef, node: ast.EnumValueType):
         field_types: list[Type] = [UntranslatedType(t) for t in node.fields.field_types] if node.fields else []
 
         return EnumValueType(
@@ -380,6 +416,7 @@ class EnumValueType(TypeDef):
             node.name,
             Scope(enum.scope, node.name),
             discr=discr,
+            discr_type=discr_type,
             field_types=field_types,
         )
 
@@ -759,6 +796,9 @@ class TypeRef(Type):
 
     def has_base_class(self, cls: Type):
         return self.type_.has_base_class(cls)
+
+    def get_attr(self, attr):
+        return self.type_.get_attr(attr)
 
 
 @dataclass

@@ -21,3 +21,6 @@ func main() -> ():
     assert(Option.Some(3).0 == 3)
     assert(not Option.None.is_some())
     assert(pair(123, 456).first == 123)
+
+    i32.print(47)
+    bytes.print("\n")

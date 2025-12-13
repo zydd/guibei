@@ -1,7 +1,7 @@
 
 asm:
     (export "memory" (memory $memory))
-    (export "_start" (func $root.module.main))
+    (export "_start" (func $root.main))
     (memory $memory 1)
     (global $__stackp (mut i32) (i32.const 1024))
     (type $vtd (array (mut funcref)))
@@ -11,35 +11,38 @@ asm:
 
 
 type __enum_discr: i32
+impl __enum_discr:
+    macro __from_literal(i: __int) -> Self:
+        asm: (i32.const {i})
 
 type __array_index: i32
 
-# type __enum
 
-# impl __enum:
-#     macro __type__declaration() -> ():
-#         asm:
-#             (sub (struct (field {i32.__asm_type})))
+type i8: __integral[i32, i8, array.get_s]
+type u8: __integral[i32, i8, array.get_u]
+type i16: __integral[i32, i16, array.get_s]
+type u16: __integral[i32, i16, array.get_u]
+type i32: __integral[i32, i32, array.get]
+type u32: __integral[i32, i32, array.get]
+type i64: __integral[i64, i64, array.get]
+type u64: __integral[i64, i64, array.get]
+type f32: __integral[f32, f32, array.get]
+type f64: __integral[f64, f64, array.get]
+type isize: __integral[i64, i64, array.get]
+type usize: __integral[i64, i64, array.get]
+
 
 # i32
-
-
 
 func not(a: bool) -> bool:
     asm: (i32.eqz {a})
 
-
-type i32
 
 impl i32:
     macro __from_literal(i: __int) -> i32:
         # static_assert val.__leq(0x7fffffff)
         asm:
             (i32.const {i})
-
-    macro __type_reference() -> ():
-        asm:
-            i32
 
     macro __cast_from(i: i8) -> Self:
         __reinterpret_cast i
@@ -119,7 +122,12 @@ impl i32:
         __print_n(buffer, len)
 
 
-type u32
+impl i64:
+    macro __from_literal(i: __int) -> Self:
+        # static_assert val.__leq(0x7fffffffffffffff)
+        asm:
+            (i64.const {i})
+
 
 impl u32:
     macro __from_literal(i: __int) -> Self:
@@ -127,10 +135,6 @@ impl u32:
         # static_assert val.__leq(0xffffffff)
         asm:
             (i32.const {i})
-
-    macro __type_reference() -> ():
-        asm:
-            i32
 
     func __default() -> Self:
         0
@@ -199,18 +203,12 @@ impl u32:
         __print_n(__reinterpret_cast buffer, __reinterpret_cast len)
 
 
-type usize
-
 impl usize:
     macro __from_literal(i: __int) -> Self:
         # static_assert val.__geq(0)
         # static_assert val.__leq(0xffffffffffffffff)
         asm:
             (i64.const {i})
-
-    macro __type_reference() -> ():
-        asm:
-            i64
 
     func __default() -> Self:
         0
@@ -326,24 +324,10 @@ impl bool:
 # bytes
 
 
-type i8
-
 impl i8:
     macro __cast_from(i: __int) -> i8:
         asm:
             (i32.const {i})
-
-    macro __type_reference() -> ():
-        asm:
-            i32
-
-    macro __type_packed() -> ():
-        asm:
-            i8
-
-    macro __array_unpack(arr: bytes, i: i32) -> i8:
-        asm:
-            (array.get_s {bytes.__asm_type} {arr} {i})
 
     func (!=)(self, rhs: Self) -> bool:
         asm: (i32.ne {self} {rhs})

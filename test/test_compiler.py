@@ -14,26 +14,24 @@ def test_native_type_alias():
 
 
 def test_native_type_alias_array():
-    module = compile("type float\nimpl float:\n macro __type_reference() -> (): asm: f32\ntype float_arr: [float]")
+    module = compile("type float: __integral[f32, f32, array.get]\ntype float_arr: [float]")
     assert "float" in module.scope.attrs
-    assert module.scope.attrs["float"].super_ is None
+    assert isinstance(module.scope.attrs["float"].super_, ir.IntegralType)
     assert "float_arr" in module.scope.attrs
     assert isinstance(module.scope.attrs["float_arr"].super_, ir.ArrayType)
     wasm = codegen.type_declaration(module.scope.attrs["float_arr"])
-    assert wasm == [["type", "$root.module.float_arr", ["array", ["mut", "f32"]]]]
+    assert wasm == [["type", "$root.float_arr", ["array", ["mut", "f32"]]]]
 
 
 def test_tuple_alias():
-    module = compile(
-        "type float\nimpl float:\n macro __type_reference() -> (): asm: f32\ntype float_pair: (float, float)"
-    )
+    module = compile("type float: __integral[f32, f32, array.get]\ntype float_pair: (float, float)")
     assert "float" in module.scope.attrs
-    assert module.scope.attrs["float"].super_ is None
+    assert isinstance(module.scope.attrs["float"].super_, ir.IntegralType)
     assert "float_pair" in module.scope.attrs
     assert isinstance(module.scope.attrs["float_pair"].super_, ir.TupleType)
     wasm = codegen.type_declaration(module.scope.attrs["float_pair"])
     assert wasm == [
-        ["type", "$root.module.float_pair", ["sub", ["struct", ["field", ["mut", "f32"]], ["field", ["mut", "f32"]]]]]
+        ["type", "$root.float_pair", ["sub", ["struct", ["field", ["mut", "f32"]], ["field", ["mut", "f32"]]]]]
     ]
 
 
@@ -51,18 +49,18 @@ def test_tuple_nested():
     wasm1 = codegen.type_declaration(module.scope.attrs["float_pair"])
     wasm2 = codegen.type_declaration(module.scope.attrs["float_mat"])
     assert wasm1 == [
-        ["type", "$root.module.float_pair", ["sub", ["struct", ["field", ["mut", "f32"]], ["field", ["mut", "f32"]]]]]
+        ["type", "$root.float_pair", ["sub", ["struct", ["field", ["mut", "f32"]], ["field", ["mut", "f32"]]]]]
     ]
     assert wasm2 == [
         [
             "type",
-            "$root.module.float_mat",
+            "$root.float_mat",
             [
                 "sub",
                 [
                     "struct",
-                    ["field", ["mut", ["ref", "$root.module.float_pair"]]],
-                    ["field", ["mut", ["ref", "$root.module.float_pair"]]],
+                    ["field", ["mut", ["ref", "$root.float_pair"]]],
+                    ["field", ["mut", ["ref", "$root.float_pair"]]],
                 ],
             ],
         ]
