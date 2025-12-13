@@ -132,7 +132,7 @@ class Scope(Node):
             self.attrs[name] = VarRef(None, var)
             return var
 
-    def register_type(self, name: str, type_: Type):
+    def register_type(self, name: str, type_: Type | TemplateDef):
         assert not self.has_member(name), name
 
         if isinstance(type_, TypeRef):
@@ -316,6 +316,12 @@ class TypeDef(Type):
             return False
         return self.name == value.name
 
+    def __deepcopy__(self, memo):
+        raise RuntimeError
+
+    def __copy__(self):
+        raise RuntimeError
+
 
 @dataclass
 class IntegralType(Type):
@@ -333,7 +339,7 @@ class IntegralType(Type):
 
 
 @dataclass
-class ArrayType(Type):
+class NativeArrayType(Type):
     element_type: Type
 
 

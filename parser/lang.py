@@ -432,6 +432,13 @@ def array_type():
 
 
 @generate
+def native_array():
+    yield string("__native_array")
+    type_ = yield brackets(type_expr())
+    return ast.NativeArrayType(type_)
+
+
+@generate
 def template_args(term):
     args = yield brackets(sep_by(regex(r"\s*,\s*"), type_expr(), min_count=1))
     return ast.TemplateInst(term, args)

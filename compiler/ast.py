@@ -41,6 +41,11 @@ class ArrayType(Type):
 
 
 @dataclass
+class NativeArrayType(Type):
+    element_type: Type
+
+
+@dataclass
 class IntegralType(Type):
     native_type: str
     array_packed: str

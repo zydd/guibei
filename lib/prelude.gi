@@ -39,7 +39,7 @@ func not(a: bool) -> bool:
 
 
 impl i32:
-    macro __from_literal(i: __int) -> i32:
+    macro __from_literal(i: __int) -> Self:
         # static_assert val.__leq(0x7fffffff)
         asm:
             (i32.const {i})
@@ -325,21 +325,26 @@ impl bool:
 
 
 impl i8:
-    macro __cast_from(i: __int) -> i8:
+    macro __from_literal(i: __int) -> i8:
         asm:
             (i32.const {i})
+
+    func (==)(self, rhs: Self) -> bool:
+        asm: (i32.eq {self} {rhs})
 
     func (!=)(self, rhs: Self) -> bool:
         asm: (i32.ne {self} {rhs})
 
+    func __default() -> Self:
+        asm: (i32.const 0)
 
-# impl __array[i8]:
+# impl __native_array[i8]:
 #     macro [](self, i: usize) -> i8:
 #         asm:
 #             (array.get_s {Self.__asm_type} {self} {i})
 
 
-type bytes: [i8]
+type bytes: __native_array[i8]
 type str: bytes
 
 impl bytes:
@@ -381,7 +386,6 @@ impl bytes:
 
         let i: i32 = 0
         while i < self.len():
-            # FIXME: remove explicit cast
             if self[i] != other[i]:
                 return False
             i = i + 1

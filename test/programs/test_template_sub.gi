@@ -1,4 +1,4 @@
-type array[T]: [T]
+type array[T]: __native_array[T]
 
 impl[T] array[T]:
     func __new_uninitialized(capacity: i32) -> Self:

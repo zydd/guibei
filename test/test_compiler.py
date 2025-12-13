@@ -14,11 +14,11 @@ def test_native_type_alias():
 
 
 def test_native_type_alias_array():
-    module = compile("type float: __integral[f32, f32, array.get]\ntype float_arr: [float]")
+    module = compile("type float: __integral[f32, f32, array.get]\ntype float_arr: __native_array[float]")
     assert "float" in module.scope.attrs
-    assert isinstance(module.scope.attrs["float"].super_, ir.IntegralType)
+    assert isinstance(module.scope.attrs["float"].primitive(), ir.IntegralType)
     assert "float_arr" in module.scope.attrs
-    assert isinstance(module.scope.attrs["float_arr"].super_, ir.ArrayType)
+    assert isinstance(module.scope.attrs["float_arr"].primitive(), ir.NativeArrayType)
     wasm = codegen.type_declaration(module.scope.attrs["float_arr"])
     assert wasm == [["type", "$root.float_arr", ["array", ["mut", "f32"]]]]
 

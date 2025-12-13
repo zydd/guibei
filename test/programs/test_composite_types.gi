@@ -9,7 +9,7 @@ impl mat:
         bytes.print("]")
 
 
-type mat_arr: [mat]
+type mat_arr: __native_array[mat]
 
 impl mat_arr:
     func len(self: Self) -> i32:

@@ -40,7 +40,7 @@ def type_reference(node: ir.Node) -> list:
                     except KeyError:
                         return [["ref", f"${node.name}"]]
 
-                case ir.TupleType() | ir.ArrayType() | ir.EnumType():
+                case ir.TupleType() | ir.NativeArrayType() | ir.EnumType():
                     return [["ref", f"${node.name}"]]
 
                 case ir.IntegralType():
@@ -104,7 +104,7 @@ def type_declaration(node: ir.Node) -> list:
 
             return [["type", f"${node.name}", *decl]]
 
-        case ir.ArrayType():
+        case ir.NativeArrayType():
             match node.element_type.primitive():
                 case ir.IntegralType() as prim:
                     field = [prim.array_packed]
@@ -166,7 +166,14 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
                 terms.extend(translate_wasm(expr))
 
             for attr in node.scope.attrs.values():
+                if isinstance(attr, ir.TemplateDef):
+                    # put template instantiations after
+                    continue
                 terms.extend(type_declaration(attr))
+
+            for attr in node.scope.attrs.values():
+                if isinstance(attr, ir.TemplateDef):
+                    terms.extend(type_declaration(attr))
 
             for attr in node.scope.attrs.values():
                 terms.extend(translate_wasm(attr))
@@ -357,7 +364,7 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
                     raise NotImplementedError(elem_primitive)
 
         case ir.StringLiteral():
-            assert isinstance(node.type_, ir.AstType)
+            assert isinstance(node.type_, ir.TypeRef)
             return [
                 [
                     f"local.tee ${node.temp_var.var.name}",

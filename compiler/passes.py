@@ -131,10 +131,10 @@ def translate_toplevel_type_decls(node: ir.Node, scope=None) -> ir.Node:
         case ir.Module():
             node.scope.attrs = traverse_ir.traverse_dict(translate_toplevel_type_decls, node.scope.attrs, node.scope)
 
-        case ir.UntranslatedType(ast_node=ast.ArrayType() as ast_node):
+        case ir.UntranslatedType(ast_node=ast.NativeArrayType() as ast_node):
             tr_type = translate_toplevel_type_decls(ir.UntranslatedType(ast_node.element_type), scope)
             assert isinstance(tr_type, ir.Type)
-            return ir.ArrayType(ast_node.info, tr_type)
+            return ir.NativeArrayType(ast_node.info, tr_type)
 
         case ir.UntranslatedType(ast_node=ast.TupleType() as ast_node):
             if not ast_node.field_types:
@@ -250,18 +250,11 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
             node.scope = traverse_ir.traverse(translate_function_defs, node.scope, node.scope)
 
             if node.type_.args and node.type_.args[0].name == "self":
-                try:
-                    self_type = scope.lookup("Self")
-                    if isinstance(node.type_.args[0].type_, ir.UnknownType):
-                        node.type_.args[0].type_ = self_type
-                    else:
-                        assert node.type_.args[0].type_ == self_type, "Self type mismatch"
-                except KeyError:
-                    print("Warning: self argument outside `impl` block")
-
-            # TODO: Can't do this transformation here because we might need to drop the result of expr if the function returns void
-            # if node.scope.body and isinstance(node.scope.body[-1], ir.Expr):
-            #     node.scope.body[-1] = ir.FunctionReturn(None, ir.FunctionRef(None, node), node.scope.body[-1])
+                self_type = scope.lookup("Self")
+                if isinstance(node.type_.args[0].type_, ir.UnknownType):
+                    node.type_.args[0].type_ = self_type
+                else:
+                    assert node.type_.args[0].type_ == self_type, "Self type mismatch"
 
             return node
 
@@ -331,7 +324,7 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
                     idx_type = scope.lookup_type("__array_index").super_
 
                     expr_type_prim = expr.type_.primitive()
-                    if isinstance(expr_type_prim, ir.ArrayType):
+                    if isinstance(expr_type_prim, ir.NativeArrayType):
                         element_type = expr_type_prim.element_type
                     else:
                         element_type = ir.UnknownType()
@@ -374,15 +367,6 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
             node.attrs = traverse_ir.traverse_dict(translate_function_defs, node.attrs, node)
             node.body = traverse_ir.traverse_list(translate_function_defs, node.body, node)
             return node
-
-            # TODO: after type deduction
-            # match node.lvalue:
-            #     case ir.GetItem():
-            #         return ir.SetItem(node.info, node.lvalue.expr, node.lvalue.idx, expr)
-            #     case ir.VarRef():
-            #         return ir.SetLocal(node.info, node.lvalue, node.expr)
-            #     case _:
-            #         raise NotImplementedError
 
         case ir.MatchCaseEnum():
             node.enum = translate_function_defs(node.enum, scope)
@@ -428,6 +412,10 @@ def resolve_member_access(node: ir.Node, scope=None) -> ir.Node:
 
             if idx is not None:
                 assert isinstance(node.expr, ir.Expr)
+
+                if isinstance(node.expr.type_, ir.UnknownType):
+                    return node
+
                 assert isinstance(node.expr.type_, ir.TypeRef)
                 match node.expr.type_.primitive():
                     case ir.EnumValueType() as enum:
@@ -602,10 +590,11 @@ def resolve_member_access(node: ir.Node, scope=None) -> ir.Node:
                             f"No matching overload for function '{node.callee.name}' with argument types {arg_types}"
                         )
 
-                    if len(matches) == 1:
+                    elif len(matches) == 1:
                         method = matches[0]
                         assert isinstance(method, ir.FunctionRef)
                         return ir.FunctionCall(node.info, method.func.type_.ret_type, method, node.args)
+
                     else:
                         overloads = ir.OverloadedFunction(node.info, node.callee.name, matches)
                         return ir.Call(node.info, overloads, node.args, node.type_)
@@ -630,12 +619,6 @@ def instantiate_templates(node: ir.Node, scope=None) -> ir.Node:
             assert isinstance(type_, ir.TypeDef)
             return ir.TypeRef(None, type_)
 
-        # case ir.TemplateDef():
-        #     return node
-
-        # case _:
-        #     return traverse_ir.traverse_scoped(instantiate_templates, node, scope)
-
     return node
 
 
@@ -655,6 +638,7 @@ def propagate_types(node: ir.Node):
             node.asm = [propagate_types(match_expr_type(asm, ir.VoidType(None))) for asm in node.asm]
 
         case ir.TemplateDef():
+            # Only type-check instances
             node.instances = traverse_ir.traverse_dict(propagate_types, node.instances)
             return node
 
@@ -708,10 +692,6 @@ def propagate_types(node: ir.Node):
             for i in range(len(node.scope.body) - 1):
                 if isinstance(node.scope.body[i], ir.Asm):
                     node.scope.body[i] = propagate_types(match_expr_type(node.scope.body[i], ir.VoidType(None)))
-                elif isinstance(node.scope.body[i], ir.Expr):
-                    expr = propagate_types(node.scope.body[i])
-                    assert not isinstance(expr.type_, ir.UnknownType)
-                    node.scope.body[i] = expr if isinstance(expr.type_, ir.VoidType) else ir.Drop(expr)
                 else:
                     node.scope.body[i] = propagate_types(node.scope.body[i])
 
@@ -764,18 +744,12 @@ def propagate_types(node: ir.Node):
                             # raise Exception(f"Unexpected node type in function body: {type(node.scope.body[-1])}")
 
         case ir.Scope():
-            # TODO: while/if/else expressions
+            node.attrs = traverse_ir.traverse_dict(propagate_types, node.attrs)
             for i in range(len(node.body)):
                 if isinstance(node.body[i], ir.Asm):
                     node.body[i] = propagate_types(match_expr_type(node.body[i], ir.VoidType(None)))
-                elif isinstance(node.body[i], ir.Expr):
-                    expr = propagate_types(node.body[i])
-                    assert not isinstance(expr.type_, ir.UnknownType)
-                    node.body[i] = expr if isinstance(expr.type_, ir.VoidType) else ir.Drop(expr)
                 else:
                     node.body[i] = propagate_types(node.body[i])
-
-            node.attrs = traverse_ir.traverse_dict(propagate_types, node.attrs)
 
         case ir.Assignment():
             assert isinstance(node.lvalue, ir.VarRef)
@@ -890,6 +864,25 @@ def propagate_types(node: ir.Node):
     return node
 
 
+def drop_unused_result(node: ir.Node) -> ir.Node:
+    match node:
+        case ir.TemplateDef():
+            # Only type-check instances
+            node.instances = traverse_ir.traverse_dict(propagate_types, node.instances)
+            return node
+
+        case ir.Scope():
+            # TODO: while/if/else expressions
+            for i in range(len(node.body) - 1):
+                expr = node.body[i]
+                if isinstance(expr, ir.Expr):
+                    assert not isinstance(expr.type_, ir.UnknownType)
+                    if not isinstance(expr.type_, ir.VoidType):
+                        node.body[i] = ir.Drop(expr)
+
+    return traverse_ir.traverse(drop_unused_result, node)
+
+
 def convert_enum_inst(node: ir.Node) -> ir.Node:
     node = traverse_ir.traverse(convert_enum_inst, node)
 
@@ -915,22 +908,48 @@ def convert_enum_inst(node: ir.Node) -> ir.Node:
     return node
 
 
+def _check_match_expr_type_result(func):
+    def wrapper(expr: ir.Node, type_: ir.Type):
+        res = func(expr, type_)
+        assert isinstance(res, ir.Expr), f"Expected Expr, got {type(res)}"
+        assert (
+            res.type_ == type_
+            or isinstance(res.type_, ir.TypeRef)
+            and isinstance(res.type_.type_, ir.TypeDef)
+            and res.type_.has_base_class(type_)
+        ), f"Type mismatch: expected {type_}, got {res.type_}"
+        return res
+
+    return wrapper
+
+
+@_check_match_expr_type_result
 def match_expr_type(expr: ir.Node, type_: ir.Type):
     assert not isinstance(type_, ir.TypeDef)
 
-    match expr:
-        case ir.TypeRef():
-            match expr.primitive():
-                case ir.EnumValueType() as enum if len(enum.field_types) == 0:
-                    expr = ir.EnumInst(expr.info, expr, enum.discr, [])
-                case _:
-                    raise NotImplementedError(expr)
+    if isinstance(expr, ir.TypeRef):
+        match expr.primitive():
+            case ir.EnumValueType() as enum if len(enum.field_types) == 0:
+                expr = ir.EnumInst(expr.info, expr, enum.discr, [])
+            case _:
+                raise NotImplementedError(expr)
 
-        case ir.ReinterpretCast():
-            assert isinstance(expr.type_, ir.UnknownType)
-            assert not isinstance(type_, ir.UnknownType)
-            expr.type_ = type_
-            return expr
+    assert isinstance(expr, ir.Expr)
+    if expr.type_ == type_:
+        return expr
+
+    if (
+        isinstance(expr.type_, ir.TypeRef)
+        and isinstance(expr.type_.type_, ir.TypeDef)
+        and expr.type_.has_base_class(type_)
+    ):
+        return expr
+
+    if isinstance(expr, ir.ReinterpretCast):
+        assert isinstance(expr.type_, ir.UnknownType)
+        assert not isinstance(type_, ir.UnknownType)
+        expr.type_ = type_
+        return expr
 
     assert isinstance(expr, ir.Expr)
     match expr.type_:
@@ -962,12 +981,12 @@ def match_expr_type(expr: ir.Node, type_: ir.Type):
                     raise NotImplementedError(type(other))
 
         case ir.AstType(name="__string_literal"):
-            assert isinstance(type_.primitive(), ir.ArrayType)
+            assert isinstance(type_.primitive(), ir.NativeArrayType)
             assert isinstance(expr, ir.StringLiteral)
             assert isinstance(expr.temp_var.type_, ir.UnknownType)
             assert isinstance(expr.temp_var.type_, ir.UnknownType)
             assert isinstance(type_, ir.TypeRef)
-            expr.temp_var.type_ = expr.temp_var.type_ = type_
+            expr.type_ = expr.temp_var.type_ = type_
 
         case ir.TypeRef(type_=ir.TypeDef() as expr_type):
             if not expr_type.has_base_class(type_):
@@ -1045,9 +1064,12 @@ ir_passes: list = [
     check_no_untranslated_nodes,
     resolve_member_access,
     instantiate_templates,
-    resolve_member_access,
     write_tree("inner.ir"),
+    resolve_member_access,
     propagate_types,
+    resolve_member_access,
+    propagate_types,
+    drop_unused_result,
     specialize_match,
     check_no_unknown_types,
     convert_enum_inst,
@@ -1059,6 +1081,19 @@ ir_passes: list = [
 def run(prog: ast.Module):
     root_scope = ir.Scope(None, "root")
     root_scope.register_type("__int", ir.AstType("__int"))
+
+    template_arg = ir.TemplateArg(None, "T")
+    root_scope.register_type(
+        "__native_array",
+        ir.TemplateDef(
+            None,
+            "__native_array",
+            ir.NativeArrayType(None, ir.TemplateArgRef(None, template_arg)),
+            ir.Scope(root_scope, "__native_array"),
+            {},
+            [template_arg],
+        ),
+    )
     root_scope.module_scope = root_scope
 
     module = ir.Module(prog.info, root_scope)
