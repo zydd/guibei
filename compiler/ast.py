@@ -1,12 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from collections import defaultdict
-
-_ast_repr = False
 
 
-@dataclass(repr=_ast_repr)
+@dataclass
 class Node:
     info = None
 
@@ -28,57 +25,57 @@ class Node:
 # ----------------------------------------------------------------------
 
 
-@dataclass(repr=_ast_repr)
+@dataclass
 class Type(Node):
     pass
 
 
-@dataclass(repr=_ast_repr)
+@dataclass
 class TupleType(Type):
     field_types: list[Type]
 
 
-@dataclass(repr=_ast_repr)
+@dataclass
 class ArrayType(Type):
     element_type: Type
 
 
-@dataclass(repr=_ast_repr)
+@dataclass
 class VoidType(Type):
     pass
 
 
-@dataclass(repr=_ast_repr)
+@dataclass
 class VoidExpr(Node):
     pass
 
 
-@dataclass(repr=_ast_repr)
+@dataclass
 class FunctionType(Type):
     args: list[ArgDecl]
     ret_type: Type | None
 
 
-@dataclass(repr=_ast_repr)
+@dataclass
 class TypeDef(Type):
     name: str
     super_: Type | None
 
 
-@dataclass(repr=_ast_repr)
+@dataclass
 class TemplateDef(Node):
     name: str
     args: list[Identifier]
     super_: Type | None
 
 
-@dataclass(repr=_ast_repr)
+@dataclass
 class TemplateInst(Type):
     name: TypeIdentifier
     args: list[Type]
 
 
-@dataclass(repr=_ast_repr)
+@dataclass
 class TypeIdentifier(Type):
     name: str
 
@@ -86,13 +83,13 @@ class TypeIdentifier(Type):
         return f"TypeIdentifier({self.name})"
 
 
-@dataclass(repr=_ast_repr)
+@dataclass
 class EnumType(Type):
     name: str
     values: list[EnumValueType]
 
 
-@dataclass(repr=_ast_repr)
+@dataclass
 class EnumValueType(Type):
     name: str
     fields: TupleType | None
@@ -103,40 +100,34 @@ class EnumValueType(Type):
 # ----------------------------------------------------------------------
 
 
-@dataclass(repr=_ast_repr)
+@dataclass
 class GetItem(Node):
     expr: Node
     idx: Node
 
 
-@dataclass(repr=_ast_repr)
+@dataclass
 class NamedTupleElement(Node):
     name: str
     value: Node
 
 
-@dataclass(repr=_ast_repr)
+@dataclass
 class TupleExpr(Node):
     field_values: list[Node]
 
 
-@dataclass(repr=_ast_repr)
-class GetTupleItem(Node):
-    expr: Node
-    idx: int
-
-
-@dataclass(repr=_ast_repr)
+@dataclass
 class IntLiteral(Node):
     value: int
 
 
-@dataclass(repr=_ast_repr)
+@dataclass
 class StringLiteral(Node):
     value: str
 
 
-@dataclass(repr=_ast_repr)
+@dataclass
 class Identifier(Node):
     name: str
 
@@ -144,42 +135,42 @@ class Identifier(Node):
         return f"Identifier({self.name})"
 
 
-@dataclass(repr=_ast_repr)
+@dataclass
 class Asm(Node):
     terms: WasmExpr
 
 
-@dataclass(repr=_ast_repr)
+@dataclass
 class WasmExpr(Node):
     terms: list[WasmExpr]
 
 
-@dataclass(repr=_ast_repr)
+@dataclass
 class Call(Node):
     callee: Node
     arg: Node
 
 
-@dataclass(repr=_ast_repr)
+@dataclass
 class BinOp(Node):
     op: str
     lhs: Node
     rhs: Node
 
 
-@dataclass(repr=_ast_repr)
+@dataclass
 class UnaryL(Node):
     op: str
     arg: Node
 
 
-@dataclass(repr=_ast_repr)
+@dataclass
 class UnaryR(Node):
     op: str
     arg: Node
 
 
-@dataclass(repr=_ast_repr)
+@dataclass
 class GetAttr(Node):
     obj: Node
     attr: str
@@ -190,7 +181,7 @@ class GetAttr(Node):
 # ----------------------------------------------------------------------
 
 
-@dataclass(repr=_ast_repr)
+@dataclass
 class Module(Node):
     stmts: list[Node]
 
@@ -198,88 +189,88 @@ class Module(Node):
         self.stmts = stmts
 
 
-@dataclass(repr=_ast_repr)
+@dataclass
 class FunctionDef(Node):
     name: str
     type_: FunctionType
     body: list[Node]
 
 
-@dataclass(repr=_ast_repr)
+@dataclass
 class MacroDef(Node):
     name: str
     func: FunctionDef
 
 
-@dataclass(repr=_ast_repr)
+@dataclass
 class TypeImpl(Node):
     type_: str
     methods: list[Node]
 
 
-@dataclass(repr=_ast_repr)
+@dataclass
 class TemplateTypeImpl(Node):
     args: list[Type]
     type_: TypeIdentifier | TemplateInst
     methods: list[Node]
 
 
-@dataclass(repr=_ast_repr)
+@dataclass
 class VarDecl(Node):
     name: str
     type_: Type | None
     init: Node
 
 
-@dataclass(repr=_ast_repr)
+@dataclass
 class ConstDecl(Node):
     name: str
     type_: Type | None
     init: Node
 
 
-@dataclass(repr=_ast_repr)
+@dataclass
 class ArgDecl(Node):
     name: str
     type_: Type | None
 
 
-@dataclass(repr=_ast_repr)
+@dataclass
 class IfElse(Node):
     condition: Node
     body_then: list[Node]
     body_else: list[Node]
 
 
-@dataclass(repr=_ast_repr)
+@dataclass
 class While(Node):
     condition: Node
     body: list[Node]
 
 
-@dataclass(repr=_ast_repr)
+@dataclass
 class MatchCase(Node):
     expr: Node
     body: list[Node]
 
 
-@dataclass(repr=_ast_repr)
+@dataclass
 class Match(Node):
     expr: Node
     cases: list[MatchCase]
 
 
-@dataclass(repr=_ast_repr)
+@dataclass
 class FunctionReturn(Node):
     expr: Node | None
 
 
-@dataclass(repr=_ast_repr)
+@dataclass
 class Assignment(Node):
     lvalue: Node
     expr: Node
 
 
-@dataclass(repr=_ast_repr)
+@dataclass
 class Placeholder(Node):
     pass

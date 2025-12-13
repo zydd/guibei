@@ -14,6 +14,10 @@ func main() -> ():
     (usize (-1)).print()
     bytes.print("\n")
 
-    let a: i32 = 777
+    let a: bool = bool 0
+
     bool.True
     False
+    assert(Option.Some(3).0 == 3)
+    assert(not Option.None.is_some())
+    assert(pair(123, 456).first == 123)

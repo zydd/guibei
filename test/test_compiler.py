@@ -1,24 +1,8 @@
-import os
-import sys
 import pytest
-import sys
+import textwrap
 
-
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-import parser
-import compiler
-from compiler import ir, codegen
-
-
-def compile(prog):
-    prog = parser.parse_str(prog)
-    if not prog:
-        raise RuntimeError("Compilation failed: " + prog)
-
-    ir = compiler.semantic_pass(prog)
-    print(ir)
-    return ir
+from common import compile, prelude
+from compiler import codegen, ir
 
 
 def test_native_type_alias():

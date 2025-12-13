@@ -42,17 +42,11 @@ def type_reference(node: ir.Node) -> list:
                 case ir.TupleType() | ir.ArrayType() | ir.EnumType():
                     return [["ref", f"${node.name}"]]
 
-                case ir.EnumType():
-                    breakpoint()
-
                 case _:
-                    raise NotImplementedError
+                    raise NotImplementedError(type(primitive))
 
         case ir.TypeRef():
             return type_reference(node.type_)
-
-        # case ir.VoidType():
-        #     return []
 
         case _:
             raise NotImplementedError(type(node))
@@ -82,8 +76,7 @@ def type_declaration(node: ir.Node) -> list:
 
     match node:
         case ir.EnumType():
-            # TODO: remove "mut"
-            decl = [["type", f"${node.name}", "(sub $__enum (struct (field (mut i32))))"]]
+            decl = [["type", f"${node.name}", ["sub $__enum (struct (field", *type_reference(node.discr_type), "))"]]]
 
             for attr in node.scope.attrs.values():
                 decl.extend(type_declaration(attr))
@@ -92,7 +85,12 @@ def type_declaration(node: ir.Node) -> list:
 
         case ir.EnumValueType():
             assert isinstance(node.super_, ir.TypeRef), node.super_
-            return [["type", f"${node.name}", ["sub", f"${node.super_.name}", *type_declaration(node.fields)]]]
+            assert isinstance(node.super_.type_, ir.EnumType)
+
+            fields = [["field", ["mut", *type_reference(type_)]] for type_ in node.field_types]
+            fields.insert(0, ["field", *type_reference(node.super_.type_.discr_type)])
+
+            return [["type", f"${node.name}", ["sub", f"${node.super_.name}", ["struct", *fields]]]]
 
         case ir.TypeDef():
             primitive = node.primitive()
@@ -138,6 +136,7 @@ def type_declaration(node: ir.Node) -> list:
             | ir.TemplateArg()
             | ir.OverloadedFunction()
             | ir.ConstDecl()
+            | ir.AstType()
         ):
             return []
 
@@ -299,11 +298,6 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
 
         case ir.SetLocal():
             return [["local.set", f"${node.var.var.name}", *translate_wasm(node.expr)]]
-
-        # TODO
-        case ir.Assignment(lvalue=ir.VarRef()):
-            assert isinstance(node.lvalue, ir.VarRef)
-            return [["local.set", f"${node.lvalue.var.name}", *translate_wasm(node.expr)]]
 
         case ir.SetItem():
             assert isinstance(node.expr.type_, ir.TypeRef)

@@ -6,11 +6,12 @@ asm:
     (global $__stackp (mut i32) (i32.const 1024))
     (type $vtd (array (mut funcref)))
     (global (ref $vtd) (array.new_default $vtd (i32.const 13)))
-    (type $__enum (sub (struct (field (mut i32)))))
+    (type $__enum (sub (struct (field i32))))
     (type $__string_literal (array (mut i8)))
 
 
 type __enum_discr: i32
+
 type __array_index: i32
 
 # type __enum
@@ -315,6 +316,12 @@ impl bool:
     func (||)(self, rhs: Self) -> Self:
         asm: (i32.or {self} {rhs})
 
+    # func print(self) -> ():
+    #     match self:
+    #         case bool.True:
+    #             bytes.print("True")
+    #         case bool.False:
+    #             bytes.print("False")
 
 # bytes
 
@@ -322,7 +329,7 @@ impl bool:
 type i8
 
 impl i8:
-    macro __from_literal(i: __int) -> i8:
+    macro __cast_from(i: __int) -> i8:
         asm:
             (i32.const {i})
 
@@ -337,6 +344,9 @@ impl i8:
     macro __array_unpack(arr: bytes, i: i32) -> i8:
         asm:
             (array.get_s {bytes.__asm_type} {arr} {i})
+
+    func (!=)(self, rhs: Self) -> bool:
+        asm: (i32.ne {self} {rhs})
 
 
 # impl __array[i8]:
@@ -383,12 +393,12 @@ impl bytes:
 
     func eq(self, other: Self) -> bool:
         if self.len() != other.len():
-            return 0
+            return False
 
         let i: i32 = 0
         while i < self.len():
             # FIXME: remove explicit cast
-            if i32 self[i] != i32 other[i]:
+            if self[i] != other[i]:
                 return False
             i = i + 1
 

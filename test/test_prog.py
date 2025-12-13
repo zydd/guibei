@@ -1,5 +1,4 @@
 import os
-import pprint
 import pytest
 import sys
 import sys
@@ -9,56 +8,12 @@ import textwrap
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(base_dir)
 
-import parser
-import compiler
-from compiler import ir, codegen
-import tempfile
-import subprocess
-
-
-prelude = open(os.path.join(base_dir, "lib/prelude.gi"), "r", encoding="utf8").read()
-
-
-def run(code, exit_ok=None, exit_err=None, stdout=None):
-    prog = parser.parse_str(prelude + code)
-    if not prog:
-        return 1
-
-    module = compiler.semantic_pass(prog)
-    # pprint.pp(module)
-    module = codegen.translate_wasm(module)
-
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".wast", delete=False) as out:
-        out.write(codegen.wasm_repr_indented(module))
-        out.flush()
-
-        result = subprocess.run(
-            ["wasmtime", "-Wgc", out.name],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-        )
-
-        if exit_ok is True:
-            assert result.returncode == 0, "Execution failed"
-
-        if exit_err is True:
-            assert result.returncode != 0, "Execution succeeded while expecting failure"
-
-        if stdout is not None:
-            assert result.stdout == stdout
-
-        print(out.name)
-        print(result.stdout)
-        out.close()
-        os.remove(out.name)
-        return result
+from common import compile_full, run
 
 
 def test_assert():
-    assert run(f"func main() -> ():\n assert(10)", exit_ok=True)
-    assert run(f"func main() -> ():\n assert(1)", exit_ok=True)
-    assert run(f"func main() -> ():\n assert(0)", exit_err=True)
+    assert run(f"func main() -> ():\n assert(True)", exit_ok=True)
+    assert run(f"func main() -> ():\n assert(False)", exit_err=True)
 
 
 @pytest.mark.parametrize(
@@ -209,3 +164,31 @@ def test_integer_narrowing(code):
 )
 def test_integer_narrowing_fail(code):
     assert run(f"func main() -> ():\n" + textwrap.indent(code, "    "), exit_err=True)
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        "assert(not (bool 0))",
+        "assert(bool 1)",
+        "assert(bool 10)",
+        "let a: bool = bool 1\nassert(a)",
+        "let a: bool = __reinterpret_cast (i32 1)\nassert(a)",
+        # "let a: bool = bool (i32 1)\nassert(a)",  # FIXME
+    ],
+)
+def test_bool_cast(code):
+    assert run(f"func main() -> ():\n" + textwrap.indent(code, "    "), exit_ok=True)
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        "let a: bool = 1",
+        "let a: bool = i32 1",
+        "let a: i32 = 1\nlet b: bool = a",
+    ],
+)
+def test_bool_cast_fail(code):
+    with pytest.raises(Exception):
+        assert compile_full(f"func main() -> ():\n" + textwrap.indent(code, "    "))

@@ -205,13 +205,9 @@ def call(unit, callee):
 
 @generate
 def attr_access(expr):
-    number = generate(lambda: int((yield regex(r"\d+"))))
     yield string(".")
-    attr = yield choice(number(), regex(r"\w+"))
-    if isinstance(attr, int):
-        return ast.GetTupleItem(expr, attr)
-    else:
-        return ast.GetAttr(expr, attr)
+    attr = yield regex(r"\w+")
+    return ast.GetAttr(expr, attr)
 
 
 def unaryop(unop):

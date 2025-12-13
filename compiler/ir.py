@@ -352,26 +352,14 @@ class EnumIntType(TypeDef):
 
 
 @dataclass
-class EnumTypeBase(TupleType):
-    name: str = "__enum"
-
-    def __init__(self, scope):
-        discr = scope.lookup_type("__enum_discr")
-        assert isinstance(discr, TypeDef)
-        discr = TypeRef(None, discr)
-        super().__init__(None, [discr])
-
-    def __eq__(self, value):
-        return isinstance(value, EnumTypeBase)
-
-
-@dataclass
 class EnumType(TypeDef):
     count: int
+    discr_type: TypeRef
 
-    def __init__(self, info, super_: Type, name: str, scope: Scope, count: int):
-        super().__init__(info, super_, name, scope)
+    def __init__(self, info, name: str, scope: Scope, count: int, discr_type: TypeRef):
+        super().__init__(info, None, name, scope)
         self.count = count
+        self.discr_type = discr_type
 
     def primitive(self):
         return self
@@ -380,17 +368,19 @@ class EnumType(TypeDef):
 @dataclass(kw_only=True)
 class EnumValueType(TypeDef):
     discr: int
-    fields: TupleType
+    field_types: list[Type]
 
     @staticmethod
     def translate(enum: EnumType, discr: int, node: ast.EnumValueType):
-        assert isinstance(node, ast.EnumValueType)
-        assert isinstance(enum.super_, TupleType)
-        field_types: list = [UntranslatedType(t) for t in node.fields.field_types] if node.fields else []
-        fields = TupleType(None, enum.super_.field_types + field_types)
+        field_types: list[Type] = [UntranslatedType(t) for t in node.fields.field_types] if node.fields else []
 
         return EnumValueType(
-            node.info, TypeRef(None, enum), node.name, Scope(enum.scope, node.name), discr=discr, fields=fields
+            node.info,
+            TypeRef(None, enum),
+            node.name,
+            Scope(enum.scope, node.name),
+            discr=discr,
+            field_types=field_types,
         )
 
     def primitive(self):
@@ -400,6 +390,10 @@ class EnumValueType(TypeDef):
 @dataclass
 class AstType(Type):
     name: str
+
+    def __init__(self, name):
+        super().__init__(None)
+        self.name = name
 
 
 @dataclass
@@ -540,12 +534,12 @@ class OpCall(Expr):
 
 @dataclass
 class GetAttr(Expr):
-    obj: Node
+    expr: Node
     attr: str
 
     def __init__(self, info, obj, attr):
         super().__init__(info)
-        self.obj = obj
+        self.expr = obj
         self.attr = attr
 
     @staticmethod
@@ -568,18 +562,15 @@ class GetItem(Expr):
 
 
 @dataclass
-class GetTupleItem(Expr):
+class GetEnumItem(Expr):
     expr: Expr
     idx: int
 
-    def __init__(self, info, expr, idx, type_=None):
-        super().__init__(info, type_)
-        self.expr = expr
-        self.idx = idx
 
-    @staticmethod
-    def translate(node: ast.GetTupleItem, _scope: Scope):
-        return GetTupleItem(node.info, Untranslated(node.expr), node.idx)
+@dataclass
+class GetTupleItem(Expr):
+    expr: Expr
+    idx: int
 
 
 @dataclass
@@ -614,7 +605,7 @@ class IntLiteral(Expr):
     value: int
 
     def __init__(self, info, value):
-        super().__init__(info, AstType(None, "__int"))
+        super().__init__(info, AstType("__int"))
         self.value = value
 
     @staticmethod
@@ -626,12 +617,21 @@ class IntLiteral(Expr):
 
 
 @dataclass
+class EnumDiscr(Expr):
+    value: int
+
+    def __init__(self, value):
+        super().__init__(None, AstType("__enum_discr"))
+        self.value = value
+
+
+@dataclass
 class StringLiteral(Expr):
     value: str
     temp_var: VarRef
 
     def __init__(self, info, value, temp_var):
-        super().__init__(info, AstType(None, "__string_literal"))
+        super().__init__(info, AstType("__string_literal"))
         self.value = value
         self.temp_var = temp_var
 
@@ -1005,7 +1005,7 @@ class MatchCaseEnum(Node):
         if isinstance(case, MatchCaseEnum):
             assert isinstance(case.enum, TypeRef)
             assert isinstance(case.enum.type_, EnumValueType)
-            case.args.insert(0, IntLiteral(None, case.enum.type_.discr))
+            case.args.insert(0, EnumDiscr(case.enum.type_.discr))
             return case
         elif isinstance(case.expr, Call):
             assert isinstance(case.expr.callee, TypeRef)
@@ -1013,15 +1013,15 @@ class MatchCaseEnum(Node):
             return MatchCaseEnum(
                 case.info,
                 case.expr.callee,
-                [IntLiteral(None, case.expr.callee.primitive().discr)] + case.expr.args,
+                [EnumDiscr(case.expr.callee.primitive().discr)] + case.expr.args,
                 case.scope,
             )
         else:
-            assert isinstance(case.expr, TupleInst), case.expr
+            assert isinstance(case.expr, EnumInst), case.expr
             return MatchCaseEnum(
                 case.info,
                 case.expr.type_,
-                [IntLiteral(None, case.expr.type_.primitive().discr)],
+                [EnumDiscr(case.expr.discr)],
                 case.scope,
             )
 
@@ -1119,6 +1119,17 @@ class Drop(Node):
 @dataclass
 class TupleInst(Expr):
     args: list[Expr]
+
+
+@dataclass
+class EnumInst(Expr):
+    discr: int
+    args: list[Expr]
+
+
+@dataclass
+class EnumInt(Expr):
+    discr: int
 
 
 @dataclass
