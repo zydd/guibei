@@ -14,7 +14,7 @@ enum Token:
     Symbol(TokenState, str)
 
 
-type Line: (line: usize, indent: usize, comment: str, tokens: __array[Token])
+type Line: (line: usize, indent: usize, comment: str, tokens: [Token])
 
 
 

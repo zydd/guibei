@@ -120,7 +120,7 @@ def function_type():
 
 @generate
 def tuple_def():
-    fields = yield parens(sep_by(regex(r"\s*,\s*"), choice(backtrack(named_tuple_element()), type_expr())))
+    fields = yield parens(sep_by(regex(r"\s*,\s*"), choice(backtrack(named_tuple_element(type_expr())), type_expr())))
     return ast.TupleType(fields)
 
 
@@ -172,16 +172,16 @@ def identifier():
 
 
 @generate
-def named_tuple_element():
+def named_tuple_element(p):
     name = yield regex(r"\w+")
     yield regex(r"\s*:\s*")
-    value = yield expr()
+    value = yield p
     return ast.NamedTupleElement(name, value)
 
 
 @generate
 def tuple_expr():
-    elements = yield parens(sep_by(regex(r"\s*,\s*"), choice(backtrack(named_tuple_element()), expr())))
+    elements = yield parens(sep_by(regex(r"\s*,\s*"), choice(backtrack(named_tuple_element(expr())), expr())))
     return ast.TupleExpr(elements)
 
 
