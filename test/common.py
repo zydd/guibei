@@ -11,7 +11,12 @@ import tempfile
 import subprocess
 
 
-prelude = open(os.path.join(base_dir, "lib/prelude.gi"), "r", encoding="utf8").read()
+prelude = ""
+std_lib_path = os.path.join(base_dir, "lib/prelude")
+std_lib_files = [fname for fname in os.listdir(std_lib_path) if fname.endswith(".gi")]
+for filename in std_lib_files:
+    with open(os.path.join(std_lib_path, filename), "r", encoding="utf8") as f:
+        prelude += f.read() + "\n"
 
 
 def compile(code):
