@@ -47,9 +47,6 @@ impl i32:
     macro __cast_from(i: i8) -> Self:
         __reinterpret_cast i
 
-    func __default() -> Self:
-        0
-
     func (*)(self, rhs: Self) -> Self:
         asm: (i32.mul {self} {rhs})
 
@@ -136,9 +133,6 @@ impl u32:
         asm:
             (i32.const {i})
 
-    func __default() -> Self:
-        0
-
     func (*)(self, rhs: Self) -> Self:
         asm: (i32.mul {self} {rhs})
 
@@ -209,9 +203,6 @@ impl usize:
         # static_assert val.__leq(0xffffffffffffffff)
         asm:
             (i64.const {i})
-
-    func __default() -> Self:
-        0
 
     func (*)(self, rhs: Self) -> Self:
         assert((rhs == 0) || (self <= asm: (i64.div_u {usize 0xffffffffffffffff} {rhs})))
@@ -299,9 +290,6 @@ const False = bool.False
 
 
 impl bool:
-    func __default() -> Self:
-        False
-
     func (==)(self, rhs: Self) -> bool:
         asm: (i32.eq {self} {rhs})
 
@@ -335,8 +323,6 @@ impl i8:
     func (!=)(self, rhs: Self) -> bool:
         asm: (i32.ne {self} {rhs})
 
-    func __default() -> Self:
-        asm: (i32.const 0)
 
 # impl __native_array[i8]:
 #     macro [](self, i: usize) -> i8:
@@ -481,8 +467,8 @@ type pair: (first: i32, second: i32)
 
 
 impl pair:
-    func __default() -> Self:
-        (0, 0)
+    # macro __default() -> Self:
+    #     asm: (ref.null {Self.__asm_type})
 
     func eq(self, other: Self) -> bool:
         return (self.0 == other.0) && (self.1 == other.1)
@@ -494,10 +480,11 @@ impl pair:
         self.1.print()
         bytes.print(")")
 
+
 impl[T] __native_array[T]:
     func __new_uninitialized(capacity: i32) -> Self:
         asm:
-            (array.new {Self.__asm_type} {T.__default()} {capacity})
+            (array.new {Self.__asm_type} {T.__default} {capacity})
 
 
 type __array[T]: (__data: __native_array[T], __len: i32)

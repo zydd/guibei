@@ -1,9 +1,21 @@
 # TODO:
 # - canonical names
 # - argument/variable indexing
-# - automatic __default method for tuples
 # - disallow implicit conversion from tuple to named tuple
 # - allow template instances as template arguments
+
+
+type TokenState: (line: usize, column_begin: usize, column_end: usize, spaced: bool)
+
+enum Token:
+    Name(TokenState, str)
+    String(TokenState, str)
+    Int(TokenState, str)
+    Symbol(TokenState, str)
+
+
+type Line: (line: usize, indent: usize, comment: str, tokens: __array[Token])
+
 
 
 func main() -> ():
@@ -32,9 +44,12 @@ func main() -> ():
     assert(arr.len() == 1)
     assert(arr.at(0) == 123)
 
-    let arr: [i32] = __array[i32].new()
+    let arr: [pair] = __array[pair].new()
     assert(arr.len() == 0)
 
-    arr.append(123)
+    arr.append((123, 456))
     assert(arr.len() == 1)
-    assert(arr.at(0) == 123)
+    assert(arr.at(0).0 == 123)
+
+    # TODO: disallow implicit casting EnumInt to int
+    let i: i32 = True

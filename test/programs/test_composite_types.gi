@@ -8,8 +8,6 @@ impl mat:
         self.1.print()
         bytes.print("]")
 
-    macro __default() -> Self:
-        ((0, 0), (0, 0))
 
 type mat_arr: __native_array[mat]
 

@@ -29,7 +29,7 @@ def _wasm_repr_flat(expr):
     return f"({' '.join(map(format, expr))})"
 
 
-def type_reference(node: ir.Node) -> list:
+def type_reference(node: ir.Node, ref="ref") -> list:
     match node:
         case ir.TypeDef():
             primitive = node.primitive()
@@ -38,10 +38,10 @@ def type_reference(node: ir.Node) -> list:
                     try:
                         return translate_wasm(primitive.get_type_reference())
                     except KeyError:
-                        return [["ref", f"${node.name}"]]
+                        return [[ref, f"${node.name}"]]
 
                 case ir.TupleType() | ir.NativeArrayType() | ir.EnumType():
-                    return [["ref", f"${node.name}"]]
+                    return [[ref, f"${node.name}"]]
 
                 case ir.IntegralType():
                     return [primitive.native_type]
@@ -50,7 +50,7 @@ def type_reference(node: ir.Node) -> list:
                     raise NotImplementedError(type(primitive))
 
         case ir.TypeRef():
-            return type_reference(node.type_)
+            return type_reference(node.type_, ref)
 
         case _:
             raise NotImplementedError(type(node))
@@ -109,7 +109,7 @@ def type_declaration(node: ir.Node) -> list:
                 case ir.IntegralType() as prim:
                     field = [prim.array_packed]
                 case ir.TupleType() | ir.EnumType() as prim:
-                    field = type_reference(node.element_type)
+                    field = type_reference(node.element_type, "ref null")
                 case _:
                     raise NotImplementedError
             return [["array", ["mut", *field]]]
@@ -165,14 +165,21 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
             for expr in node.asm:
                 terms.extend(translate_wasm(expr))
 
+            types = []
             for attr in node.scope.attrs.values():
-                if isinstance(attr, ir.TemplateDef):
-                    # put template instantiations after
-                    continue
+                match attr:
+                    case ir.TypeDef() | ir.EnumType():
+                        types.append(attr)
+                    case ir.TemplateDef():
+                        types.extend(attr.instances.values())
+
+            types.sort(key=lambda x: x.sorting)
+            for attr in types:
+                print(attr.name, attr.sorting)
                 terms.extend(type_declaration(attr))
 
             for attr in node.scope.attrs.values():
-                if isinstance(attr, ir.TemplateDef):
+                if not isinstance(attr, (ir.TypeDef, ir.EnumType, ir.TemplateDef)):
                     terms.extend(type_declaration(attr))
 
             for attr in node.scope.attrs.values():
@@ -338,17 +345,22 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
             ]
 
         case ir.GetItem():
-            elem_primitive = node.expr.type_.primitive().element_type.primitive()
+            elem_type = node.expr.type_.primitive().element_type
+            elem_primitive = elem_type.primitive()
             assert isinstance(node.expr.type_, ir.TypeRef)
             assert isinstance(node.expr.type_.type_, ir.TypeDef)
             match elem_primitive:
-                case ir.TupleType():
+                case ir.TupleType() | ir.NativeArrayType() | ir.EnumType():
                     return [
                         [
-                            "array.get",
-                            f"${node.expr.type_.type_.name}",
-                            *translate_wasm(node.expr),
-                            *translate_wasm(node.idx),
+                            f"ref.cast",
+                            *type_reference(node.expr.type_.primitive().element_type),
+                            [
+                                "array.get",
+                                f"${node.expr.type_.type_.name}",
+                                *translate_wasm(node.expr),
+                                *translate_wasm(node.idx),
+                            ],
                         ]
                     ]
                 case ir.IntegralType():

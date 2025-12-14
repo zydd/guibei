@@ -229,6 +229,8 @@ class Untranslated(Node):
 
 @dataclass
 class Type(Node):
+    sorting = 0
+
     def primitive(self):
         return self
 

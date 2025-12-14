@@ -445,6 +445,22 @@ def resolve_member_access(node: ir.Node, scope=None) -> ir.Node:
                         case ir.TypeDef():
                             if node.attr == "__type_reference":
                                 return node.expr.type_.get_type_reference()
+                            elif node.attr == "__default":
+                                match node.expr.type_.primitive():
+                                    case ir.IntegralType() as integral:
+                                        return ir.Asm(
+                                            node.info,
+                                            ir.WasmExpr(node.info, [f"{integral.native_type}.const 0"]),
+                                            node.expr,
+                                        )
+                                    case ir.TupleType() | ir.NativeArrayType() | ir.EnumType():
+                                        return ir.Asm(
+                                            node.info,
+                                            ir.WasmExpr(node.info, [["ref.null", f"${node.expr.name}"]]),
+                                            node.expr,
+                                        )
+                                    case other:
+                                        raise NotImplementedError(type(other))
 
                             try:
                                 attr = node.expr.type_.get_attr(node.attr)
@@ -1054,6 +1070,46 @@ def inline_macros(node: ir.Node, scope=None) -> ir.Node:
             return traverse_ir.traverse(inline_macros, node, scope)
 
 
+def _get_type_dependencies(node, type_: ir.Type | None, depth):
+    if type_ and type_.sorting:
+        node.sorting = max(node.sorting, type_.sorting + depth)
+
+    match type_:
+        case ir.TypeRef():
+            _get_type_dependencies(node, type_.type_, depth)
+
+        case ir.TupleType():
+            for field in type_.field_types:
+                _get_type_dependencies(node, field, depth)
+
+        case ir.EnumType():
+            for value in type_.scope.attrs.values():
+                if isinstance(value, ir.EnumValueType) and len(value.field_types):
+                    for field in value.field_types:
+                        _get_type_dependencies(node, field, depth + 1)
+
+        case ir.TypeDef():
+            _get_type_dependencies(node, type_.super_, depth + 1)
+
+        case ir.NativeArrayType():
+            _get_type_dependencies(node, type_.element_type, depth)
+
+        case ir.IntegralType() | None:
+            node.sorting = max(node.sorting, depth)
+
+        case _:
+            raise NotImplementedError(type(type_))
+
+
+def type_sorting(node: ir.Node) -> ir.Node:
+    match node:
+        case ir.TypeDef():
+            if not node.sorting:
+                _get_type_dependencies(node, node, 0)
+
+    return traverse_ir.traverse(type_sorting, node)
+
+
 def done(node: ir.Node) -> ir.Node:
     return node
 
@@ -1082,6 +1138,7 @@ ir_passes: list = [
     convert_enum_inst,
     inline_macros,
     write_tree("inner.ir"),
+    type_sorting,
     done,
 ]
 
@@ -1098,7 +1155,7 @@ def run(prog: ast.Module):
             "__native_array",
             ir.NativeArrayType(None, ir.TemplateArgRef(None, template_arg)),
             ir.Scope(root_scope, "__native_array"),
-            {},
+            dict(),
             [template_arg],
         ),
     )
