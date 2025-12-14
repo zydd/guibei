@@ -1,8 +1,9 @@
 # TODO:
-# - canonical names
-# - argument/variable indexing
-# - disallow implicit conversion from tuple to named tuple
-# - allow template instances as template arguments
+# - Canonical names
+# - Argument/variable indexing
+# - Disallow implicit conversion from tuple to named tuple
+# - Allow template instances as template arguments
+# - Allow explicit casting between integral types
 
 
 type TokenState: (line: usize, column_begin: usize, column_end: usize, spaced: bool)
@@ -50,6 +51,3 @@ func main() -> ():
     arr.append((123, 456))
     assert(arr.len() == 1)
     assert(arr.at(0).0 == 123)
-
-    # TODO: disallow implicit casting EnumInt to int
-    let i: i32 = True

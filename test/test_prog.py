@@ -174,7 +174,7 @@ def test_integer_narrowing_fail(code):
         "assert(bool 10)",
         "let a: bool = bool 1\nassert(a)",
         "let a: bool = __reinterpret_cast (i32 1)\nassert(a)",
-        # "let a: bool = bool (i32 1)\nassert(a)",  # FIXME
+        "let a: bool = bool (i32 1)\nassert(a)",
     ],
 )
 def test_bool_cast(code):
@@ -187,6 +187,7 @@ def test_bool_cast(code):
         "let a: bool = 1",
         "let a: bool = i32 1",
         "let a: i32 = 1\nlet b: bool = a",
+        "let i: i32 = True",
     ],
 )
 def test_bool_cast_fail(code):

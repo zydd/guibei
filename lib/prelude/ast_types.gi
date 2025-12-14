@@ -12,7 +12,7 @@ asm:
 type __array_index: i32
 
 
-type __enum_discr: i32
+type __enum_discr: __integral[i32, i32, array.get]
 impl __enum_discr:
     macro __from_literal(i: __int) -> Self:
         asm: (i32.const {i})

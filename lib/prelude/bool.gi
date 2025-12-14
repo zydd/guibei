@@ -8,6 +8,9 @@ const False = bool.False
 
 
 impl bool:
+    macro __cast_from(i: i32) -> Self:
+        __reinterpret_cast i
+
     func (==)(self, rhs: Self) -> bool:
         asm: (i32.eq {self} {rhs})
 
