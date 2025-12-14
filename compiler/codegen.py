@@ -457,5 +457,5 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
         case ir.ReinterpretCast():
             return translate_wasm(node.expr)
 
-    return [str(node)]
+    # return [str(node)]
     raise NotImplementedError(node)

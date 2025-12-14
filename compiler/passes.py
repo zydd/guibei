@@ -204,6 +204,12 @@ def translate_toplevel_type_decls(node: ir.Node, scope=None) -> ir.Node:
                 args.append(arg)
             return ir.TemplateInst(ast_node.info, ir.TemplateRef(None, template), args)
 
+        case ir.UntranslatedType(ast_node=ast.ArrayType() as ast_node):
+            array = ir.TemplateRef(ast_node.info, scope.root.attrs["__array"])
+            elem_type = translate_toplevel_type_decls(ir.UntranslatedType(ast_node.element_type), scope)
+            assert isinstance(elem_type, ir.Type)
+            return ir.TemplateInst(ast_node.info, array, [elem_type])
+
         case ir.UntranslatedType():
             return node.translate(scope)
 
@@ -269,7 +275,7 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
                 var_init = ir.SetLocal(var.init.info, ir.VarRef(None, var_decl), ir.Untranslated(var.init))
                 return translate_function_defs(var_init, scope)
             else:
-                return ir.VoidType(None)
+                return ir.VoidExpr(var.info)
 
         case ir.Untranslated(ast_node=ast.Identifier() | ast.TypeIdentifier() as id):
             attr = scope.lookup(id.name)
@@ -1036,7 +1042,9 @@ def inline_macros(node: ir.Node, scope=None) -> ir.Node:
             return traverse_ir.traverse(inline_macros, node, node.scope)
 
         case ir.MacroInst():
-            return traverse_ir.inline(node.macro, scope, [inline_macros(arg, scope) for arg in node.args])
+            return inline_macros(
+                traverse_ir.inline(node.macro, scope, [inline_macros(arg, scope) for arg in node.args]), scope
+            )
             # return inline_macros(traverse_ir.inline(node.macro, scope, node.args), scope)  # slow
 
         case ir.ConstRef():
@@ -1064,7 +1072,6 @@ ir_passes: list = [
     check_no_untranslated_nodes,
     resolve_member_access,
     instantiate_templates,
-    write_tree("inner.ir"),
     resolve_member_access,
     propagate_types,
     resolve_member_access,
@@ -1074,6 +1081,7 @@ ir_passes: list = [
     check_no_unknown_types,
     convert_enum_inst,
     inline_macros,
+    write_tree("inner.ir"),
     done,
 ]
 
