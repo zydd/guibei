@@ -959,6 +959,16 @@ class MacroDef(Node):
 
 
 @dataclass
+class AstMacroDef(Node):
+    name: str
+    func: FunctionDef
+
+    @staticmethod
+    def translate(node: ast.AstMacroDef, scope: Scope):
+        return AstMacroDef(node.info, node.name, FunctionDef.translate(node.func, scope))
+
+
+@dataclass
 class ArgDecl(Node):
     name: str
     type_: Type

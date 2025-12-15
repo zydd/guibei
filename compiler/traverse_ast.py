@@ -1,3 +1,4 @@
+import copy
 from . import ast
 
 
@@ -29,3 +30,38 @@ def traverse(func, node: ast.Node, *args, **kwargs):
             case _:
                 raise NotImplementedError(type(attr))
     return node
+
+
+def _inline_args(node: ast.Node, args: dict[str, ast.Node]):
+    match node:
+        case ast.Identifier():
+            return args.get(node.name, node)
+
+        case ast.Asm():
+            # bypass `traverse_wasm`
+            node.terms = _inline_args(node.terms, args)
+            return node
+
+        case ast.WasmExpr():
+            i = 0
+            while i < len(node.terms):
+                match node.terms[i]:
+                    case ast.Identifier() as id:
+                        if id.name in args:
+                            arg = args[id.name]
+                            if isinstance(arg, ast.Asm):
+                                node.terms[i : i + 1] = arg.terms.terms
+                                i += len(arg.terms.terms) - 1
+
+                    case ast.Node() as term:
+                        node.terms[i] = _inline_args(term, args)
+
+                i += 1
+            return node
+
+        case _:
+            return traverse(_inline_args, node, args)
+
+
+def inline(nodes: list[ast.Node], args: dict[str, ast.Node]) -> list[ast.Node]:
+    return [_inline_args(copy.deepcopy(stmt), args) for stmt in nodes]

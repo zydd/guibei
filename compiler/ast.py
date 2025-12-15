@@ -164,6 +164,12 @@ class Call(Node):
 
 
 @dataclass
+class AstMacroInst(Node):
+    name: str
+    arg: TupleExpr
+
+
+@dataclass
 class BinOp(Node):
     op: str
     lhs: Node
@@ -206,6 +212,12 @@ class FunctionDef(Node):
     name: str
     type_: FunctionType
     body: list[Node]
+
+
+@dataclass
+class AstMacroDef(Node):
+    name: str
+    func: FunctionDef
 
 
 @dataclass

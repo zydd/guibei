@@ -75,6 +75,7 @@ def assignment():
 @generate
 def macro_def():
     yield regex("macro +")
+    ast_macro = yield optional(string(":"))
     name = yield choice(identifier(), operator_identifier())
     yield regex(r" *")
     args = yield _function_args()
@@ -83,7 +84,19 @@ def macro_def():
     body = yield indented_block(statement())
 
     func = ast.FunctionDef(name.name, ast.FunctionType(args, ret_type), body)
-    return ast.MacroDef(name.name, func)
+
+    if ast_macro:
+        return ast.AstMacroDef(name.name, func)
+    else:
+        return ast.MacroDef(name.name, func)
+
+
+@generate
+def ast_macro_inst():
+    yield regex(":")
+    macro = yield identifier()
+    arg = yield tuple_expr()
+    return ast.AstMacroInst(macro.name, arg)
 
 
 @generate
@@ -173,7 +186,7 @@ def identifier():
 
 @generate
 def named_tuple_element(p):
-    name = yield regex(r"\w+")
+    name = yield regex(r"(?!asm|if|func|while|macro|const|impl)\w+")
     yield regex(r"\s*:\s*")
     value = yield p
     return ast.NamedTupleElement(name, value)
@@ -329,7 +342,7 @@ def impl():
     yield regex(" +")
     name = yield type_name()
     yield regex(r" *:")
-    methods = yield indented_block(choice(comment(), function_def(), macro_def()))
+    methods = yield indented_block(choice(comment(), function_def(), macro_def(), ast_macro_inst()))
     methods = [stmt for stmt in methods if stmt is not None]
     if args:
         return ast.TemplateTypeImpl(args, name, methods)

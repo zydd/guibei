@@ -15,9 +15,13 @@ def wasm_repr_indented(expr: list[str | int | list], level=0) -> str:
                 terms[0] += " " + expr[1]
                 n += 1
             for term in expr[n:]:
-                terms.append(
-                    wasm_repr_indented(term, level + 1) if isinstance(term, list) else f"{'    ' * (level + 1)}{term}"
-                )
+                if isinstance(term, list):
+                    terms.append(wasm_repr_indented(term, level + 1))
+                else:
+                    if isinstance(term, str) and term.startswith("."):
+                        terms[-1] += term
+                    else:
+                        terms.append(f"{'    ' * (level + 1)}{term}")
         inner = "\n".join(terms)
         if len(inner) < 80:
             return indent + _wasm_repr_flat(expr)
@@ -25,8 +29,16 @@ def wasm_repr_indented(expr: list[str | int | list], level=0) -> str:
 
 
 def _wasm_repr_flat(expr):
-    format = lambda term: _wasm_repr_flat(term) if isinstance(term, list) else str(term)
-    return f"({' '.join(map(format, expr))})"
+    terms = []
+    for term in expr:
+        if isinstance(term, list):
+            terms.append(_wasm_repr_flat(term))
+        else:
+            if isinstance(term, str) and term.startswith("."):
+                terms[-1] += term
+            else:
+                terms.append(str(term))
+    return f"({' '.join(terms)})"
 
 
 def type_reference(node: ir.Node, ref="ref") -> list:
@@ -134,6 +146,7 @@ def type_declaration(node: ir.Node) -> list:
             | ir.OverloadedFunction()
             | ir.ConstDecl()
             | ir.AstType()
+            | ir.AstMacroDef()
         ):
             return []
 
@@ -463,7 +476,15 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
 
             return [*translate_wasm(node.match_expr), terms]
 
-        case ir.MacroDef() | ir.VoidExpr() | ir.FunctionRef() | ir.OverloadedFunction() | ir.ConstDecl() | ir.AstType():
+        case (
+            ir.MacroDef()
+            | ir.VoidExpr()
+            | ir.FunctionRef()
+            | ir.OverloadedFunction()
+            | ir.ConstDecl()
+            | ir.AstType()
+            | ir.AstMacroDef()
+        ):
             return []
 
         case ir.ReinterpretCast():

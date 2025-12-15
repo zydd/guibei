@@ -68,6 +68,9 @@ def register_toplevel_decls(node: ast.Node, module: ir.Module):
         case ast.MacroDef():
             module.scope.add_method(node.name, ir.MacroDef.translate(node, module.scope))
 
+        case ast.AstMacroDef():
+            module.scope.add_method(node.name, ir.AstMacroDef.translate(node, module.scope))
+
         case ast.Asm():
             module.add_asm(ir.Untranslated(node))
 
@@ -76,6 +79,31 @@ def register_toplevel_decls(node: ast.Node, module: ir.Module):
 
         case _:
             return node
+
+
+def _register_impl_methods(module: ir.Module, type_: ir.TypeDef, method: ast.Node):
+    match method:
+        case ast.FunctionDef():
+            tr_method = ir.FunctionDef.translate(method, type_.scope)
+            if method.name.startswith("("):
+                module.scope.add_method(method.name, ir.FunctionRef(method.name, tr_method), overload=True)
+            type_.scope.add_method(method.name, tr_method)
+
+        case ast.MacroDef():
+            type_.scope.add_method(method.name, ir.MacroDef.translate(method, type_.scope))
+
+        case ast.AstMacroInst():
+            macro = module.scope.lookup(method.name)
+            assert isinstance(macro, ir.AstMacroDef)
+            arg_names = [arg.name for arg in macro.func.type_.args]
+            arg_map: dict = dict(zip(arg_names, method.arg.field_values))
+            ast_nodes = [n.ast_node for n in macro.func.scope.body]  # type:ignore[attr-defined]  # Untranslated
+            inlined = traverse_ast.inline(ast_nodes, arg_map)
+            for m in inlined:
+                _register_impl_methods(module, type_, m)
+
+        case _:
+            raise NotImplementedError(type(method))
 
 
 def register_toplevel_methods(node: ast.Node, module: ir.Module):
@@ -88,18 +116,7 @@ def register_toplevel_methods(node: ast.Node, module: ir.Module):
             type_ = module.scope.lookup_type(node.type_.name)
             assert isinstance(type_, ir.TypeDef)
             for method in node.methods:
-                match method:
-                    case ast.FunctionDef():
-                        tr_method = ir.FunctionDef.translate(method, type_.scope)
-                        if method.name.startswith("("):
-                            module.scope.add_method(method.name, ir.FunctionRef(method.name, tr_method), overload=True)
-                        type_.scope.add_method(method.name, tr_method)
-
-                    case ast.MacroDef():
-                        type_.scope.add_method(method.name, ir.MacroDef.translate(method, type_.scope))
-
-                    case _:
-                        raise NotImplementedError(type(method))
+                _register_impl_methods(module, type_, method)
 
         case ast.TemplateTypeImpl():
             assert isinstance(node.type_, ast.TemplateInst)
@@ -226,6 +243,9 @@ def translate_toplevel_type_decls(node: ir.Node, scope=None) -> ir.Node:
             tr_type = translate_toplevel_type_decls(node.type_, scope)
             assert isinstance(tr_type, ir.FunctionType)
             node.type_ = tr_type
+
+        case ir.AstMacroDef():
+            return node
 
         case _:
             return traverse_ir.traverse(translate_toplevel_type_decls, node, scope)
@@ -382,6 +402,9 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
 
         case ir.Untranslated():
             return translate_function_defs(node.translate(scope), scope)
+
+        case ir.AstMacroDef():
+            return node
 
         case _:
             return traverse_ir.traverse(translate_function_defs, node, scope)
@@ -624,6 +647,9 @@ def resolve_member_access(node: ir.Node, scope=None) -> ir.Node:
                 case _:
                     raise NotImplementedError(type(node.callee))
 
+        case ir.AstMacroDef():
+            return node
+
     return node
 
 
@@ -648,6 +674,8 @@ def check_no_untranslated_nodes(node: ir.Node) -> ir.Node:
     match node:
         case ir.Untranslated():
             raise Exception(f"Untranslated node: {node}")
+        case ir.AstMacroDef():
+            return node
         case _:
             return traverse_ir.traverse(check_no_untranslated_nodes, node)
     return node
@@ -880,6 +908,9 @@ def propagate_types(node: ir.Node):
                     case _:
                         raise NotImplementedError(case)
 
+        case ir.AstMacroDef():
+            return node
+
         case _:
             return traverse_ir.traverse(propagate_types, node)
 
@@ -1047,6 +1078,9 @@ def check_no_unknown_types(node: ir.Node) -> ir.Node:
             node.instances = traverse_ir.traverse_dict(check_no_unknown_types, node.instances)
             return node
 
+        case ir.AstMacroDef():
+            return node
+
         case _:
             return traverse_ir.traverse(check_no_unknown_types, node)
     return node
@@ -1126,6 +1160,7 @@ ir_passes: list = [
     check_no_untranslated_types,
     translate_function_defs,
     check_no_untranslated_nodes,
+    write_tree("inner.ir"),
     resolve_member_access,
     instantiate_templates,
     resolve_member_access,
@@ -1137,7 +1172,6 @@ ir_passes: list = [
     check_no_unknown_types,
     convert_enum_inst,
     inline_macros,
-    write_tree("inner.ir"),
     type_sorting,
     done,
 ]
