@@ -145,7 +145,8 @@ def type_declaration(node: ir.Node) -> list:
             | ir.TemplateArg()
             | ir.OverloadedFunction()
             | ir.ConstDecl()
-            | ir.AstType()
+            | ir.Builtin()
+            | ir.BuiltinType()
             | ir.AstMacroDef()
         ):
             return []
@@ -388,21 +389,6 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
                 case _:
                     raise NotImplementedError(elem_primitive)
 
-        case ir.StringLiteral():
-            assert isinstance(node.type_, ir.TypeRef)
-            return [
-                [
-                    f"local.tee ${node.temp_var.var.name}",
-                    [f"array.new_default ${node.type_.name}", f"(i32.const {len(node.value)})"],
-                ],
-                *(
-                    [
-                        f"array.set ${node.type_.name} (local.get ${node.temp_var.var.name}) (i32.const {i}) (i32.const {byte})"
-                    ]
-                    for i, byte in enumerate(node.value.encode("ascii"))
-                ),
-            ]
-
         case ir.Drop():
             return [["drop", *translate_wasm(node.expr)]]
 
@@ -482,7 +468,8 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
             | ir.FunctionRef()
             | ir.OverloadedFunction()
             | ir.ConstDecl()
-            | ir.AstType()
+            | ir.BuiltinType()
+            | ir.Builtin()
             | ir.AstMacroDef()
         ):
             return []

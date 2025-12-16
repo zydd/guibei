@@ -90,10 +90,12 @@ def traverse_scoped(func, node: ir.Node, scope):
 def _inline_args(node: ir.Node, block_name: str, args: dict[str, ir.Node]):
     match node:
         case ir.ArgRef():
-            return args[node.arg.name]
+            # return args[node.arg.name]
+            return args.get(node.arg.name, node)
 
         case ir.VarRef():
-            return args[node.var.name]
+            # return args[node.var.name]
+            return args.get(node.var.name, node)
 
         case ir.FunctionDef():
             # TODO: handle arg shadowing by lambdas/sub-functions
@@ -134,6 +136,23 @@ def inline(node: ir.Node, func_scope: ir.Scope | None, args: list[ir.Node]) -> i
 
         case _:
             raise NotImplementedError(type(node))
+
+
+def inline_scope(scope: ir.Scope, func_scope: ir.Scope | None, arg_map: dict[str, ir.Node]) -> ir.Node:
+    block_name = scope.new_child_name("__inline." + scope.name)
+    for var in scope.attrs.values():
+        match var:
+            case ir.VarDecl():
+                var_name = block_name + "." + var.name
+                assert func_scope
+                assert func_scope.func
+                mapped_var = func_scope.register_local(var_name, ir.VarDecl(var.info, var_name, var.type_))
+                arg_map[var.name] = ir.VarRef(None, mapped_var)
+
+    body = [_inline_args(copy.deepcopy(stmt), block_name, arg_map) for stmt in scope.body]
+    if len(body) == 1:
+        return body[0]
+    return ir.Block(None, ir.VoidType(None), block_name, ir.Scope(func_scope, "macro", body))
 
 
 def _inline_template_args(node: ir.Node, template_args: dict[str, ir.TypeRef], template_name: str, function_args=None):

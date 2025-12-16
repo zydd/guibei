@@ -43,7 +43,7 @@ def asm():
 
 @generate
 def _typed_id_decl():
-    name = yield regex(r"\w+")
+    name = yield _name()
     type_ = yield optional(sequence(regex(r"\s*:\s*"), type_expr(), index=1))
     return (name, type_)
 
@@ -141,9 +141,9 @@ def tuple_def():
 # def struct_def()
 # @generate
 # def field_decl():
-#     name = yield regex(r"\w+")
+#     name = yield _name()
 #     yield regex(r"\s*:\s*")
-#     type_ = yield regex(r"\w+")
+#     type_ = yield _name()
 #     return (name, type_)
 # ...
 
@@ -151,9 +151,9 @@ def tuple_def():
 @generate
 def type_def():
     yield regex("type +")
-    name = yield regex(r"\w+")
+    name = yield _name()
     args = yield optional(brackets(sep_by(regex(r"\s*,\s*"), identifier(), min_count=1)))
-    body = yield optional(sequence(regex(r"\s*:"), indented_block(type_expr()), index=1))
+    body = yield optional(sequence(regex(r"\s*:\s*"), indented_block(type_expr()), index=1))
 
     if args:
         return ast.TemplateDef(name, args, body[-1] if body else None)
@@ -172,21 +172,36 @@ def int_literal():
 
 
 @generate
+def _escaped_text(quote):
+    text = yield regex(rf"{quote}(([^{quote}\\]|\\.)*){quote}", group=1)
+    return text.encode().decode("unicode_escape")
+
+
+@generate
 def string_literal():
-    value = yield regex(r'"(([^"\\]|\\.)*)"', group=1)
-    value = value.encode().decode("unicode_escape")
-    return ast.StringLiteral(value)
+    text = yield _escaped_text('"')
+    return ast.StringLiteral(text)
+
+
+# @generate
+# def char_literal():
+#     text = yield _escaped_text("'")
+#     return ast.CharLiteral(text)
+
+
+def _name():
+    return regex(r"(?!(asm|if|func|while|macro|const|impl|in)\b)[_a-zA-Z]\w*")
 
 
 @generate
 def identifier():
-    name = yield regex(r"[_a-zA-Z]\w*")
+    name = yield _name()
     return ast.Placeholder() if name == "_" else ast.Identifier(name)
 
 
 @generate
 def named_tuple_element(p):
-    name = yield regex(r"(?!asm|if|func|while|macro|const|impl)\w+")
+    name = yield _name()
     yield regex(r"\s*:\s*")
     value = yield p
     return ast.NamedTupleElement(name, value)
@@ -219,7 +234,7 @@ def call(unit, callee):
 @generate
 def attr_access(expr):
     yield string(".")
-    attr = yield regex(r"\w+")
+    attr = yield choice(regex(r"\d"), _name())
     return ast.GetAttr(expr, attr)
 
 
@@ -262,12 +277,23 @@ def binop(binop):
 
 
 @generate
+def ast_for_block():
+    yield regex(":for +")
+    bindings = yield sep_by(regex(r"\s*,\s*"), identifier())
+    yield regex(r" +in +")
+    iterable = yield expr()
+    yield regex(r" *:\s*")
+    body = yield indented_block(statement())
+    return ast.TemplateFor(bindings, iterable, body)
+
+
+@generate
 def while_block():
     yield regex("while +")
     condition = yield expr()
     yield regex(r" *:\s*")
     yield indented()
-    body = yield with_pos(sep_by(regex(r"\s*"), statement()))
+    body = yield indented_block(statement())
     return ast.While(condition, body)
 
 
@@ -324,12 +350,12 @@ def compiler_annotation():
 def enum_def():
     @generate
     def enum_val():
-        name = yield regex(r"\w+")
+        name = yield _name()
         fields = yield optional(tuple_def())
         return ast.EnumValueType(name, fields)
 
     yield regex("enum +")
-    name = yield regex(r"\w+")
+    name = yield _name()
     yield regex(r" *:")
     values = yield indented_block(enum_val())
     return ast.EnumType(name, values)
@@ -359,6 +385,7 @@ def statement():
     yield optional(sequence(comment(), regex(r"\s*")))
     yield same_indent()
     stmt = yield choice(
+        ast_for_block(),
         while_block(),
         if_block(),
         match_block(),

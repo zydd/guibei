@@ -183,7 +183,7 @@ def translate_toplevel_type_decls(node: ir.Node, scope=None) -> ir.Node:
                     return ir.TypeRef(node.info, type_)
                 case ir.TemplateDef():
                     return ir.TemplateRef(ast_node.info, type_)
-                case ir.SelfType() | ir.AstType() | ir.TypeRef() | ir.TemplateArgRef():
+                case ir.SelfType() | ir.BuiltinType() | ir.TypeRef() | ir.TemplateArgRef():
                     return type_
                 case _:
                     raise NotImplementedError(type(type_))
@@ -303,7 +303,7 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
                 assert isinstance(attr, ir.Type)
 
             match attr:
-                case ir.VarRef() | ir.ArgRef() | ir.TypeRef() | ir.SelfType() | ir.TemplateArgRef():
+                case ir.VarRef() | ir.ArgRef() | ir.TypeRef() | ir.SelfType() | ir.TemplateArgRef() | ir.Builtin():
                     return attr
                 case ir.VarDecl():
                     return ir.VarRef(id, attr)
@@ -521,6 +521,13 @@ def resolve_member_access(node: ir.Node, scope=None) -> ir.Node:
                         case _:
                             raise NotImplementedError(type(node.expr.type_))
 
+                case ir.StringLiteral():
+                    match node.attr:
+                        case "__len":
+                            return ir.IntLiteral(node.info, len(node.expr.value))
+                        case _:
+                            raise NotImplementedError(node.attr)
+
                 case ir.Expr():
                     if isinstance(node.expr.type_, ir.TypeRef):
                         obj_type_prim = node.expr.type_.primitive()
@@ -528,6 +535,7 @@ def resolve_member_access(node: ir.Node, scope=None) -> ir.Node:
                             field = obj_type_prim.field_names.index(node.attr)
                             return ir.GetTupleItem(node.info, obj_type_prim.field_types[field], node.expr, field)
                         elif isinstance(node.expr.type_.type_, ir.TypeDef):
+                            # TODO: type_.get_attr
                             method = node.expr.type_.type_.scope.lookup(node.attr)
                             assert isinstance(method, ir.FunctionDef)
                             if method.type_.args[0].name == "self":
@@ -644,6 +652,9 @@ def resolve_member_access(node: ir.Node, scope=None) -> ir.Node:
                         overloads = ir.OverloadedFunction(node.info, node.callee.name, matches)
                         return ir.Call(node.info, overloads, node.args, node.type_)
 
+                case ir.Builtin(name="__enumerate"):
+                    node.type_ = ir.BuiltinType("__iter")
+
                 case _:
                     raise NotImplementedError(type(node.callee))
 
@@ -691,6 +702,26 @@ def propagate_types(node: ir.Node):
             # Only type-check instances
             node.instances = traverse_ir.traverse_dict(propagate_types, node.instances)
             return node
+
+        case ir.TemplateFor():
+            match node.iterable:
+                case ir.Call(callee=ir.Builtin(name="__enumerate"), args=[iterable]):
+                    assert len(node.bindings) == 2
+                    if not isinstance(node.bindings[0].type_, ir.BuiltinType):
+                        assert isinstance(node.bindings[0].type_, ir.UnknownType)
+                        assert isinstance(node.bindings[1].type_, ir.UnknownType)
+                        node.bindings[0].type_ = ir.BuiltinType("__int")
+
+                        # TODO: generalize
+                        assert isinstance(iterable, ir.Expr)
+                        assert iterable.type_ == ir.BuiltinType("__str")
+                        # __str == __array[__int]
+                        node.bindings[1].type_ = ir.BuiltinType("__int")
+
+                    node.body = propagate_types(node.body)
+                    return node
+                case _:
+                    raise NotImplementedError
 
         case ir.FunctionReturn():
             node.expr = propagate_types(match_expr_type(node.expr, node.func.func.type_.ret_type))
@@ -770,7 +801,13 @@ def propagate_types(node: ir.Node):
                             # raise Exception(f"Unexpected node type in function body: {type(node.scope.body[-1])}")
 
         case ir.Block():
-            assert not (node.scope.attrs)
+            for i in range(len(node.scope.body) - 1):
+                if isinstance(node.scope.body[i], ir.Asm):
+                    node.scope.body[i] = propagate_types(match_expr_type(node.scope.body[i], ir.VoidType(None)))
+                else:
+                    node.scope.body[i] = propagate_types(node.scope.body[i])
+
+            assert not node.scope.attrs
             if node.scope.body:
                 if isinstance(node.type_, ir.VoidType):
                     if isinstance(node.scope.body[-1], ir.Expr):
@@ -1010,7 +1047,7 @@ def match_expr_type(expr: ir.Node, type_: ir.Type):
             assert isinstance(type_, (ir.TypeRef, ir.UnknownType, ir.VoidType))
             expr.type_ = type_
 
-        case ir.AstType(name="__int"):
+        case ir.BuiltinType():
             match type_:
                 case ir.TypeRef():
                     # TODO: __from_literal overloading
@@ -1028,18 +1065,12 @@ def match_expr_type(expr: ir.Node, type_: ir.Type):
                     assert source_type == expr.type_, source_type
                     assert isinstance(type_, ir.TypeRef)
                     return ir.MacroInst(expr.info, type_, ir.MacroRef(None, from_literal), [expr])
-                case ir.AstType(name="__int"):
+
+                case ir.BuiltinType() if expr.type_.name == type_.name:
                     return expr
+
                 case other:
                     raise NotImplementedError(type(other))
-
-        case ir.AstType(name="__string_literal"):
-            assert isinstance(type_.primitive(), ir.NativeArrayType)
-            assert isinstance(expr, ir.StringLiteral)
-            assert isinstance(expr.temp_var.type_, ir.UnknownType)
-            assert isinstance(expr.temp_var.type_, ir.UnknownType)
-            assert isinstance(type_, ir.TypeRef)
-            expr.type_ = expr.temp_var.type_ = type_
 
         case ir.TypeRef(type_=ir.TypeDef() as expr_type):
             if not expr_type.has_base_class(type_):
@@ -1089,16 +1120,37 @@ def check_no_unknown_types(node: ir.Node) -> ir.Node:
 def inline_macros(node: ir.Node, scope=None) -> ir.Node:
     match node:
         case ir.FunctionDef():
+            assert node.scope.func
             return traverse_ir.traverse(inline_macros, node, node.scope)
 
         case ir.MacroInst():
-            return inline_macros(
-                traverse_ir.inline(node.macro, scope, [inline_macros(arg, scope) for arg in node.args]), scope
-            )
-            # return inline_macros(traverse_ir.inline(node.macro, scope, node.args), scope)  # slow
+            # args = [inline_macros(arg, scope) for arg in node.args]
+            inlined = traverse_ir.inline(node.macro, scope, node.args)
+            inlined = resolve_member_access(inlined)
+            inlined = propagate_types(inlined)
+            inlined = inline_macros(inlined, scope)
+            return inlined
 
         case ir.ConstRef():
             return node.const.expr
+
+        case ir.TemplateFor():
+            match node.iterable:
+                case ir.Call(callee=ir.Builtin(name="__enumerate"), args=[ir.StringLiteral(value=string)]):
+                    block_name = scope.new_child_name("__inline_for")
+                    body = []
+                    for i, c in enumerate(string):
+                        arg_map: dict[str, ir.Node] = {
+                            node.bindings[0].name: ir.IntLiteral(node.bindings[0].info, i),
+                            node.bindings[1].name: ir.IntLiteral(node.bindings[1].info, ord(c)),
+                        }
+                        body.append(traverse_ir.inline_scope(node.body, scope, arg_map))
+
+                    inlined = ir.Block(None, ir.VoidType(None), block_name, ir.Scope(scope, "macro", body))
+                    return inline_macros(inlined, scope)
+                case _:
+                    # raise NotImplementedError
+                    return node
 
         case _:
             return traverse_ir.traverse(inline_macros, node, scope)
@@ -1160,7 +1212,6 @@ ir_passes: list = [
     check_no_untranslated_types,
     translate_function_defs,
     check_no_untranslated_nodes,
-    write_tree("inner.ir"),
     resolve_member_access,
     instantiate_templates,
     resolve_member_access,
@@ -1172,6 +1223,7 @@ ir_passes: list = [
     check_no_unknown_types,
     convert_enum_inst,
     inline_macros,
+    write_tree("inner.ir"),
     type_sorting,
     done,
 ]
@@ -1179,7 +1231,9 @@ ir_passes: list = [
 
 def run(prog: ast.Module):
     root_scope = ir.Scope(None, "root")
-    root_scope.register_type("__int", ir.AstType("__int"))
+    root_scope.register_type("__int", ir.BuiltinType("__int"))
+    root_scope.register_type("__str", ir.BuiltinType("__str"))
+    root_scope.add_method("__enumerate", ir.Builtin("__enumerate"))
 
     template_arg = ir.TemplateArg(None, "T")
     root_scope.register_type(

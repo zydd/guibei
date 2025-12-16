@@ -6,9 +6,15 @@ type str: [u8]
 
 
 impl bytes:
-    # func __implicit_cast(i: __int) -> ():
-    #     asm:
-    #         (i32.const {i})
+    macro __from_literal(lit: __str) -> Self:
+        let arr: __native_array[u8] = __native_array[u8].__new_uninitialized(lit.__len)
+        :for i, c in __enumerate(lit):
+            arr[i] = c
+        # bytes(arr, lit.__len)
+        __reinterpret_cast arr
+
+    # macro __from_literal(lit: __str) -> Self:
+    #     __reinterpret_cast lit
 
     func repeat(count: i32, chr: i32) -> bytes:
         asm:

@@ -139,6 +139,11 @@ class StringLiteral(Node):
     value: str
 
 
+# @dataclass
+# class CharLiteral(Node):
+#     value: str
+
+
 @dataclass
 class Identifier(Node):
     name: str
@@ -269,6 +274,13 @@ class IfElse(Node):
 @dataclass
 class While(Node):
     condition: Node
+    body: list[Node]
+
+
+@dataclass
+class TemplateFor(Node):
+    bindings: list[Identifier]
+    iterable: Node
     body: list[Node]
 
 

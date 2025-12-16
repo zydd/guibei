@@ -336,7 +336,7 @@ class IntegralType(Type):
         return IntegralType(node.info, node.native_type, node.array_packed, node.array_get)
 
     def get_attr(self, attr):
-        attrs = {"__type_reference": Asm(None, WasmExpr(None, [self.native_type]), AstType("__type"))}
+        attrs = {"__type_reference": Asm(None, WasmExpr(None, [self.native_type]), BuiltinType("__type"))}
         return attrs[attr]
 
 
@@ -433,7 +433,7 @@ class EnumValueType(TypeDef):
 
 
 @dataclass
-class AstType(Type):
+class BuiltinType(Type):
     name: str
 
     def __init__(self, name):
@@ -650,7 +650,7 @@ class IntLiteral(Expr):
     value: int
 
     def __init__(self, info, value):
-        super().__init__(info, AstType("__int"))
+        super().__init__(info, BuiltinType("__int"))
         self.value = value
 
     @staticmethod
@@ -666,25 +666,21 @@ class EnumDiscr(Expr):
     value: int
 
     def __init__(self, value):
-        super().__init__(None, AstType("__enum_discr"))
+        super().__init__(None, BuiltinType("__enum_discr"))
         self.value = value
 
 
 @dataclass
 class StringLiteral(Expr):
     value: str
-    temp_var: VarRef
 
-    def __init__(self, info, value, temp_var):
-        super().__init__(info, AstType("__string_literal"))
+    def __init__(self, info, value):
+        super().__init__(info, BuiltinType("__str"))
         self.value = value
-        self.temp_var = temp_var
 
     @staticmethod
     def translate(node: ast.StringLiteral, scope: Scope):
-        temp_var = VarDecl(None, "__str", UnknownType())
-        scope.register_local("__str", temp_var)
-        return StringLiteral(node.info, node.value, VarRef(None, temp_var))
+        return StringLiteral(node.info, node.value)
 
     def __repr__(self):
         return f"StringLiteral({self.value})"
@@ -1026,6 +1022,22 @@ class Break(Node):
 
 
 @dataclass
+class TemplateFor(Node):
+    bindings: list[ArgDecl]
+    iterable: Expr
+    body: Scope
+
+    @staticmethod
+    def translate(node: ast.TemplateFor, scope: Scope):
+        bindings = [ArgDecl(binding.info, binding.name, UnknownType()) for binding in node.bindings]
+        iterable = Untranslated(node.iterable)
+        body_scope = Scope(scope, "__for", body=[Untranslated(stmt) for stmt in node.body])
+        for arg in bindings:
+            body_scope.add_method(arg.name, ArgRef(arg.info, arg))
+        return TemplateFor(node.info, bindings, iterable, body_scope)  # type:ignore[arg-type]
+
+
+@dataclass
 class Loop(Node):
     pre_condition: Node
     scope: Scope
@@ -1138,6 +1150,15 @@ class Assignment(Node):
 
 
 # Runtime
+
+
+@dataclass
+class Builtin(Node):
+    name: str
+
+    def __init__(self, name: str):
+        super().__init__(None)
+        self.name = name
 
 
 @dataclass
