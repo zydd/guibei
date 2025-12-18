@@ -13,9 +13,6 @@ impl bytes:
         # bytes(arr, lit.__len)
         __reinterpret_cast arr
 
-    # macro __from_literal(lit: __str) -> Self:
-    #     __reinterpret_cast lit
-
     func repeat(count: i32, chr: i32) -> bytes:
         asm:
             (array.new {bytes.__asm_type} {chr} {count})

@@ -525,30 +525,41 @@ def resolve_member_access(node: ir.Node, scope=None) -> ir.Node:
                     match node.attr:
                         case "__len":
                             return ir.IntLiteral(node.info, len(node.expr.value))
+                        case "__int_le":
+                            return ir.IntLiteral(node.info, int.from_bytes(node.expr.value.encode(), "little"))
                         case _:
                             raise NotImplementedError(node.attr)
 
                 case ir.Expr():
-                    if isinstance(node.expr.type_, ir.TypeRef):
-                        obj_type_prim = node.expr.type_.primitive()
-                        if isinstance(obj_type_prim, ir.NamedTupleType) and node.attr in obj_type_prim.field_names:
-                            field = obj_type_prim.field_names.index(node.attr)
-                            return ir.GetTupleItem(node.info, obj_type_prim.field_types[field], node.expr, field)
-                        elif isinstance(node.expr.type_.type_, ir.TypeDef):
-                            # TODO: type_.get_attr
-                            method = node.expr.type_.type_.scope.lookup(node.attr)
-                            assert isinstance(method, ir.FunctionDef)
-                            if method.type_.args[0].name == "self":
-                                return ir.BoundMethod(
-                                    node.info, ir.UnknownType(), ir.FunctionRef(None, method), node.expr
-                                )
+                    match node.expr.type_:
+                        case ir.TypeRef():
+                            obj_type_prim = node.expr.type_.primitive()
+                            if isinstance(obj_type_prim, ir.NamedTupleType) and node.attr in obj_type_prim.field_names:
+                                field = obj_type_prim.field_names.index(node.attr)
+                                return ir.GetTupleItem(node.info, obj_type_prim.field_types[field], node.expr, field)
+                            elif isinstance(node.expr.type_.type_, ir.TypeDef):
+                                # TODO: type_.get_attr
+                                method = node.expr.type_.type_.scope.lookup(node.attr)
+                                assert isinstance(method, ir.FunctionDef)
+                                if method.type_.args[0].name == "self":
+                                    return ir.BoundMethod(
+                                        node.info, ir.UnknownType(), ir.FunctionRef(None, method), node.expr
+                                    )
+                                else:
+                                    raise RuntimeError("Calling static method from object")
+                                    # return method
                             else:
-                                raise RuntimeError("Calling static method from object")
-                                # return method
-                        else:
-                            raise NotImplementedError
-                    else:
-                        return node
+                                raise NotImplementedError
+
+                        case ir.BuiltinType(name="__str"):
+                            match node.attr:
+                                case "__len" | "__int_le":
+                                    node.type_ = ir.BuiltinType("__int")
+                                case _:
+                                    raise NotImplementedError
+
+                        case _:
+                            return node
 
                 case ir.SelfType() | ir.TemplateInst():
                     return node
@@ -872,11 +883,13 @@ def propagate_types(node: ir.Node):
                 expr.type_ = node.type_
                 return expr
 
-            if isinstance(expr, ir.IntLiteral):
+            if isinstance(expr.type_, ir.BuiltinType):
                 cast_type: ir.TypeDef | None = node.type_.type_
                 while cast_type:
                     try:
-                        from_literal = cast_type.scope.attrs["__from_literal"]
+                        _from_literal = cast_type.scope.attrs["__from_literal"]
+                        assert isinstance(_from_literal, ir.MacroDef)
+                        from_literal: ir.MacroDef | None = _from_literal
                         break
                     except KeyError:
                         if cast_type.super_ is not None:
@@ -889,8 +902,14 @@ def propagate_types(node: ir.Node):
                     from_literal = None
                     # raise RuntimeError(f"Cannot cast int literal to {node.type_}")
 
+                # TODO: overloaded
                 if from_literal:
-                    assert isinstance(from_literal, ir.MacroDef)
+                    # Allow automatic conversion from __str to __int literals on explicit casts
+                    arg_type = from_literal.func.type_.args[0].type_
+                    if expr.type_.name == "__str" and isinstance(arg_type, ir.BuiltinType) and arg_type.name == "__int":
+                        assert isinstance(node.expr, ir.StringLiteral)
+                        expr = ir.IntLiteral(expr.info, int.from_bytes(node.expr.value.encode(), "little"))
+
                     assert node.type_.has_base_class(from_literal.func.type_.ret_type)
                     return ir.MacroInst(
                         node.info,

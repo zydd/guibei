@@ -231,11 +231,11 @@ impl u16:
 
 
 impl u32:
-    macro __from_literal(i: __int) -> Self:
+    macro __from_literal(lit: __int) -> Self:
         # static_assert val.__geq(0)
         # static_assert val.__leq(0xffffffff)
         asm:
-            (i32.const {i})
+            (i32.const {lit})
 
     :__unsigned_integer_operations(u32, asm: i32)
 

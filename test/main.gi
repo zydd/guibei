@@ -35,7 +35,7 @@ func main() -> ():
     assert(not Option.None.is_some())
     assert(pair(123, 456).first == 123)
 
-    i32.print(47)
+    u32.print(u32 "1")
     bytes.print("\n")
 
     let arr: __array[i32] = __array[i32].new()

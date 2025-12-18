@@ -1,7 +1,7 @@
 import pytest
 import textwrap
 
-from common import compile, prelude
+from common import compile, compile_full
 from compiler import codegen, ir
 
 
@@ -96,3 +96,24 @@ def test_self_type(code):
 def test_self_type_fail(code):
     with pytest.raises(AssertionError):
         compile(code)
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        'u32.print(u32 "1234")',
+    ],
+)
+def test_str_literal_cast(code):
+    assert compile_full(f"func main() -> ():\n" + textwrap.indent(code, "    "))
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        'u32.print("1234")',
+    ],
+)
+def test_str_literal_cast_fail(code):
+    with pytest.raises(Exception):
+        assert compile_full(f"func main() -> ():\n" + textwrap.indent(code, "    "))

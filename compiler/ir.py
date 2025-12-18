@@ -440,6 +440,9 @@ class BuiltinType(Type):
         super().__init__(None)
         self.name = name
 
+    def __eq__(self, value):
+        return isinstance(value, BuiltinType) and self.name == value.name
+
 
 @dataclass
 class UnknownType(Type):
@@ -683,7 +686,7 @@ class StringLiteral(Expr):
         return StringLiteral(node.info, node.value)
 
     def __repr__(self):
-        return f"StringLiteral({self.value})"
+        return f'StringLiteral("{self.value}")'
 
 
 @dataclass
