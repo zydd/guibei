@@ -1,4 +1,5 @@
 /.vscode/
+/venv/
 /*.sh
 __pycache__/
 *.wast

@@ -1150,26 +1150,12 @@ class MatchIntCase(Node):
     value: int
     scope: Scope
 
-    @staticmethod
-    def from_case(case: MatchCase | MatchIntCase) -> MatchIntCase:
-        if isinstance(case, MatchIntCase):
-            return case
-
-        assert isinstance(case.expr, IntLiteral)
-        return MatchIntCase(case.info, case.expr.value, case.scope)
-
 
 @dataclass
 class MatchInt(Node):
     match_expr: SetLocal
     cases: list[MatchIntCase]
     scope: Scope
-
-    @staticmethod
-    def from_match(match: Match):
-        assert isinstance(match.match_expr.var.type_.primitive(), IntegralType)
-        int_cases = [MatchIntCase.from_case(c) for c in match.cases]
-        return MatchInt(match.info, match.match_expr, int_cases, match.scope)
 
 
 @dataclass

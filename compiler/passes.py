@@ -2,6 +2,7 @@ from compiler import ast
 from compiler import ir
 from compiler import traverse_ast
 from compiler import traverse_ir
+from compiler import eval_wasm
 
 
 def write_tree(filename):
@@ -1017,18 +1018,21 @@ def explicit_cast(expr: ir.Expr, type_: ir.Type):
 
         # TODO: overloaded
         if from_literal:
-            # Allow automatic conversion from __str to __int literals on explicit casts
             arg_type = from_literal.func.type_.args[0].type_
-            if expr.type_.name == "__str" and isinstance(arg_type, ir.BuiltinType) and arg_type.name == "__int":
+            assert isinstance(arg_type, ir.BuiltinType)
+            if expr.type_.name == "__str" and arg_type.name == "__int":
                 assert isinstance(expr, ir.StringLiteral)
+                # Allow automatic conversion from __str to __int literals on explicit casts
                 expr = ir.IntLiteral(expr.info, int.from_bytes(expr.value.encode(), "little"))
+            else:
+                assert expr.type_.name == arg_type.name  # type:ignore[attr-defined]
 
             assert type_.has_base_class(from_literal.func.type_.ret_type)
-            return ir.MacroInst(
+            return ir.ExplicitCast(
                 None,
                 type_,
                 ir.MacroRef(None, from_literal),
-                [expr],
+                expr,
             )
 
     # TODO: overloaded
@@ -1092,13 +1096,31 @@ def specialize_match(node: ir.Node) -> ir.Node:
         case ir.Match():
             assert isinstance(node.match_expr.expr, ir.Expr)
             assert node.match_expr.var.type_ == node.match_expr.expr.type_
-            if isinstance(node.match_expr.expr.type_.primitive(), ir.EnumType):
-                cases = [ir.MatchCaseEnum.from_case(case) for case in node.cases]
-                return ir.MatchEnum(node.info, node.match_expr, cases, node.scope)
-            elif isinstance(node.match_expr.expr.type_.primitive(), ir.IntegralType):
-                return ir.MatchInt.from_match(node)
-            else:
-                raise NotImplementedError(type(node.match_expr.expr.type_.primitive()))
+            match node.match_expr.expr.type_.primitive():
+                case ir.EnumType():
+                    cases: list = [ir.MatchCaseEnum.from_case(case) for case in node.cases]
+                    return ir.MatchEnum(node.info, node.match_expr, cases, node.scope)
+                case ir.IntegralType():
+                    cases = []
+                    for case in node.cases:
+                        if isinstance(case, ir.MatchIntCase):
+                            cases.append(case)
+
+                        match case.expr:
+                            case ir.ImplicitCast():
+                                inlined = inline_macros(case.expr)
+                                assert isinstance(inlined, ir.Expr)
+                                value = eval_wasm.eval_expr(inlined)
+                            case ir.IntLiteral():
+                                value = case.expr.value
+                                assert isinstance(value, int)
+                            case _:
+                                raise NotImplementedError
+
+                        cases.append(ir.MatchIntCase(case.info, value, case.scope))
+                    return ir.MatchInt(node.info, node.match_expr, cases, node.scope)
+                case other:
+                    raise NotImplementedError(type(other))
 
         case _:
             return traverse_ir.traverse(specialize_match, node)
