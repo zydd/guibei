@@ -10,6 +10,7 @@ type f32: __integral[f32, f32, array.get]
 type f64: __integral[f64, f64, array.get]
 type isize: __integral[i64, i64, array.get]
 type usize: __integral[i64, i64, array.get]
+type char: u8
 
 
 macro :__integer_operations(Self, native_type):
@@ -359,3 +360,10 @@ impl usize:
 
     func print(self) -> ():
         u64.print(__reinterpret_cast self)
+
+
+impl char:
+    macro __from_literal(lit: __str) -> Self:
+        # static_assert lit.__int_le.__leq(0xff)
+        asm:
+            (i32.const {lit.__int_le})

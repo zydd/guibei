@@ -8,6 +8,8 @@ enum TypeExpr:
     FunctionType(info: ParseInfo, args: Tuple, ret: Option<TypeExpr>)
     Void(info: ParseInfo)
 
+    Untranslated(info: ParseInfo, expr: ast.Node)
+
 
 enum Expr:
     Module(info: ParseInfo, body: vec<Expr>)
@@ -36,6 +38,8 @@ enum Expr:
     While(info: ParseInfo, condition: Expr, body: vec<Expr>)
     Match(info: ParseInfo, expr: Expr, cases: vec<MatchCase>)
     FunctionReturn(info: ParseInfo, expr: Expr)
+
+    Untranslated(info: ParseInfo, expr: ast.Node)
 
 
 type TupleField: (info: ParseInfo, name: Option<str>, value: Expr)

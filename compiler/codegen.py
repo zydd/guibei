@@ -462,6 +462,50 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
 
             return [*translate_wasm(node.match_expr), terms]
 
+        case ir.MatchInt():
+            assert isinstance(node.match_expr.expr, ir.Expr)
+            node.cases.sort(key=lambda case: case.value)
+            values = [case.value for case in node.cases]
+            assert len(values) == len(set(values))
+
+            value_range = values[-1] - values[0] + 1
+            occupancy = len(values) / value_range
+            assert occupancy > 0.10, occupancy
+            offset = values[0]
+
+            cases = [None] * value_range
+            for int_case in node.cases:
+                cases[int_case.value - offset] = int_case
+
+            default_case_name = f"${node.scope.name}.__default"
+            block_names = [default_case_name if case is None else f"${case.scope.name}" for case in cases]
+            block_names.append(default_case_name)
+
+            default_case = ["unreachable"]
+
+            terms = [
+                [
+                    "br_table",
+                    *block_names,
+                    ["i32.sub", ["local.get", f"${node.match_expr.var.name}"], ["i32.const", offset]],
+                ],
+                "unreachable",
+            ]
+            for case in reversed(cases):
+                if case is None:
+                    continue
+                assert isinstance(case, ir.MatchIntCase)
+                terms = [
+                    ["block", f"${case.scope.name}", *terms],
+                    *translate_wasm(case.scope),
+                    ["br", f"${node.scope.name}"],
+                ]
+
+            terms = [["block", default_case_name, *terms], *default_case]
+            terms = ["block", f"${node.scope.name}", *terms]
+
+            return [*translate_wasm(node.match_expr), terms]
+
         case (
             ir.MacroDef()
             | ir.VoidExpr()

@@ -686,7 +686,7 @@ class StringLiteral(Expr):
         return StringLiteral(node.info, node.value)
 
     def __repr__(self):
-        return f'StringLiteral("{self.value}")'
+        return f"StringLiteral({repr(self.value)})"
 
 
 @dataclass
@@ -1126,6 +1126,11 @@ class Match(Node):
                 # discriminant arg is added in MatchCaseEnum.from_case
                 return MatchCaseEnum(node.info, expr, args, case_scope)
 
+            case ast.IntLiteral():
+                statements = [Untranslated(stmt) for stmt in node.body]
+                case_scope = Scope(scope, "__case", statements)
+                return MatchIntCase(node.info, node.expr.value, case_scope)
+
             case _:
                 expr = Untranslated(node.expr)
                 statements = [Untranslated(stmt) for stmt in node.body]
@@ -1138,6 +1143,33 @@ class MatchEnum(Node):
     match_expr: SetLocal
     cases: list[MatchCaseEnum]
     scope: Scope
+
+
+@dataclass
+class MatchIntCase(Node):
+    value: int
+    scope: Scope
+
+    @staticmethod
+    def from_case(case: MatchCase | MatchIntCase) -> MatchIntCase:
+        if isinstance(case, MatchIntCase):
+            return case
+
+        assert isinstance(case.expr, IntLiteral)
+        return MatchIntCase(case.info, case.expr.value, case.scope)
+
+
+@dataclass
+class MatchInt(Node):
+    match_expr: SetLocal
+    cases: list[MatchIntCase]
+    scope: Scope
+
+    @staticmethod
+    def from_match(match: Match):
+        assert isinstance(match.match_expr.var.type_.primitive(), IntegralType)
+        int_cases = [MatchIntCase.from_case(c) for c in match.cases]
+        return MatchInt(match.info, match.match_expr, int_cases, match.scope)
 
 
 @dataclass
@@ -1219,10 +1251,17 @@ class MacroInst(Expr):
     macro: MacroRef
     args: list[Node]
 
-    def __init__(self, info, type_: Type, macro: MacroRef, args: list[Node]):
-        super().__init__(info, type_)
-        self.macro = macro
-        self.args = args
+
+@dataclass
+class ImplicitCast(Expr):
+    macro: MacroRef
+    expr: Expr
+
+
+@dataclass
+class ExplicitCast(Expr):
+    macro: MacroRef
+    expr: Expr
 
 
 @dataclass

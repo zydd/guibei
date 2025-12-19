@@ -878,66 +878,7 @@ def propagate_types(node: ir.Node):
             assert isinstance(node.type_, ir.TypeRef)
             assert isinstance(node.type_.type_, ir.TypeDef)
             expr = propagate_types(node.expr)
-            if isinstance(expr, ir.Asm):
-                assert isinstance(expr.type_, ir.UnknownType)
-                expr.type_ = node.type_
-                return expr
-
-            if isinstance(expr.type_, ir.BuiltinType):
-                cast_type: ir.TypeDef | None = node.type_.type_
-                while cast_type:
-                    try:
-                        _from_literal = cast_type.scope.attrs["__from_literal"]
-                        assert isinstance(_from_literal, ir.MacroDef)
-                        from_literal: ir.MacroDef | None = _from_literal
-                        break
-                    except KeyError:
-                        if cast_type.super_ is not None:
-                            assert isinstance(cast_type.super_, ir.TypeRef)
-                            assert isinstance(cast_type.super_.type_, ir.TypeDef)
-                            cast_type = cast_type.super_.type_
-                        else:
-                            cast_type = None
-                else:
-                    from_literal = None
-                    # raise RuntimeError(f"Cannot cast int literal to {node.type_}")
-
-                # TODO: overloaded
-                if from_literal:
-                    # Allow automatic conversion from __str to __int literals on explicit casts
-                    arg_type = from_literal.func.type_.args[0].type_
-                    if expr.type_.name == "__str" and isinstance(arg_type, ir.BuiltinType) and arg_type.name == "__int":
-                        assert isinstance(node.expr, ir.StringLiteral)
-                        expr = ir.IntLiteral(expr.info, int.from_bytes(node.expr.value.encode(), "little"))
-
-                    assert node.type_.has_base_class(from_literal.func.type_.ret_type)
-                    return ir.MacroInst(
-                        node.info,
-                        node.type_,
-                        ir.MacroRef(None, from_literal),
-                        [expr],
-                    )
-
-            # TODO: overloaded
-            cast_type = node.type_.type_
-            while cast_type:
-                try:
-                    cast_from = cast_type.scope.attrs["__cast_from"]
-                    break
-                except KeyError:
-                    if cast_type.super_ is not None:
-                        assert isinstance(cast_type.super_, ir.TypeRef)
-                        assert isinstance(cast_type.super_.type_, ir.TypeDef)
-                        cast_type = cast_type.super_.type_
-                    else:
-                        cast_type = None
-            else:
-                raise RuntimeError(f"Cannot cast {expr.type_} to {node.type_}")
-
-            assert isinstance(cast_from, ir.MacroDef)
-            assert len(cast_from.func.type_.args) == 1
-            assert cast_from.func.type_.args[0].type_ == expr.type_
-            return ir.MacroInst(node.info, node.type_, ir.MacroRef(None, cast_from), [expr])
+            return explicit_cast(expr, node.type_)
 
         case ir.Match():
             assert isinstance(node.match_expr.expr, ir.Expr)
@@ -954,6 +895,9 @@ def propagate_types(node: ir.Node):
                             propagate_types(match_expr_type(arg, type_))
                             for arg, type_ in zip(case.args, case.enum.type_.field_types)
                         ]
+                        case.scope = propagate_types(case.scope)
+
+                    case ir.MatchIntCase():
                         case.scope = propagate_types(case.scope)
 
                     case ir.MatchCase():
@@ -1032,6 +976,69 @@ def _check_match_expr_type_result(func):
     return wrapper
 
 
+def implicit_cast_literal(expr: ir.Expr, type_: ir.Type):
+    assert isinstance(expr.type_, ir.BuiltinType)
+    match type_:
+        case ir.TypeRef():
+            # TODO: __from_literal overloading
+            assert isinstance(type_.type_, ir.TypeDef)
+            cast_type = type_.type_
+            try:
+                from_literal = cast_type.scope.attrs["__from_literal"]
+            except KeyError:
+                raise RuntimeError(f"Implicit conversion from {expr.type_} to {type_} not allowed")
+
+            assert isinstance(from_literal, ir.MacroDef)
+            assert len(from_literal.func.type_.args) == 1
+            source_type = from_literal.func.type_.args[0].type_.primitive()
+            assert source_type == expr.type_, source_type
+            assert isinstance(type_, ir.TypeRef)
+            return ir.ImplicitCast(expr.info, type_, ir.MacroRef(None, from_literal), expr)
+
+        case ir.BuiltinType() if expr.type_.name == type_.name:
+            return expr
+
+        case other:
+            raise NotImplementedError(type(other))
+
+
+def explicit_cast(expr: ir.Expr, type_: ir.Type):
+    if isinstance(expr, ir.Asm):
+        assert isinstance(expr.type_, ir.UnknownType)
+        expr.type_ = type_
+        return expr
+
+    if isinstance(expr.type_, ir.BuiltinType):
+        try:
+            from_literal = type_.get_attr("__from_literal")
+            assert isinstance(from_literal, ir.MacroDef)
+        except KeyError:
+            from_literal = None
+
+        # TODO: overloaded
+        if from_literal:
+            # Allow automatic conversion from __str to __int literals on explicit casts
+            arg_type = from_literal.func.type_.args[0].type_
+            if expr.type_.name == "__str" and isinstance(arg_type, ir.BuiltinType) and arg_type.name == "__int":
+                assert isinstance(expr, ir.StringLiteral)
+                expr = ir.IntLiteral(expr.info, int.from_bytes(expr.value.encode(), "little"))
+
+            assert type_.has_base_class(from_literal.func.type_.ret_type)
+            return ir.MacroInst(
+                None,
+                type_,
+                ir.MacroRef(None, from_literal),
+                [expr],
+            )
+
+    # TODO: overloaded
+    cast_from = type_.get_attr("__cast_from")
+    assert isinstance(cast_from, ir.MacroDef)
+    assert len(cast_from.func.type_.args) == 1
+    assert cast_from.func.type_.args[0].type_ == expr.type_
+    return ir.ExplicitCast(None, type_, ir.MacroRef(None, cast_from), expr)
+
+
 @_check_match_expr_type_result
 def match_expr_type(expr: ir.Node, type_: ir.Type):
     assert not isinstance(type_, ir.TypeDef)
@@ -1067,29 +1074,7 @@ def match_expr_type(expr: ir.Node, type_: ir.Type):
             expr.type_ = type_
 
         case ir.BuiltinType():
-            match type_:
-                case ir.TypeRef():
-                    # TODO: __from_literal overloading
-                    assert isinstance(type_.type_, ir.TypeDef)
-                    cast_type = type_.type_
-                    try:
-                        cast_from = cast_type.scope.attrs["__from_literal"]
-                    except KeyError:
-                        raise RuntimeError(f"Implicit conversion from {expr.type_} to {type_} not allowed")
-
-                    from_literal = cast_from
-                    assert isinstance(from_literal, ir.MacroDef)
-                    assert len(from_literal.func.type_.args) == 1
-                    source_type = from_literal.func.type_.args[0].type_.primitive()
-                    assert source_type == expr.type_, source_type
-                    assert isinstance(type_, ir.TypeRef)
-                    return ir.MacroInst(expr.info, type_, ir.MacroRef(None, from_literal), [expr])
-
-                case ir.BuiltinType() if expr.type_.name == type_.name:
-                    return expr
-
-                case other:
-                    raise NotImplementedError(type(other))
+            expr = implicit_cast_literal(expr, type_)
 
         case ir.TypeRef(type_=ir.TypeDef() as expr_type):
             if not expr_type.has_base_class(type_):
@@ -1110,6 +1095,8 @@ def specialize_match(node: ir.Node) -> ir.Node:
             if isinstance(node.match_expr.expr.type_.primitive(), ir.EnumType):
                 cases = [ir.MatchCaseEnum.from_case(case) for case in node.cases]
                 return ir.MatchEnum(node.info, node.match_expr, cases, node.scope)
+            elif isinstance(node.match_expr.expr.type_.primitive(), ir.IntegralType):
+                return ir.MatchInt.from_match(node)
             else:
                 raise NotImplementedError(type(node.match_expr.expr.type_.primitive()))
 
@@ -1145,6 +1132,13 @@ def inline_macros(node: ir.Node, scope=None) -> ir.Node:
         case ir.MacroInst():
             # args = [inline_macros(arg, scope) for arg in node.args]
             inlined = traverse_ir.inline(node.macro, scope, node.args)
+            inlined = resolve_member_access(inlined)
+            inlined = propagate_types(inlined)
+            inlined = inline_macros(inlined, scope)
+            return inlined
+
+        case ir.ImplicitCast() | ir.ExplicitCast():
+            inlined = traverse_ir.inline(node.macro, scope, [node.expr])
             inlined = resolve_member_access(inlined)
             inlined = propagate_types(inlined)
             inlined = inline_macros(inlined, scope)
@@ -1238,11 +1232,11 @@ ir_passes: list = [
     resolve_member_access,
     propagate_types,
     drop_unused_result,
+    write_tree("inner.ir"),
     specialize_match,
     check_no_unknown_types,
     convert_enum_inst,
     inline_macros,
-    write_tree("inner.ir"),
     type_sorting,
     done,
 ]
