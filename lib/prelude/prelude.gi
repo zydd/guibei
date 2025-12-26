@@ -28,16 +28,7 @@ impl bytes:
             (array.new {bytes.__asm_type} {chr} {count})
 
     func print(self) -> ():
-        let i: usize = 0
-        let len: usize = asm: (array.len (local.get $self))
-
-        while i < len:
-            asm: (i32.store8 {i} {self[i]})
-            i = i + 1
-
-        # FIXME: use __stackp
-        # FIXME: integral type casting
-        __print_n(i32 0, __reinterpret_cast len)
+        __print(self)
 
     func read(count: usize) -> bytes:
         let buffer: usize = usize asm: (global.get $__stackp) + 16

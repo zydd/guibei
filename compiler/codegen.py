@@ -197,6 +197,9 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
                     terms.extend(type_declaration(attr))
 
             for attr in node.scope.attrs.values():
+                if isinstance(attr, ir.FunctionRef):
+                    continue
+
                 terms.extend(translate_wasm(attr))
 
             return terms
@@ -514,7 +517,7 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
         case (
             ir.MacroDef()
             | ir.VoidExpr()
-            | ir.FunctionRef()
+            # | ir.FunctionRef()
             | ir.OverloadedFunction()
             | ir.ConstDecl()
             | ir.BuiltinType()

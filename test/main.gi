@@ -1,3 +1,5 @@
+# main.gi
+
 # TODO:
 # - Canonical names
 # - Argument/variable indexing
@@ -51,3 +53,16 @@ func main() -> ():
             assert(False)
         case Option.Some(value):
             assert(True)
+
+    let fd: i32 = __open("main.gi")
+    bytes.print("fd:")
+    i32.print(fd)
+    bytes.print("\n")
+
+    let read: bytes = __read_fd(fd, 10)
+    bytes.print("\nread: ")
+    usize.print(read.len())
+    bytes.print("\n")
+    bytes.print(read)
+    bytes.print("\n")
+

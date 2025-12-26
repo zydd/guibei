@@ -101,7 +101,7 @@ impl i8:
         # static_assert val.__leq(0x7f)
         asm:
             (i32.const {i})
-    
+
     :__integer_operations(i8, asm: i32)
 
     func print(self) -> ():
@@ -113,7 +113,7 @@ impl i16:
         # static_assert val.__leq(0x7fff)
         asm:
             (i32.const {i})
-    
+
     :__integer_operations(i16, asm: i32)
 
     func print(self) -> ():
@@ -212,7 +212,7 @@ impl u8:
         # static_assert val.__leq(0x7f)
         asm:
             (i32.const {i})
-    
+
     :__integer_operations(u8, asm: i32)
 
     func print(self) -> ():
@@ -225,7 +225,7 @@ impl u16:
         # static_assert val.__leq(0x7fff)
         asm:
             (i32.const {i})
-    
+
     :__integer_operations(u16, asm: i32)
 
     func print(self) -> ():

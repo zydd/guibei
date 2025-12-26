@@ -104,7 +104,7 @@ def function_def():
     yield regex("func +")
     name = yield choice(identifier(), operator_identifier())
     yield regex(r" *")
-    args, ret_type = yield (sequence(_function_args(), _function_ret()))
+    args, ret_type = yield sequence(_function_args(), _function_ret())
     if (yield optional(regex(r" *:"))):
         body = yield indented_block(statement())
     else:

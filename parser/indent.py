@@ -63,7 +63,7 @@ def indent_spaces():
 
 @generate
 def parens(p):
-    yield string("(")
+    yield regex(r"\(\s*")
     res = yield with_pos(p)
     yield regex(r"\s*\)")
     return res
