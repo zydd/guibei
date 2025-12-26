@@ -550,28 +550,16 @@ class VoidExpr(Expr):
 @dataclass
 class Call(Expr):
     callee: Node
-    args: list[Node]
+    arg: Node
 
-    def __init__(self, info, callee, args, type_=None):
+    def __init__(self, info, callee, arg, type_=None):
         super().__init__(info, type_)
         self.callee = callee
-        self.args = args
+        self.arg = arg
 
     @staticmethod
     def translate(node: ast.Call, _scope: Scope):
-        callee = Untranslated(node.callee)
-        if isinstance(node.arg, ast.TupleExpr):
-            args = [Untranslated(arg) for arg in node.arg.field_values]
-        else:
-            args = [Untranslated(node.arg)]
-        return Call(node.info, callee, args)
-
-    @staticmethod
-    def translate_args(arg: ast.Node):
-        if isinstance(arg, ast.TupleExpr):
-            return [Untranslated(arg) for arg in arg.field_values]
-        else:
-            return [Untranslated(arg)]
+        return Call(node.info, Untranslated(node.callee), Untranslated(node.arg))
 
 
 @dataclass
@@ -1083,10 +1071,12 @@ class MatchCaseEnum(Node):
         elif isinstance(case.expr, Call):
             assert isinstance(case.expr.callee, TypeRef)
             assert isinstance(case.expr.callee.primitive(), EnumValueType)
+            assert isinstance(case.expr.arg, TupleExpr)
+            args: list = [EnumDiscr(case.expr.callee.primitive().discr)] + case.expr.arg.args
             return MatchCaseEnum(
                 case.info,
                 case.expr.callee,
-                [EnumDiscr(case.expr.callee.primitive().discr)] + case.expr.args,
+                args,
                 case.scope,
             )
         else:
@@ -1217,6 +1207,16 @@ class Drop(Node):
 
 
 @dataclass
+class TupleExpr(Expr):
+    args: list[Expr]
+
+    @staticmethod
+    def translate(node: ast.TupleExpr, _scope: Scope):
+        args: list = [Untranslated(arg) for arg in node.field_values]
+        return TupleExpr(node.info, UnknownType(), args)
+
+
+@dataclass
 class TupleInst(Expr):
     args: list[Expr]
 
@@ -1257,4 +1257,9 @@ class ReinterpretCast(Expr):
 
 @dataclass
 class Cast(Expr):
+    expr: Expr
+
+
+@dataclass
+class RefCast(Expr):
     expr: Expr

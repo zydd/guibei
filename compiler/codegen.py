@@ -445,8 +445,10 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
                                     [
                                         "ref.cast",
                                         f"(ref ${case.enum.type_.name})",
-                                        "local.get",
-                                        f"${node.match_expr.var.name}",
+                                        [
+                                            "local.get",
+                                            f"${node.match_expr.var.name}",
+                                        ],
                                     ],
                                 ],
                             ]
@@ -506,6 +508,9 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
 
             return [*translate_wasm(node.match_expr), terms]
 
+        case ir.RefCast():
+            return [["ref.cast", *type_reference(node.type_), *translate_wasm(node.expr)]]
+
         case (
             ir.MacroDef()
             | ir.VoidExpr()
@@ -521,5 +526,5 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
         case ir.ReinterpretCast():
             return translate_wasm(node.expr)
 
-    # return [str(node)]
+    return [str(node)]
     raise NotImplementedError(node)

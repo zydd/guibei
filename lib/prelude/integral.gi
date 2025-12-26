@@ -8,9 +8,10 @@ type i64: __integral[i64, i64, array.get]
 type u64: __integral[i64, i64, array.get]
 type f32: __integral[f32, f32, array.get]
 type f64: __integral[f64, f64, array.get]
-type isize: __integral[i64, i64, array.get]
-type usize: __integral[i64, i64, array.get]
-type char: u8
+type isize: __integral[i32, i32, array.get]
+type usize: __integral[i32, i32, array.get]
+type byte: u8
+type char: u8  # TODO: unicode support i31.ref/array
 
 
 macro :__integer_operations(Self, native_type):
@@ -310,56 +311,63 @@ impl u64:
 impl usize:
     macro __from_literal(i: __int) -> Self:
         # static_assert val.__geq(0)
-        # static_assert val.__leq(0xffffffffffffffff)
+        # static_assert val.__leq(0xffffffff)
         asm:
-            (i64.const {i})
+            (i32.const {i})
 
     func (*)(self, rhs: Self) -> Self:
-        assert((rhs == 0) || (self <= asm: (i64.div_u {usize 0xffffffffffffffff} {rhs})))
-        asm: (i64.mul {self} {rhs})
+        assert((rhs == 0) || (self <= asm: (i32.div_u {usize 0xffffffff} {rhs})))
+        asm: (i32.mul {self} {rhs})
 
     func (+)(self, rhs: Self) -> Self:
-        let res: Self = asm: (i64.add {self} {rhs})
-        assert(asm: (i64.gt_u {res} {self}))
+        let res: Self = asm: (i32.add {self} {rhs})
+        assert(asm: (i32.ge_u {res} {self}))
         res
 
     func (//)(self, rhs: Self) -> Self:
-        asm: (i64.div_u {self} {rhs})
+        asm: (i32.div_u {self} {rhs})
 
     func (%)(self, rhs: Self) -> Self:
-        asm: (i64.rem_u {self} {rhs})
+        asm: (i32.rem_u {self} {rhs})
 
     func (-)(self, rhs: Self) -> Self:
-        let res: Self = asm: (i64.sub {self} {rhs})
-        assert(asm: (i64.lt_u {res} {self}))
+        let res: Self = asm: (i32.sub {self} {rhs})
+        assert(asm: (i32.lt_u {res} {self}))
         res
 
     func (&)(self, rhs: Self) -> Self:
-        asm: (i64.and {self} {rhs})
+        asm: (i32.and {self} {rhs})
 
     func (|)(self, rhs: Self) -> Self:
-        asm: (i64.or {self} {rhs})
+        asm: (i32.or {self} {rhs})
 
     func (<)(self, rhs: Self) -> bool:
-        asm: (i64.lt_u {self} {rhs})
+        asm: (i32.lt_u {self} {rhs})
 
     func (<=)(self, rhs: Self) -> bool:
-        asm: (i64.le_u {self} {rhs})
+        asm: (i32.le_u {self} {rhs})
 
     func (>)(self, rhs: Self) -> bool:
-        asm: (i64.gt_u {self} {rhs})
+        asm: (i32.gt_u {self} {rhs})
 
     func (>=)(self, rhs: Self) -> bool:
-        asm: (i64.ge_u {self} {rhs})
+        asm: (i32.ge_u {self} {rhs})
 
     func (==)(self, rhs: Self) -> bool:
-        asm: (i64.eq {self} {rhs})
+        asm: (i32.eq {self} {rhs})
 
     func (!=)(self, rhs: Self) -> bool:
-        asm: (i64.ne {self} {rhs})
+        asm: (i32.ne {self} {rhs})
 
     func print(self) -> ():
-        u64.print(__reinterpret_cast self)
+        u32.print(__reinterpret_cast self)
+
+
+impl byte:
+    macro __from_literal(lit: __str) -> Self:
+        # static_assert lit.__int_le.__leq(0xff)
+        asm:
+            (i32.const {lit.__int_le})
 
 
 impl char:

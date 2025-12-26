@@ -1,8 +1,18 @@
 # bytes
 
 
-type bytes: __native_array[i8]
-type str: [u8]
+type bytes: __native_array[byte]
+type bytes2: [byte]
+type str: [char]
+
+
+impl bytes2:
+    func new() -> Self:
+        bytes2 __array[byte].new()
+
+    func repeat(count: usize, chr: byte) -> Self:
+        # FIXME: do not use __array internals
+        Self (asm: (array.new {bytes.__asm_type} {chr} {count}), count)
 
 
 impl bytes:
@@ -13,39 +23,42 @@ impl bytes:
         # bytes(arr, lit.__len)
         __reinterpret_cast arr
 
-    func repeat(count: i32, chr: i32) -> bytes:
+    func repeat(count: usize, chr: byte) -> bytes:
         asm:
             (array.new {bytes.__asm_type} {chr} {count})
 
     func print(self) -> ():
-        let i: i32 = 0
-        let len: i32 = asm: (array.len (local.get $self))
+        let i: usize = 0
+        let len: usize = asm: (array.len (local.get $self))
 
         while i < len:
             asm: (i32.store8 {i} {self[i]})
             i = i + 1
 
-        __print_n(0, len)
+        # FIXME: use __stackp
+        # FIXME: integral type casting
+        __print_n(i32 0, __reinterpret_cast len)
 
-    func read(count: i32) -> bytes:
-        let buffer: i32 = i32 asm: (global.get $__stackp) + 16
-        let read_count: i32 = __read_n(buffer, count)
-        let result: bytes = bytes.repeat(read_count, 0)
-        let i: i32 = 0
+    func read(count: usize) -> bytes:
+        let buffer: usize = usize asm: (global.get $__stackp) + 16
+        # FIXME: integral type casting
+        let read_count: usize = __reinterpret_cast __read_n(__reinterpret_cast buffer, __reinterpret_cast count)
+        let result: bytes = bytes.repeat(read_count, "\0")
+        let i: usize = 0
 
         while i < read_count:
             result[i] = asm: (i32.load {buffer + i})
             i = i + 1
         return result
 
-    func len(self) -> i32:
+    func len(self) -> usize:
         asm: (array.len (local.get $self))
 
     func eq(self, other: Self) -> bool:
         if self.len() != other.len():
             return False
 
-        let i: i32 = 0
+        let i: usize = 0
         while i < self.len():
             if self[i] != other[i]:
                 return False
@@ -53,13 +66,13 @@ impl bytes:
 
         return True
 
-    func slice(self, start: i32, end: i32) -> bytes:
-        let len: i32 = self.len()
+    func slice(self, start: usize, end: usize) -> bytes:
+        let len: usize = self.len()
         if (start < 0) || (end < 0) || (start > len) || (end > len) || (start > end):
             asm: unreachable
 
-        let result: bytes = bytes.repeat(end - start, 0)
-        let i: i32 = start
+        let result: bytes = bytes.repeat(end - start, "\0")
+        let i: usize = start
         while i < end:
             result[i - start] = self[i]
             i = i + 1

@@ -12,7 +12,7 @@ impl mat:
 type mat_arr: __native_array[mat]
 
 impl mat_arr:
-    func len(self: Self) -> i32:
+    func len(self: Self) -> usize:
         asm: (array.len (local.get $self))
 
     func repeat(count: i32) -> Self:
@@ -22,7 +22,7 @@ impl mat_arr:
 
 func main() -> ():
     let arr: mat_arr = mat_arr.repeat(10)
-    let i: i32 = 0
+    let i: usize = 0
     arr[3] = mat(pair(3, 3), pair(3, 3))
     while i < arr.len():
         arr[i].print()

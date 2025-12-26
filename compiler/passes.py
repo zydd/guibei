@@ -334,7 +334,7 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
                     return ir.VoidExpr(ast_node.info)
                 else:
                     assert all(isinstance(field, ir.Expr) for field in fields)
-                    return ir.TupleInst(ast_node.info, ir.UnknownType(), fields)
+                    return ir.TupleExpr(ast_node.info, ir.UnknownType(), fields)
 
         case ir.Untranslated(ast_node=ast.While() as while_stmt):
             pre_condition = ir.Untranslated(while_stmt.condition)
@@ -371,7 +371,9 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
                 func = ir.FunctionRef(None, func)
             lhs = translate_function_defs(ir.Untranslated(ast_node.lhs), scope)
             rhs = translate_function_defs(ir.Untranslated(ast_node.rhs), scope)
-            return ir.Call(ast_node.info, func, [lhs, rhs])
+            assert isinstance(lhs, ir.Expr)
+            assert isinstance(rhs, ir.Expr)
+            return ir.Call(ast_node.info, func, ir.TupleExpr(None, ir.UnknownType(), [lhs, rhs]))
 
         case ir.Untranslated(ast_node=ast.UnaryL(op="-", arg=ast.IntLiteral() as value)):
             return ir.IntLiteral(value, -value.value)
@@ -381,7 +383,8 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
             if isinstance(func, ir.FunctionDef):
                 func = ir.FunctionRef(None, func)
             tr_arg = translate_function_defs(ir.Untranslated(ast_node.arg), scope)
-            return ir.Call(ast_node, func, [tr_arg])
+            assert isinstance(tr_arg, ir.Expr)
+            return ir.Call(ast_node, func, ir.TupleExpr(None, ir.UnknownType(), [tr_arg]))
 
         case ir.Untranslated(ast_node=ast.Call(callee=ast.Identifier("__reinterpret_cast"), arg=arg)):
             return ir.ReinterpretCast(
@@ -427,7 +430,20 @@ def _translate_match_pattern(node: ir.Node, scope) -> ir.Node:
             return _translate_match_pattern(node.translate(scope), scope)
 
         case _:
-            raise NotImplementedError
+            raise NotImplementedError(type(node))
+
+
+def _expand_call_args(arg: ir.Node) -> list:
+    assert isinstance(arg, ir.Expr)
+    match arg:
+        case ir.TupleExpr():
+            return arg.args
+
+        case ir.VoidExpr():
+            return []
+
+        case _:
+            return [arg]
 
 
 def resolve_member_access(node: ir.Node, scope=None) -> ir.Node:
@@ -539,8 +555,7 @@ def resolve_member_access(node: ir.Node, scope=None) -> ir.Node:
                                 field = obj_type_prim.field_names.index(node.attr)
                                 return ir.GetTupleItem(node.info, obj_type_prim.field_types[field], node.expr, field)
                             elif isinstance(node.expr.type_.type_, ir.TypeDef):
-                                # TODO: type_.get_attr
-                                method = node.expr.type_.type_.scope.lookup(node.attr)
+                                method = node.expr.type_.get_attr(node.attr)
                                 assert isinstance(method, ir.FunctionDef)
                                 if method.type_.args[0].name == "self":
                                     return ir.BoundMethod(
@@ -595,45 +610,57 @@ def resolve_member_access(node: ir.Node, scope=None) -> ir.Node:
         case ir.Call():
             match node.callee:
                 case ir.FunctionRef():
-                    return ir.FunctionCall(node.info, node.callee.func.type_.ret_type, node.callee, node.args)
+                    return ir.FunctionCall(
+                        node.info,
+                        node.callee.func.type_.ret_type,
+                        node.callee,
+                        _expand_call_args(node.arg),
+                    )
 
                 case ir.BoundMethod():
                     return ir.FunctionCall(
                         node.info,
                         node.callee.func.func.type_.ret_type,
                         node.callee.func,
-                        [node.callee.obj] + node.args,
+                        [node.callee.obj] + _expand_call_args(node.arg),
                     )
 
                 case ir.TypeRef():
                     match node.callee.primitive():
                         case ir.EnumValueType() as enum_val:
-                            assert all(isinstance(arg, ir.Expr) for arg in node.args)
-                            args: list = node.args
+                            args: list = _expand_call_args(node.arg)
+                            assert all(isinstance(arg, ir.Expr) for arg in args)
                             return ir.EnumInst(node.info, node.callee, enum_val.discr, args)
 
                         case ir.TupleType():
-                            assert all(isinstance(arg, ir.Expr) for arg in node.args)
-                            tuple_args: list = node.args
-                            return ir.TupleInst(node.info, node.callee, tuple_args)
+                            match node.arg:
+                                case ir.TupleExpr():
+                                    return ir.TupleInst(node.info, node.callee, node.arg.args)
+                                case _:
+                                    assert isinstance(node.arg, ir.Expr)
+                                    return ir.Cast(node.info, node.callee, node.arg)
 
                         case ir.TypeDef() | ir.IntegralType():
-                            assert len(node.args) == 1
-                            assert isinstance(node.args[0], ir.Expr)
-                            return ir.Cast(node.info, node.callee, node.args[0])
+                            args = _expand_call_args(node.arg)
+                            assert len(args) == 1
+                            assert isinstance(args[0], ir.Expr)
+                            return ir.Cast(node.info, node.callee, args[0])
 
                         case _:
                             raise NotImplementedError(node.callee)
 
                 case ir.MacroRef():
-                    return ir.MacroInst(node.info, node.callee.macro.func.type_.ret_type, node.callee, node.args)
+                    return ir.MacroInst(
+                        node.info, node.callee.macro.func.type_.ret_type, node.callee, _expand_call_args(node.arg)
+                    )
 
                 case ir.GetAttr() | ir.SelfType() | ir.TemplateInst():
                     return node
 
                 case ir.OverloadedFunction():
-                    assert all(isinstance(arg, ir.Expr) for arg in node.args)
-                    arg_types = [arg.type_ for arg in node.args]  # type:ignore[attr-defined]
+                    assert isinstance(node.arg, ir.TupleExpr)
+                    call_args: list = node.arg.args
+                    arg_types = [arg.type_ for arg in call_args]
                     matches: list[ir.Node] = []
                     for method in node.callee.overloads:
                         assert isinstance(method, ir.FunctionRef)
@@ -641,7 +668,7 @@ def resolve_member_access(node: ir.Node, scope=None) -> ir.Node:
                         comp = [t1.has_base_class(t2) for t1, t2 in zip(arg_types, method_arg_types)]
 
                         if all(comp):
-                            return ir.FunctionCall(node.info, method.func.type_.ret_type, method, node.args)
+                            return ir.FunctionCall(node.info, method.func.type_.ret_type, method, call_args)
 
                         if any(comp):
                             matches.append(method)
@@ -658,11 +685,11 @@ def resolve_member_access(node: ir.Node, scope=None) -> ir.Node:
                     elif len(matches) == 1:
                         method = matches[0]
                         assert isinstance(method, ir.FunctionRef)
-                        return ir.FunctionCall(node.info, method.func.type_.ret_type, method, node.args)
+                        return ir.FunctionCall(node.info, method.func.type_.ret_type, method, call_args)
 
                     else:
                         overloads = ir.OverloadedFunction(node.info, node.callee.name, matches)
-                        return ir.Call(node.info, overloads, node.args, node.type_)
+                        return ir.Call(node.info, overloads, node.arg, node.type_)
 
                 case ir.Builtin(name="__enumerate"):
                     node.type_ = ir.BuiltinType("__iter")
@@ -717,7 +744,7 @@ def propagate_types(node: ir.Node):
 
         case ir.TemplateFor():
             match node.iterable:
-                case ir.Call(callee=ir.Builtin(name="__enumerate"), args=[iterable]):
+                case ir.Call(callee=ir.Builtin(name="__enumerate"), arg=iterable):
                     assert len(node.bindings) == 2
                     if not isinstance(node.bindings[0].type_, ir.BuiltinType):
                         assert isinstance(node.bindings[0].type_, ir.UnknownType)
@@ -772,7 +799,7 @@ def propagate_types(node: ir.Node):
             ]
 
         case ir.TupleInst():
-            assert isinstance(node.type_, ir.TypeRef)
+            assert isinstance(node.type_, ir.TypeRef), node.type_
             primitive = node.type_.primitive()
             assert isinstance(primitive, ir.TupleType)
             assert len(node.args) == len(primitive.field_types)
@@ -1035,6 +1062,14 @@ def explicit_cast(expr: ir.Expr, type_: ir.Type):
                 expr,
             )
 
+    # Downcast
+    if type_.has_base_class(expr.type_):
+        return ir.RefCast(expr.info, type_, expr)
+
+    # Upcast
+    if expr.type_.has_base_class(type_):
+        return ir.ReinterpretCast(None, type_, expr)
+
     # TODO: overloaded
     cast_from = type_.get_attr("__cast_from")
     assert isinstance(cast_from, ir.MacroDef)
@@ -1171,7 +1206,7 @@ def inline_macros(node: ir.Node, scope=None) -> ir.Node:
 
         case ir.TemplateFor():
             match node.iterable:
-                case ir.Call(callee=ir.Builtin(name="__enumerate"), args=[ir.StringLiteral(value=string)]):
+                case ir.Call(callee=ir.Builtin(name="__enumerate"), arg=ir.StringLiteral(value=string)):
                     block_name = scope.new_child_name("__inline_for")
                     body = []
                     for i, c in enumerate(string):
@@ -1246,15 +1281,14 @@ ir_passes: list = [
     translate_toplevel_type_decls,
     check_no_untranslated_types,
     translate_function_defs,
+    write_tree("inner.ir"),
     check_no_untranslated_nodes,
-    resolve_member_access,
     instantiate_templates,
     resolve_member_access,
     propagate_types,
     resolve_member_access,
     propagate_types,
     drop_unused_result,
-    write_tree("inner.ir"),
     specialize_match,
     check_no_unknown_types,
     convert_enum_inst,
