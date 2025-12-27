@@ -19,6 +19,14 @@ impl mat_arr:
         let default: mat = mat(pair(0, 0), pair(0, 0))
         asm: (array.new {Self.__asm_type} {default} {count})
 
+    func [](self, i: usize) -> mat:
+        let super: __native_array[mat] = __reinterpret_cast self
+        super[i]
+
+    func []=(self, i: usize, value: mat) -> ():
+        let super: __native_array[mat] = __reinterpret_cast self
+        super[i] = value
+
 
 func main() -> ():
     let arr: mat_arr = mat_arr.repeat(10)

@@ -1,5 +1,5 @@
+from . import ast
 from . import ir
-from . import traverse_ir
 
 
 def wasm_repr_indented(expr: list[str | int | list], level=0) -> str:
@@ -161,7 +161,12 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
 
             for attr in node.scope.attrs.values():
                 annotations = getattr(attr, "annotations", None)
-                if annotations:
+                if annotations and isinstance(annotations[0], ast.Call):
+                    assert isinstance(annotations[0].arg, ast.TupleExpr)
+                    module_name = annotations[0].arg.field_values[0]
+                    function_name = annotations[0].arg.field_values[1]
+                    assert isinstance(module_name, ast.StringLiteral)
+                    assert isinstance(function_name, ast.StringLiteral)
                     assert isinstance(attr, ir.FunctionDef)
                     terms.append(
                         [
@@ -169,8 +174,8 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
                             f"${attr.name}",
                             [
                                 "import",
-                                f'"{annotations[0].arg.field_values[0].value}"',
-                                f'"{annotations[0].arg.field_values[1].value}"',
+                                f'"{module_name.value}"',
+                                f'"{function_name.value}"',
                             ],
                             ["type", f"${attr.name}.__type"],
                         ]
@@ -327,14 +332,14 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
         case ir.SetLocal():
             return [["local.set", f"${node.var.var.name}", *translate_wasm(node.expr)]]
 
-        case ir.SetItem():
-            assert isinstance(node.expr.type_, ir.TypeRef)
-            assert isinstance(node.expr.type_.type_, ir.TypeDef)
+        case ir.SetNativeArrayItem():
+            assert isinstance(node.lvalue.type_, ir.TypeRef)
+            assert isinstance(node.lvalue.type_.type_, ir.TypeDef)
             return [
                 [
                     "array.set",
-                    f"${node.expr.type_.type_.name}",
-                    *translate_wasm(node.expr),
+                    f"${node.lvalue.type_.type_.name}",
+                    *translate_wasm(node.lvalue),
                     *translate_wasm(node.idx),
                     *translate_wasm(node.value),
                 ]
@@ -361,7 +366,7 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
                 ]
             ]
 
-        case ir.GetItem():
+        case ir.GetNativeArrayItem():
             elem_type = node.expr.type_.primitive().element_type
             elem_primitive = elem_type.primitive()
             assert isinstance(node.expr.type_, ir.TypeRef)

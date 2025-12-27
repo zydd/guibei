@@ -62,8 +62,6 @@ def register_toplevel_decls(node: ast.Node, module: ir.Module):
 
         case ast.FunctionDef():
             fn_def = ir.FunctionDef.translate(node, module.scope)
-            if hasattr(node, "annotations"):
-                fn_def.annotations = node.annotations
             module.scope.add_method(node.name, fn_def)
 
         case ast.MacroDef():
@@ -348,15 +346,7 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
             match expr:
                 case ir.Expr():
                     assert isinstance(idx, ir.Expr)
-                    idx_type = scope.lookup_type("__array_index").super_
-
-                    expr_type_prim = expr.type_.primitive()
-                    if isinstance(expr_type_prim, ir.NativeArrayType):
-                        element_type = expr_type_prim.element_type
-                    else:
-                        element_type = ir.UnknownType()
-
-                    return ir.GetItem(node.info, expr, idx, idx_type, element_type)
+                    return ir.GetItem(node.info, ir.UnknownType(), expr, idx)
 
                 case ir.TemplateRef():
                     assert isinstance(idx, ir.Type)
@@ -367,8 +357,8 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
 
         case ir.Untranslated(ast_node=ast.BinOp() as ast_node):
             func = scope.module_scope.lookup(f"({ast_node.op})")
-            if isinstance(func, ir.FunctionDef):
-                func = ir.FunctionRef(None, func)
+            assert isinstance(func, (ir.FunctionDef, ir.MacroDef, ir.OverloadedFunction, ir.FunctionRef, ir.MacroRef))
+            func = func.ref()
             lhs = translate_function_defs(ir.Untranslated(ast_node.lhs), scope)
             rhs = translate_function_defs(ir.Untranslated(ast_node.rhs), scope)
             assert isinstance(lhs, ir.Expr)
@@ -380,8 +370,8 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
 
         case ir.Untranslated(ast_node=ast.UnaryL() | ast.UnaryR() as ast_node):
             func = scope.lookup(f"({ast_node.op})")
-            if isinstance(func, ir.FunctionDef):
-                func = ir.FunctionRef(None, func)
+            assert isinstance(func, (ir.FunctionDef, ir.MacroDef, ir.OverloadedFunction))
+            func = func.ref()
             tr_arg = translate_function_defs(ir.Untranslated(ast_node.arg), scope)
             assert isinstance(tr_arg, ir.Expr)
             return ir.Call(ast_node, func, ir.TupleExpr(None, ir.UnknownType(), [tr_arg]))
@@ -392,6 +382,15 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
                 ir.UnknownType(),
                 translate_function_defs(ir.Untranslated(arg), scope),  # type:ignore[arg-type]
             )
+
+        case ir.Untranslated(ast_node=ast.Assignment(lvalue=ast.GetItem() as getter) as assign):
+            lvalue = translate_function_defs(ir.Untranslated(getter.expr), scope)
+            idx = translate_function_defs(ir.Untranslated(getter.idx), scope)
+            assign_value = translate_function_defs(ir.Untranslated(assign.expr), scope)
+            assert isinstance(lvalue, ir.Expr)
+            assert isinstance(idx, ir.Expr)
+            assert isinstance(assign_value, ir.Expr)
+            return ir.SetItem(assign.info, lvalue, idx, assign_value)
 
         case ir.Scope():
             node.attrs = traverse_ir.traverse_dict(translate_function_defs, node.attrs, node)
@@ -586,26 +585,62 @@ def resolve_member_access(node: ir.Node, scope=None) -> ir.Node:
                     return node
                     raise NotImplementedError(type(node.obj))
 
+        case ir.GetItem():
+            match node.expr.type_.primitive():
+                case ir.NativeArrayType() as array_primitive:
+                    return ir.GetNativeArrayItem(node.info, array_primitive.element_type, node.expr, node.idx)
+
+                case ir.TemplateInst() | ir.UnknownType():
+                    return node
+
+                case _:
+                    assert isinstance(node.expr.type_, ir.TypeRef)
+                    assert isinstance(node.expr.type_.type_, ir.TypeDef)
+                    if "[]" in node.expr.type_.type_.scope.attrs:
+                        method = node.expr.type_.type_.scope.attrs["[]"]
+                        if isinstance(method, ir.OverloadedFunction):
+                            breakpoint()
+                        assert isinstance(method, (ir.FunctionDef, ir.MacroDef))
+                        method = ir.BoundMethod(node.info, ir.UnknownType(), method.ref(), node.expr)
+                        call = ir.Call(node.info, method, node.idx)
+                        return resolve_member_access(call, scope)
+
+        case ir.SetItem():
+            match node.lvalue.type_.primitive():
+                case ir.NativeArrayType():
+                    return ir.SetNativeArrayItem(node.info, node.lvalue, node.idx, node.value)
+
+                case ir.TemplateInst() | ir.UnknownType():
+                    return node
+
+                case _:
+                    assert isinstance(node.lvalue.type_, ir.TypeRef)
+                    assert isinstance(node.lvalue.type_.type_, ir.TypeDef)
+                    if "[]=" in node.lvalue.type_.type_.scope.attrs:
+                        method = node.lvalue.type_.type_.scope.attrs["[]="]
+                        if isinstance(method, ir.OverloadedFunction):
+                            breakpoint()
+                        assert isinstance(method, (ir.FunctionDef, ir.MacroDef))
+                        method = ir.BoundMethod(node.info, ir.UnknownType(), method.ref(), node.lvalue)
+                        call = ir.Call(node.info, method, ir.TupleExpr(None, ir.UnknownType(), [node.idx, node.value]))
+                        return resolve_member_access(call, scope)
+                    pass
+
         case ir.Assignment():
-            lvalue = translate_function_defs(node.lvalue, scope)
-            expr = translate_function_defs(node.expr, scope)
-            assert isinstance(expr, ir.Expr)
-            match lvalue:
-                case ir.GetItem():
-                    idx_type = scope.lookup_type("__array_index").super_
-                    return ir.SetItem(node.info, lvalue.expr, lvalue.idx, idx_type, expr)
+            assert isinstance(node.expr, ir.Expr)
+            match node.lvalue:
 
                 case ir.VarRef():
-                    return ir.SetLocal(node.info, lvalue, expr)
+                    return ir.SetLocal(node.info, node.lvalue, node.expr)
 
                 case ir.GetAttr():
                     return node
 
                 case ir.GetTupleItem():
-                    return ir.SetTupleItem(node.info, lvalue.expr, lvalue.idx, expr)
+                    return ir.SetTupleItem(node.info, node.lvalue.expr, node.lvalue.idx, node.expr)
 
                 case _:
-                    raise NotImplementedError(type(lvalue))
+                    raise NotImplementedError(type(node.lvalue))
 
         case ir.Call():
             match node.callee:
@@ -835,6 +870,7 @@ def propagate_types(node: ir.Node):
                         case ir.FunctionReturn():
                             node.scope.body[-1] = propagate_types(node.scope.body[-1])
                         case _:
+                            assert isinstance(node.type_.ret_type, ir.VoidType), node.name
                             # TODO: check if statements always return
                             node.scope.body[-1] = propagate_types(node.scope.body[-1])
                             # raise Exception(f"Unexpected node type in function body: {type(node.scope.body[-1])}")
@@ -892,15 +928,26 @@ def propagate_types(node: ir.Node):
         case ir.SetLocal():
             node.expr = propagate_types(match_expr_type(node.expr, node.var.type_))
 
-        case ir.SetItem():
-            node.expr = propagate_types(node.expr)
-            node.idx = propagate_types(match_expr_type(node.idx, node.idx_type))
-            node.value = propagate_types(match_expr_type(node.value, node.expr.type_.primitive().element_type))
+        case ir.SetNativeArrayItem():
+            assert isinstance(node.lvalue.type_, ir.TypeRef)
+            assert isinstance(node.lvalue.type_.type_, ir.TypeDef)
+            method = node.lvalue.type_.type_.scope.attrs["[]="]
+            assert isinstance(method, (ir.FunctionDef, ir.MacroDef))
+            idx_type = method.type_.args[1].type_
 
-        case ir.GetItem():
-            node.type_ = node.expr.type_.primitive().element_type
+            node.lvalue = propagate_types(node.lvalue)
+            node.idx = propagate_types(match_expr_type(node.idx, idx_type))
+            node.value = propagate_types(match_expr_type(node.value, node.lvalue.type_.primitive().element_type))
+
+        case ir.GetNativeArrayItem():
+            assert isinstance(node.expr.type_, ir.TypeRef)
+            assert isinstance(node.expr.type_.type_, ir.TypeDef)
+            method = node.expr.type_.type_.scope.attrs["[]"]
+            assert isinstance(method, (ir.FunctionDef, ir.MacroDef))
+            idx_type = method.type_.args[1].type_
+
             node.expr = propagate_types(node.expr)
-            node.idx = propagate_types(match_expr_type(node.idx, node.idx_type))
+            node.idx = propagate_types(match_expr_type(node.idx, idx_type))
 
         case ir.Cast():
             assert isinstance(node.type_, ir.TypeRef)

@@ -66,3 +66,8 @@ func main() -> ():
     bytes.print(read)
     bytes.print("\n")
 
+    let arr: [u8] = __array[u8].new()
+    arr.append(u8 "z")
+    arr[0] = 55
+    u8.print(arr[0])
+    bytes.print("\n")

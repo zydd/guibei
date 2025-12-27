@@ -101,6 +101,7 @@ def ast_macro_inst():
 
 @generate
 def function_def():
+    annotations = yield optional(sequence(compiler_annotation(), regex(r"\s*"), same_indent(), index=0))
     yield regex("func +")
     name = yield choice(identifier(), operator_identifier())
     yield regex(r" *")
@@ -110,7 +111,12 @@ def function_def():
     else:
         body = []
     type_ = ast.FunctionType(args, ret_type)
-    return ast.FunctionDef(name.name, type_, body)
+    func = ast.FunctionDef(name.name, type_, body)
+
+    if annotations:
+        func.annotations = annotations
+
+    return func
 
 
 def _function_ret():
@@ -215,7 +221,8 @@ def tuple_expr():
 
 @generate
 def operator_identifier():
-    op = yield regex(rf"\([{operator_characters}]+\)")
+    # (+) [] []=
+    op = yield regex(rf"\([{operator_characters}]+\)|\[\]=?")
     return ast.Identifier(op)
 
 
@@ -380,10 +387,6 @@ def impl():
 def statement():
     yield optional(sequence(comment(), regex(r"\s*")))
     yield same_indent()
-    annotations = yield optional(compiler_annotation())
-
-    yield optional(sequence(comment(), regex(r"\s*")))
-    yield same_indent()
     stmt = yield choice(
         ast_for_block(),
         while_block(),
@@ -400,8 +403,6 @@ def statement():
         backtrack(assignment()),
         expr(),
     )
-    if annotations:
-        stmt.annotations = annotations
     return stmt
 
 

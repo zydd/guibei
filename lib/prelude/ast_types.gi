@@ -8,9 +8,6 @@ asm:
     (type $__enum (sub (struct (field i32))))
 
 
-type __array_index: usize
-
-
 type __enum_discr: __integral[i32, i32, array.get]
 impl __enum_discr:
     macro __from_literal(i: __int) -> Self:

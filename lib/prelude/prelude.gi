@@ -70,6 +70,13 @@ impl bytes:
 
         return result
 
+    func [](self, i: usize) -> byte:
+        let super: __native_array[byte] = __reinterpret_cast self
+        super[i]
+
+    func []=(self, i: usize, value: byte) -> ():
+        let super: __native_array[byte] = __reinterpret_cast self
+        super[i] = value
 
 # Option
 

@@ -6,6 +6,12 @@ impl[T] __native_array[T]:
         asm:
             (array.new {Self.__asm_type} {T.__default} {capacity})
 
+    :[builtin]
+    func [](self, i: usize) -> T
+
+    :[builtin]
+    func []=(self: Self, i: usize, value: T) -> ()
+
 
 impl[T] __array[T]:
     func new() -> Self:
@@ -47,3 +53,11 @@ impl[T] __array[T]:
         self.reserve(1)
         self.__data[self.__len] = value
         self.__len = self.__len + 1
+
+    func [](self, i: usize) -> T:
+        assert(i < self.__len)
+        self.__data[i]
+
+    func []=(self: Self, i: usize, value: T) -> ():
+        assert(i < self.__len)
+        self.__data[i] = value

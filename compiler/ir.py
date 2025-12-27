@@ -588,13 +588,12 @@ class GetAttr(Expr):
 class GetItem(Expr):
     expr: Expr
     idx: Expr
-    idx_type: TypeRef
 
-    def __init__(self, info, expr, idx, idx_type, type_):
-        super().__init__(info, type_)
-        self.expr = expr
-        self.idx = idx
-        self.idx_type = idx_type
+
+@dataclass
+class GetNativeArrayItem(Expr):
+    expr: Expr
+    idx: Expr
 
 
 @dataclass
@@ -727,6 +726,9 @@ class FunctionRef(Expr):
     def __repr__(self):
         return f'FunctionRef("{self.func.name}")'
 
+    def ref(self, info=None):
+        return self
+
 
 @dataclass
 class ConstRef(Expr):
@@ -761,6 +763,9 @@ class MacroRef(Node):
 
     def __repr__(self):
         return f'MacroRef("{self.macro.name}")'
+
+    def ref(self, info=None):
+        return self
 
 
 @dataclass
@@ -922,6 +927,10 @@ class FunctionDef(Node):
             func_name = "__operator"
             for c in name[1:-1]:
                 func_name += "$" + FunctionDef.operators[c]
+        elif func_name == "[]":
+            func_name = "$index"
+        elif func_name == "[]=":
+            func_name = "$set_index"
         return func_name
 
     @staticmethod
@@ -931,7 +940,14 @@ class FunctionDef(Node):
         func_name = FunctionDef.get_name(node.name)
         func = FunctionDef(node.info, f"{scope.name}.{func_name}", func_type, Scope(scope, node.name, body))
         func.scope.func = FunctionRef(None, func)
+
+        if hasattr(node, "annotations"):
+            func.annotations = node.annotations  # type:ignore[attr-defined]
+
         return func
+
+    def ref(self, info=None):
+        return FunctionRef(info, self)
 
 
 @dataclass
@@ -943,6 +959,13 @@ class MacroDef(Node):
     def translate(node: ast.MacroDef, scope: Scope):
         # TODO: add the macro itself to the scope to allow recursion?
         return MacroDef(node.info, node.name, FunctionDef.translate(node.func, scope))
+
+    @property  # type:ignore[misc]
+    def type_(self):
+        return self.func.type_
+
+    def ref(self, info=None):
+        return MacroRef(info, self)
 
 
 @dataclass
@@ -988,6 +1011,9 @@ class SetLocal(Node):
 class OverloadedFunction(Node):
     name: str
     overloads: list[Node]
+
+    def ref(self, info=None):
+        return self
 
 
 @dataclass
@@ -1191,9 +1217,15 @@ class BoundMethod(Expr):
 
 @dataclass
 class SetItem(Node):
-    expr: Expr
+    lvalue: Expr
     idx: Expr
-    idx_type: TypeRef
+    value: Expr
+
+
+@dataclass
+class SetNativeArrayItem(Node):
+    lvalue: Expr
+    idx: Expr
     value: Expr
 
 
