@@ -75,7 +75,7 @@ class Scope(Node):
 
     def new_child_name(self, name):
         name = f"{self.name}.{name}"
-        if name in self.children_names:
+        if name in self.children_names or name in self.attrs:
             for i in itertools.count(1):
                 if f"{name}${i}" not in self.children_names:
                     name = f"{name}${i}"
@@ -86,7 +86,7 @@ class Scope(Node):
     def add_method(self, name: str, method: Node, overload=False):
         if self.has_member(name):
             if overload:
-                assert isinstance(method, FunctionRef)
+                assert isinstance(method, (FunctionRef, MacroRef))
                 cur = self.attrs[name]
                 if not isinstance(cur, OverloadedFunction):
                     cur = OverloadedFunction(None, name, [cur])

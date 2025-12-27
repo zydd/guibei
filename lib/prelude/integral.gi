@@ -369,6 +369,23 @@ impl byte:
         asm:
             (i32.const {lit.__int_le})
 
+    macro __from_literal(lit: __int) -> Self:
+        # static_assert lit.__int_le.__leq(0xff)
+        asm:
+            (i32.const {lit})
+
+    # macro __from_literal[T: __str | __int](lit: T) -> Self:
+    #     match T:
+    #         case __int:
+    #             static_assert lit.__int_le.__leq(0xff)
+    #             asm:
+    #                 (i32.const {lit.__int_le})
+
+    #         case __str:
+    #             static_assert lit.__int_le.__leq(0xff)
+    #             asm:
+    #                 (i32.const {lit.__int_le})
+
 
 impl char:
     macro __from_literal(lit: __str) -> Self:

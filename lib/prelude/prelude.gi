@@ -7,12 +7,28 @@ type str: [char]
 
 
 impl bytes2:
+    macro __from_literal(lit: __str) -> Self:
+        let arr: __native_array[byte] = __native_array[byte].__new_uninitialized(lit.__len)
+        :for i, c in __enumerate(lit):
+            arr[i] = byte c
+
+        # FIXME: do not use __array internals
+        Self (arr, lit.__len)
+
     func new() -> Self:
         bytes2 __array[byte].new()
 
     func repeat(count: usize, chr: byte) -> Self:
         # FIXME: do not use __array internals
         Self (asm: (array.new {bytes.__asm_type} {chr} {count}), count)
+
+    func [](self, i: usize) -> byte:
+        let super: [byte] = __reinterpret_cast self
+        super[i]
+
+    func []=(self, i: usize, value: byte) -> ():
+        let super: [byte] = __reinterpret_cast self
+        super[i] = value
 
 
 impl bytes:

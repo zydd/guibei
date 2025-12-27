@@ -31,7 +31,7 @@ impl Tokenizer:
         let i: usize = 0
         let line: Line = Line.new()
         while i < code.len():
-            code.at(i).print()
+            code[i].print()
 
         lines
 
@@ -66,8 +66,8 @@ func main() -> ():
     bytes.print(read)
     bytes.print("\n")
 
-    let arr: [u8] = __array[u8].new()
-    arr.append(u8 "z")
-    arr[0] = 55
-    u8.print(arr[0])
+    let arr: [byte] = __array[byte].new()
+    arr.append("z")
+    arr.append(48)
+    u8.print(arr[1])
     bytes.print("\n")

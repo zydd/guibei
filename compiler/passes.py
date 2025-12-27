@@ -89,7 +89,15 @@ def _register_impl_methods(module: ir.Module, type_: ir.TypeDef, method: ast.Nod
             type_.scope.add_method(method.name, tr_method)
 
         case ast.MacroDef():
-            type_.scope.add_method(method.name, ir.MacroDef.translate(method, type_.scope))
+            if method.name == "__from_literal":
+                # TODO: match types, stop storing macro twice
+                macro = ir.MacroDef.translate(method, type_.scope)
+                type_.scope.add_method(method.name, ir.MacroRef(None, macro), True)
+
+                # Shadowed macro def
+                type_.scope.add_method(type_.scope.new_child_name(method.name), macro)
+            else:
+                type_.scope.add_method(method.name, ir.MacroDef.translate(method, type_.scope), True)
 
         case ast.AstMacroInst():
             macro = module.scope.lookup(method.name)
@@ -1063,12 +1071,19 @@ def implicit_cast_literal(expr: ir.Expr, type_: ir.Type):
             except KeyError:
                 raise RuntimeError(f"Implicit conversion from {expr.type_} to {type_} not allowed")
 
-            assert isinstance(from_literal, ir.MacroDef)
-            assert len(from_literal.func.type_.args) == 1
-            source_type = from_literal.func.type_.args[0].type_.primitive()
+            if isinstance(from_literal, ir.OverloadedFunction):
+                (from_literal,) = list(
+                    filter(
+                        lambda x: x.macro.func.type_.args[0].type_ == expr.type_, from_literal.overloads  # type:ignore
+                    )
+                )
+
+            assert isinstance(from_literal, ir.MacroRef)
+            assert len(from_literal.macro.func.type_.args) == 1
+            source_type = from_literal.macro.func.type_.args[0].type_.primitive()
             assert source_type == expr.type_, source_type
             assert isinstance(type_, ir.TypeRef)
-            return ir.ImplicitCast(expr.info, type_, ir.MacroRef(None, from_literal), expr)
+            return ir.ImplicitCast(expr.info, type_, from_literal, expr)
 
         case ir.BuiltinType() if expr.type_.name == type_.name:
             return expr
@@ -1085,13 +1100,25 @@ def explicit_cast(expr: ir.Expr, type_: ir.Type):
 
     if isinstance(expr.type_, ir.BuiltinType):
         try:
-            from_literal = type_.get_attr("__from_literal")
-            assert isinstance(from_literal, ir.MacroDef)
+            assert isinstance(type_, ir.TypeRef)
+            assert isinstance(type_.type_, ir.TypeDef)
+
+            from_literal = type_.type_.scope.attrs["__from_literal"]
+            if isinstance(from_literal, ir.OverloadedFunction):
+                (from_literal,) = list(
+                    filter(
+                        lambda x: x.macro.func.type_.args[0].type_ == expr.type_, from_literal.overloads  # type:ignore
+                    )
+                )
+
+            assert isinstance(from_literal, ir.MacroRef)
+            from_literal = from_literal.macro
         except KeyError:
             from_literal = None
 
         # TODO: overloaded
         if from_literal:
+            assert isinstance(from_literal, ir.MacroDef)
             arg_type = from_literal.func.type_.args[0].type_
             assert isinstance(arg_type, ir.BuiltinType)
             if expr.type_.name == "__str" and arg_type.name == "__int":

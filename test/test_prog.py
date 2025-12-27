@@ -168,10 +168,11 @@ def test_integer_narrowing_fail(code):
 @pytest.mark.parametrize(
     "code",
     [
-        "assert(not (bool 0))",
-        "assert(bool 1)",
-        "assert(bool 10)",
-        "let a: bool = bool 1\nassert(a)",
+        "assert(not (bool (i32 0)))",
+        "assert(bool(i32 1))",
+        "assert(bool(i32 10))",
+        "assert(bool(i32 10) == bool(i32 1))",
+        "let a: bool = bool (i32 1)\nassert(a)",
         "let a: bool = __reinterpret_cast (i32 1)\nassert(a)",
         "let a: bool = bool (i32 1)\nassert(a)",
     ],

@@ -271,6 +271,8 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
                         | ir.AsmType()
                         | ir.EnumValueType()
                         | ir.MacroDef()
+                        | ir.MacroRef()
+                        | ir.OverloadedFunction()
                         | ir.TemplateArgRef()
                         | ir.SelfType()
                         | ir.ConstDecl()
