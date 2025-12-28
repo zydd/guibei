@@ -325,17 +325,25 @@ def match_block():
 @generate
 def if_block():
     @generate
-    def else_block():
-        yield sequence(regex(r"\s*"), same_indent())
-        yield regex(r"else *:\s*")
-        return (yield indented_block(statement()))
+    def condition_then_body():
+        condition = yield expr()
+        yield regex(r" *:")
+        body_then = yield indented_block(statement())
+        body_else = yield optional(
+            sequence(regex(r"\s*"), same_indent(), choice(backtrack(else_block()), elif_block()), index=2)
+        )
+        return ast.IfElse(condition, body_then, body_else if body_else is not None else [])
 
-    yield regex("if +")
-    condition = yield expr()
-    yield regex(r" *:")
-    body_then = yield indented_block(statement())
-    body_else = yield optional(else_block())
-    return ast.IfElse(condition, body_then, body_else if body_else is not None else [])
+    def else_block():
+        return sequence(regex(r"else *:\s*"), indented_block(statement()), index=1)
+
+    @generate
+    def elif_block():
+        elif_stmt = yield sequence(regex(r"elif +"), condition_then_body(), index=1)
+        return [elif_stmt]
+
+    yield regex(r"if +")
+    return (yield condition_then_body())
 
 
 @generate

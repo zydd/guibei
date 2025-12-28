@@ -58,9 +58,8 @@ impl Tokenizer:
             if code[self.i] == "#":
                 self.current.comment = self.parse_comment(code)
                 self.new_line()
-            else:
-                if code[self.i] == "\n":
-                    self.new_line()
+            elif code[self.i] == "\n":
+                self.new_line()
 
             self.i = self.i + 1
 
