@@ -45,6 +45,21 @@ impl bytes:
 
         return True
 
+    func (+)(self, other: Self) -> Self:
+        let combined_len: usize = self.len() + other.len()
+        let res: bytes = bytes.repeat(combined_len, 0)
+
+        let i: usize = 0
+        while i < self.len():
+            res[i] = self[i]
+            i = i + 1
+
+        while i < combined_len:
+            res[i] = other[i - self.len()]
+            i = i + 1
+
+        res
+
     func slice(self, start: usize, end: usize) -> bytes:
         let len: usize = self.len()
         if (start > len) || (start > end):

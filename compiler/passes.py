@@ -78,19 +78,22 @@ def _register_impl_methods(module: ir.Module, type_: ir.TypeDef, method: ast.Nod
         case ast.FunctionDef():
             tr_method = ir.FunctionDef.translate(method, type_.scope)
             if method.name.startswith("("):
-                module.scope.add_method(method.name, ir.FunctionRef(method.name, tr_method), overload=True)
+                module.scope.add_method(method.name, ir.FunctionRef(None, tr_method), overload=True)
             type_.scope.add_method(method.name, tr_method)
 
         case ast.MacroDef():
-            if method.name == "__from_literal":
+            macro = ir.MacroDef.translate(method, type_.scope)
+            if method.name.startswith("("):
+                module.scope.add_method(method.name, ir.MacroRef(method.name, macro), overload=True)
+                type_.scope.add_method(method.name, macro)
+            elif method.name == "__from_literal":
                 # TODO: match types, stop storing macro twice
-                macro = ir.MacroDef.translate(method, type_.scope)
-                type_.scope.add_method(method.name, ir.MacroRef(None, macro), True)
+                type_.scope.add_method(method.name, ir.MacroRef(None, macro), overload=True)
 
                 # Shadowed macro def
                 type_.scope.add_method(type_.scope.new_child_name(method.name), macro)
             else:
-                type_.scope.add_method(method.name, ir.MacroDef.translate(method, type_.scope), True)
+                type_.scope.add_method(method.name, macro)
 
         case ast.AstMacroInst():
             macro = module.scope.lookup(method.name)
@@ -303,7 +306,15 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
                 assert isinstance(attr, ir.Type)
 
             match attr:
-                case ir.VarRef() | ir.ArgRef() | ir.TypeRef() | ir.SelfType() | ir.TemplateArgRef() | ir.Builtin():
+                case (
+                    ir.VarRef()
+                    | ir.ArgRef()
+                    | ir.TypeRef()
+                    | ir.SelfType()
+                    | ir.TemplateArgRef()
+                    | ir.Builtin()
+                    | ir.EnumInt()
+                ):
                     return attr
                 case ir.VarDecl():
                     return ir.VarRef(id, attr)
@@ -338,8 +349,12 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
         case ir.Untranslated(ast_node=ast.While() as while_stmt):
             pre_condition = ir.Untranslated(while_stmt.condition)
             loop_scope = ir.Scope(scope, "__while", body=[ir.Untranslated(stmt) for stmt in while_stmt.body])
+            loop_scope.break_scope = loop_scope.name + ".__block"  # FIXME: declare properly
             loop = ir.Loop(while_stmt.info, pre_condition, loop_scope)
             return translate_function_defs(loop, loop_scope)
+
+        case ir.Untranslated(ast_node=ast.Break() as break_stmt):
+            return ir.Break(break_stmt.info, scope.break_scope, ir.VoidExpr(None))
 
         case ir.Untranslated(ast_node=ast.GetItem() as ast_node):
             expr = translate_function_defs(ir.Untranslated(ast_node.expr), scope)
@@ -694,7 +709,7 @@ def resolve_member_access(node: ir.Node, scope=None) -> ir.Node:
                     assert isinstance(node.arg, ir.TupleExpr)
                     call_args: list = node.arg.args
                     arg_types = [arg.type_ for arg in call_args]
-                    matches: list[ir.Node] = []
+                    matches: list[ir.FunctionRef | ir.MacroRef] = []
                     for method in node.callee.overloads:
                         assert isinstance(method, ir.FunctionRef)
                         method_arg_types = [arg.type_ for arg in method.func.type_.args]

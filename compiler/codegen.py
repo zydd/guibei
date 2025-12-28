@@ -142,6 +142,7 @@ def type_declaration(node: ir.Node) -> list:
             | ir.FunctionRef()
             | ir.AsmType()
             | ir.MacroDef()
+            | ir.MacroRef()
             | ir.TemplateArg()
             | ir.OverloadedFunction()
             | ir.ConstDecl()
@@ -525,7 +526,8 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
         case (
             ir.MacroDef()
             | ir.VoidExpr()
-            # | ir.FunctionRef()
+            | ir.FunctionRef()
+            | ir.MacroRef()
             | ir.OverloadedFunction()
             | ir.ConstDecl()
             | ir.BuiltinType()

@@ -278,6 +278,11 @@ class While(Node):
 
 
 @dataclass
+class Break(Node):
+    pass
+
+
+@dataclass
 class TemplateFor(Node):
     bindings: list[Identifier]
     iterable: Node

@@ -16,11 +16,23 @@ enum Token:
     String(TokenState, bytes)
     Int(TokenState, bytes)
     Symbol(TokenState, bytes)
-    None
 
 impl Token:
     func repr(self) -> bytes:
-        "Token"
+        match self:
+            case Token.Name(st, val):
+                return "Name(" + val.repr() + ", " + st.spaced.repr() + ")"
+
+            case Token.String(_, val):
+                return "String(" + val.repr() + ")"
+
+            case Token.Int(_, val):
+                return "Int(" + val.repr() + ")"
+
+            case Token.Symbol(_, val):
+                return "Symbol(" + val.repr() + ")"
+        assert False
+        ""
 
 
 type Line: (line: usize, indent: usize, comment: bytes, tokens: [Token])
@@ -41,11 +53,11 @@ impl Line:
         res
 
 
-type Tokenizer: (i: usize, lines: [Line], current: Line)
+type Tokenizer: (i: usize, lines: [Line], current: Line, spaced: bool)
 
 impl Tokenizer:
     func new() -> Self:
-        Self(0, __array[Line].new(), Line.new(0))
+        Self(0, __array[Line].new(), Line.new(1), False)
 
     func new_line(self) -> ():
         self.lines.append(self.current)
@@ -53,15 +65,34 @@ impl Tokenizer:
         # Line number starts from 1
         self.current = Line.new(self.lines.len() + 1)
 
+    func state(self, start: usize) -> TokenState:
+        TokenState(self.current.line, start, self.i, self.spaced)
+
+    func _is_name_start(c: byte) -> bool:
+        (c >= "A" && c <= "Z") || (c >= "a" && c <= "z") || c == "_"
+
+    func _is_name(c: byte) -> bool:
+        _is_name_start(c) || (c >= "0" && c <= "9")
+
     func parse(self, code: bytes) -> ():
         while self.i < code.len():
-            if code[self.i] == "#":
+            let c: byte = code[self.i]
+            if c == "#":
                 self.current.comment = self.parse_comment(code)
+            elif c == "\n":
                 self.new_line()
-            elif code[self.i] == "\n":
-                self.new_line()
+                self.i = self.i + 1
+            elif c == " ":
+                self.i = self.i + 1
+            elif c == "\"":
+                self.current.tokens.append(self.parse_string(code))
+            elif _is_name_start(c):
+                self.current.tokens.append(self.parse_name(code))
+            else:
+                assert False
 
-            self.i = self.i + 1
+            self.spaced = (c == " ")
+            
 
     func parse_comment(self, code: bytes) -> bytes:
         let start: usize = self.i
@@ -69,9 +100,34 @@ impl Tokenizer:
             self.i = self.i + 1
         code.slice(start, self.i)
 
+    func parse_name(self, code: bytes) -> Token:
+        let start: usize = self.i
+        while self.i < code.len() && _is_name(code[self.i]):
+            self.i = self.i + 1
+
+        Token.Name(self.state(start), code.slice(start, self.i))
+
+    func parse_string(self, code: bytes) -> Token:
+        let start: usize = self.i
+        while self.i < code.len():
+            self.i = self.i + 1
+
+            let c: byte = code[self.i]
+            if c == "\\":
+                assert(self.i + 1 < code.len())
+                self.i = self.i + 1
+                # TODO:
+                # assert "rnt\\\"" as bytes.contains(code[self.i])
+                ()
+            elif c == "\"":
+                self.i = self.i + 1
+                break
+
+        Token.String(self.state(start), code.slice(start + 1, self.i - 1))
+
 
 func main() -> ():
-    let fd: File = File.open_ro("main.gi")
+    let fd: File = File.open_ro("tokens.gi")
     let code: bytes = fd.read(65536)
 
     bytes.print("\nread: ")
@@ -79,7 +135,8 @@ func main() -> ():
     bytes.print("\n")
 
     let tk: Tokenizer = Tokenizer.new()
-    tk.parse(code.slice(0, 245))
+    tk.parse(code.slice(0, 251))
+    tk.new_line()
 
     bytes.print("\n")
 

@@ -59,6 +59,7 @@ class Scope(Node):
         self.func = func
         self.children_names: set[str] = set()
         self.name = parent.new_child_name(name) if parent else name
+        self.break_scope: str | None = parent.break_scope if parent else None
 
     def __deepcopy__(self, memo):
         import copy
@@ -83,12 +84,13 @@ class Scope(Node):
         self.children_names.add(name)
         return name
 
-    def add_method(self, name: str, method: Node, overload=False):
+    def add_method(self, name: str, method: Node, /, overload=False):
         if self.has_member(name):
             if overload:
                 assert isinstance(method, (FunctionRef, MacroRef))
                 cur = self.attrs[name]
                 if not isinstance(cur, OverloadedFunction):
+                    assert isinstance(cur, (FunctionRef, MacroRef))
                     cur = OverloadedFunction(None, name, [cur])
                 assert isinstance(cur, OverloadedFunction)
                 cur.overloads.append(method)
@@ -1019,7 +1021,7 @@ class SetLocal(Node):
 @dataclass
 class OverloadedFunction(Node):
     name: str
-    overloads: list[Node]
+    overloads: list[FunctionRef | MacroRef]
 
     def ref(self, info=None):
         return self

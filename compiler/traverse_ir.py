@@ -115,7 +115,7 @@ def inline(node: ir.Node, func_scope: ir.Scope | None, args: list[ir.Node]) -> i
         case ir.MacroDef():
             arg_names = [arg.name for arg in node.func.type_.args]
             arg_map: dict = dict(zip(arg_names, args))
-            block_name = node.func.scope.new_child_name("__inline." + node.name)
+            block_name = node.func.scope.new_child_name("__inline." + ir.FunctionDef.get_name(node.name))
             for var in node.func.scope.attrs.values():
                 match var:
                     case ir.VarDecl():

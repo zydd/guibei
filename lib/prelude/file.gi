@@ -43,7 +43,7 @@ impl File:
             0,
             i32 asm: (global.get $__stackp)
         )
-
+        assert(err == 0)
 
         let fd: i32 = asm: (i32.load (global.get $__stackp))
 

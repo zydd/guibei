@@ -305,6 +305,12 @@ def while_block():
 
 
 @generate
+def break_statement():
+    yield regex("break")
+    return ast.Break()
+
+
+@generate
 def case_block():
     yield regex("case +")
     cond = yield expr()
@@ -398,6 +404,7 @@ def statement():
     stmt = yield choice(
         ast_for_block(),
         while_block(),
+        break_statement(),
         if_block(),
         match_block(),
         return_statement(),

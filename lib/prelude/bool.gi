@@ -8,24 +8,34 @@ const False = bool.False
 
 
 impl bool:
-    macro __cast_from(i: i32) -> Self:
+    macro __cast_from(i: i32) -> bool:
         i != 0
 
-    func (==)(self, rhs: Self) -> bool:
+    func (==)(self, rhs: bool) -> bool:
         asm: (i32.eq {self} {rhs})
 
-    func (!=)(self, rhs: Self) -> bool:
+    func (!=)(self, rhs: bool) -> bool:
         asm: (i32.ne {self} {rhs})
 
-    func (&&)(self, rhs: Self) -> Self:
-        asm: (i32.and {self} {rhs})
+    macro (&&)(self, rhs: bool) -> bool:
+        if not self:
+            # rhs will not be evaluated
+            return False
+        rhs
 
-    func (||)(self, rhs: Self) -> Self:
-        asm: (i32.or {self} {rhs})
+    macro (||)(self, rhs: bool) -> bool:
+        if self:
+            # rhs will not be evaluated
+            return True
+        rhs
 
     func print(self) -> ():
+        bytes.print(self.repr())
+
+    func repr(self) -> bytes:
         match self:
             case bool.True:
-                bytes.print("True")
+                return "True"
             case bool.False:
-                bytes.print("False")
+                return "False"
+        ""
