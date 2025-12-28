@@ -1,12 +1,11 @@
 # bytes
 
 
-type bytes: __native_array[byte]
-type bytes2: [byte]
+type bytes: [byte]
 type str: [char]
 
 
-impl bytes2:
+impl bytes:
     macro __from_literal(lit: __str) -> Self:
         let arr: __native_array[byte] = __native_array[byte].__new_uninitialized(lit.__len)
         :for i, c in __enumerate(lit):
@@ -16,11 +15,15 @@ impl bytes2:
         Self (arr, lit.__len)
 
     func new() -> Self:
-        bytes2 __array[byte].new()
+        bytes __array[byte].new()
+
+    func len(self) -> usize:
+        let super: [byte] = __reinterpret_cast self
+        super.len()
 
     func repeat(count: usize, chr: byte) -> Self:
         # FIXME: do not use __array internals
-        Self (asm: (array.new {bytes.__asm_type} {chr} {count}), count)
+        Self (asm: (array.new {__native_array[byte].__asm_type} {chr} {count}), count)
 
     func [](self, i: usize) -> byte:
         let super: [byte] = __reinterpret_cast self
@@ -30,38 +33,7 @@ impl bytes2:
         let super: [byte] = __reinterpret_cast self
         super[i] = value
 
-
-impl bytes:
-    macro __from_literal(lit: __str) -> Self:
-        let arr: __native_array[u8] = __native_array[u8].__new_uninitialized(lit.__len)
-        :for i, c in __enumerate(lit):
-            arr[i] = c
-        # bytes(arr, lit.__len)
-        __reinterpret_cast arr
-
-    func repeat(count: usize, chr: byte) -> bytes:
-        asm:
-            (array.new {bytes.__asm_type} {chr} {count})
-
-    func print(self) -> ():
-        __print(self)
-
-    func read(count: usize) -> bytes:
-        let buffer: usize = usize asm: (global.get $__stackp) + 16
-        # FIXME: integral type casting
-        let read_count: usize = __reinterpret_cast __read_n(__reinterpret_cast buffer, __reinterpret_cast count)
-        let result: bytes = bytes.repeat(read_count, "\0")
-        let i: usize = 0
-
-        while i < read_count:
-            result[i] = asm: (i32.load {buffer + i})
-            i = i + 1
-        return result
-
-    func len(self) -> usize:
-        asm: (array.len (local.get $self))
-
-    func eq(self, other: Self) -> bool:
+    func (==)(self, other: Self) -> bool:
         if self.len() != other.len():
             return False
 
@@ -75,24 +47,36 @@ impl bytes:
 
     func slice(self, start: usize, end: usize) -> bytes:
         let len: usize = self.len()
-        if (start < 0) || (end < 0) || (start > len) || (end > len) || (start > end):
+        if (start > len) || (start > end):
             asm: unreachable
 
-        let result: bytes = bytes.repeat(end - start, "\0")
+        if end > len:
+            end = len
+
+        let result: bytes = bytes.repeat(end - start, 0)
         let i: usize = start
         while i < end:
             result[i - start] = self[i]
             i = i + 1
 
+        result
+
+    func print(self) -> ():
+        __print(self)
+
+    func read(count: usize) -> bytes:
+        let buffer: usize = usize asm: (global.get $__stackp) + 16
+        # FIXME: integral type casting
+        let read_count: usize = __reinterpret_cast File._read_fd(0, __reinterpret_cast buffer, __reinterpret_cast count)
+        let result: bytes = bytes.repeat(read_count, 0)
+        let i: usize = 0
+
+        while i < read_count:
+            result[i] = asm: (i32.load {buffer + i})
+            i = i + 1
+
         return result
 
-    func [](self, i: usize) -> byte:
-        let super: __native_array[byte] = __reinterpret_cast self
-        super[i]
-
-    func []=(self, i: usize, value: byte) -> ():
-        let super: __native_array[byte] = __reinterpret_cast self
-        super[i] = value
 
 # Option
 

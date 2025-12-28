@@ -293,7 +293,7 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
             return [["local.get", f"${node.var.name}"]]
 
         case ir.ArgRef():
-            return [["local.get", f"${node.arg.name}"]]
+            return [["local.get", f"${node.var.name}"]]
 
         case ir.Asm():
             assert isinstance(node.terms, ir.WasmExpr)

@@ -838,21 +838,25 @@ class ArgRef(Expr):
     def __init__(self, info, arg: ArgDecl):
         # super().__init__(info, arg.type_)
         self.info = info
-        self.arg = arg
+        self.var = arg
 
     def __deepcopy__(self, memo):
-        return ArgRef(self.info, self.arg)
+        return ArgRef(self.info, self.var)
 
     def __repr__(self):
-        return f"ArgRef({self.arg.name})"
+        return f"ArgRef({self.var.name})"
+
+    @property
+    def name(self):
+        return self.var.name
 
     @property  # type:ignore
     def type_(self):
-        return self.arg.type_
+        return self.var.type_
 
     @type_.setter
     def type_(self, value):
-        self.arg.type_ = value
+        self.var.type_ = value
 
 
 @dataclass
@@ -938,7 +942,7 @@ class FunctionDef(Node):
         func_type = FunctionType.translate(node.type_)
         body: list = [Untranslated(stmt) for stmt in node.body]
         func_name = FunctionDef.get_name(node.name)
-        func = FunctionDef(node.info, f"{scope.name}.{func_name}", func_type, Scope(scope, node.name, body))
+        func = FunctionDef(node.info, f"{scope.name}.{func_name}", func_type, Scope(scope, func_name, body))
         func.scope.func = FunctionRef(None, func)
 
         if hasattr(node, "annotations"):
@@ -1003,7 +1007,7 @@ class ConstDecl(Node):
 
 @dataclass
 class SetLocal(Node):
-    var: VarRef
+    var: VarRef | ArgRef
     expr: Node
 
 

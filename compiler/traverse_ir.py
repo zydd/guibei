@@ -91,7 +91,7 @@ def _inline_args(node: ir.Node, block_name: str, args: dict[str, ir.Node]):
     match node:
         case ir.ArgRef():
             # return args[node.arg.name]
-            return args.get(node.arg.name, node)
+            return args.get(node.var.name, node)
 
         case ir.VarRef():
             # return args[node.var.name]
@@ -169,7 +169,7 @@ def _inline_template_args(node: ir.Node, template_args: dict[str, ir.TypeRef], t
 
         case ir.ArgRef():
             # Update arg reference due to deepcopy
-            return ir.ArgRef(node.info, function_args[node.arg.name])
+            return ir.ArgRef(node.info, function_args[node.var.name])
 
         case ir.VarRef():
             # Update var reference due to deepcopy

@@ -12,21 +12,21 @@
 type TokenState: (line: usize, column_begin: usize, column_end: usize, spaced: bool)
 
 enum Token:
-    Name(TokenState, bytes2)
-    String(TokenState, bytes2)
-    Int(TokenState, bytes2)
-    Symbol(TokenState, bytes2)
+    Name(TokenState, bytes)
+    String(TokenState, bytes)
+    Int(TokenState, bytes)
+    Symbol(TokenState, bytes)
 
 
-type Line: (line: usize, indent: usize, comment: bytes2, tokens: [Token])
+type Line: (line: usize, indent: usize, comment: bytes, tokens: [Token])
 impl Line:
     func new() -> Self:
-        Line(0, 0, bytes2.new(), __array[Token].new())
+        Line(0, 0, bytes.new(), __array[Token].new())
 
 type Tokenizer
 
 impl Tokenizer:
-    func parse(code: bytes2) -> [Line]:
+    func parse(code: bytes) -> [Line]:
         let lines: [Line] = __array[Line].new()
         let i: usize = 0
         let line: Line = Line.new()
@@ -54,16 +54,14 @@ func main() -> ():
         case Option.Some(value):
             assert(True)
 
-    let fd: i32 = __open("main.gi")
-    bytes.print("fd:")
-    i32.print(fd)
-    bytes.print("\n")
+    let fd: File = File.open_ro("main.gi")
+    let read: bytes = fd.read(65536)
+    fd.close()
 
-    let read: bytes = __read_fd(fd, 10)
     bytes.print("\nread: ")
     usize.print(read.len())
     bytes.print("\n")
-    bytes.print(read)
+    bytes.print(read.slice(0, 10))
     bytes.print("\n")
 
     let arr: [byte] = __array[byte].new()

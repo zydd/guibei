@@ -629,7 +629,7 @@ def resolve_member_access(node: ir.Node, scope=None) -> ir.Node:
             assert isinstance(node.expr, ir.Expr)
             match node.lvalue:
 
-                case ir.VarRef():
+                case ir.VarRef() | ir.ArgRef():
                     return ir.SetLocal(node.info, node.lvalue, node.expr)
 
                 case ir.GetAttr():

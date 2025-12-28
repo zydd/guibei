@@ -88,11 +88,11 @@ def test_option(code):
 @pytest.mark.parametrize(
     "code",
     [
-        'assert(bytes.eq("abc", "abc"))',
-        'assert(not (bytes.eq("abc", "def")))',
+        'assert(bytes "abc" == "abc")',
+        'assert(not (bytes"abc" == "def"))',
         'assert(bytes.repeat(4, "0")[0] == byte "0")',
         'assert(bytes.len("abcd") == 4)',
-        'assert(bytes.eq(bytes.slice("abcdef", 1, 5), "bcde"))',
+        'assert(bytes.slice("abcdef", 1, 5) == "bcde")',
     ],
 )
 def test_bytes(code):

@@ -319,20 +319,20 @@ impl usize:
         assert((rhs == 0) || (self <= asm: (i32.div_u {usize 0xffffffff} {rhs})))
         asm: (i32.mul {self} {rhs})
 
-    func (+)(self, rhs: Self) -> Self:
-        let res: Self = asm: (i32.add {self} {rhs})
-        assert(asm: (i32.ge_u {res} {self}))
-        res
-
     func (//)(self, rhs: Self) -> Self:
         asm: (i32.div_u {self} {rhs})
 
     func (%)(self, rhs: Self) -> Self:
         asm: (i32.rem_u {self} {rhs})
 
+    func (+)(self, rhs: Self) -> Self:
+        let res: Self = asm: (i32.add {self} {rhs})
+        assert(asm: (i32.ge_u {res} {self}))
+        res
+
     func (-)(self, rhs: Self) -> Self:
         let res: Self = asm: (i32.sub {self} {rhs})
-        assert(asm: (i32.lt_u {res} {self}))
+        assert(asm: (i32.le_u {res} {self}))
         res
 
     func (&)(self, rhs: Self) -> Self:
