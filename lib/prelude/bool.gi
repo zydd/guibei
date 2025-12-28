@@ -23,9 +23,9 @@ impl bool:
     func (||)(self, rhs: Self) -> Self:
         asm: (i32.or {self} {rhs})
 
-    # func print(self) -> ():
-    #     match self:
-    #         case bool.True:
-    #             bytes.print("True")
-    #         case bool.False:
-    #             bytes.print("False")
+    func print(self) -> ():
+        match self:
+            case bool.True:
+                bytes.print("True")
+            case bool.False:
+                bytes.print("False")

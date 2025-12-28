@@ -42,14 +42,7 @@ def register_toplevel_decls(node: ast.Node, module: ir.Module):
             if all(value.fields is None for value in node.values):
                 enum_type: ir.Type = ir.EnumIntType(node.info, discr_type, node.name, enum_scope)
                 for i, val in enumerate(node.values):
-                    enum_scope.add_method(
-                        val.name,
-                        ir.ConstDecl(
-                            enum_type.info,
-                            val.name,
-                            ir.EnumInt(val.info, ir.TypeRef(None, enum_type), i),
-                        ),
-                    )
+                    enum_scope.add_method(val.name, ir.EnumInt(val.info, ir.TypeRef(None, enum_type), i))
             else:
                 enum_type = ir.EnumType(node.info, node.name, enum_scope, len(node.values), discr_type)
                 for i, val in enumerate(node.values):
@@ -517,6 +510,8 @@ def resolve_member_access(node: ir.Node, scope=None) -> ir.Node:
                                 ) from e
 
                             match attr:
+                                case ir.TypeRef() | ir.AsmType() | ir.EnumInt():
+                                    return attr
                                 case ir.FunctionDef():
                                     if (
                                         isinstance(node.expr.primitive(), ir.EnumValueType)
@@ -530,10 +525,6 @@ def resolve_member_access(node: ir.Node, scope=None) -> ir.Node:
                                         )
                                     else:
                                         return ir.FunctionRef(node.info, attr)
-                                case ir.TypeRef():
-                                    return attr
-                                case ir.AsmType():
-                                    return attr
                                 case ir.EnumValueType():
                                     return ir.TypeRef(None, attr)
                                 case ir.MacroDef():
@@ -1220,11 +1211,13 @@ def specialize_match(node: ir.Node) -> ir.Node:
                                 inlined = inline_macros(case.expr)
                                 assert isinstance(inlined, ir.Expr)
                                 value = eval_wasm.eval_expr(inlined)
+                                assert isinstance(value, int)
                             case ir.IntLiteral():
                                 value = case.expr.value
-                                assert isinstance(value, int)
+                            case ir.EnumInt():
+                                value = case.expr.discr
                             case _:
-                                raise NotImplementedError
+                                raise NotImplementedError(type(case.expr))
 
                         cases.append(ir.MatchIntCase(case.info, value, case.scope))
                     return ir.MatchInt(node.info, node.match_expr, cases, node.scope)

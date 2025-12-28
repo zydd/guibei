@@ -276,6 +276,7 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
                         | ir.TemplateArgRef()
                         | ir.SelfType()
                         | ir.ConstDecl()
+                        | ir.Asm()
                     ):
                         pass
 
