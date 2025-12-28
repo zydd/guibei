@@ -10,8 +10,8 @@ type f32: __integral[f32, f32, array.get]
 type f64: __integral[f64, f64, array.get]
 type isize: __integral[i32, i32, array.get]
 type usize: __integral[i32, i32, array.get]
-type byte: u8
-type char: u8  # TODO: unicode support i31.ref/array
+type byte: __integral[i32, i8, array.get_u]
+type char: byte  # TODO: unicode support i31.ref/array
 
 
 macro :__integer_operations(Self, native_type):
@@ -265,6 +265,23 @@ impl u32:
 
         __print_n(__reinterpret_cast buffer, __reinterpret_cast len)
 
+    func repr(self) -> bytes:
+        if self == 0:
+            return "0"
+
+        # len(4294967296) == 10
+        let res: bytes = bytes.repeat(10, " ")
+        let n: Self = self
+        let i: usize = res.len()
+        let len: usize = 0
+
+        while n:
+            i = i - 1
+            res[i] = __reinterpret_cast ((n % 10) + 48)
+            len = len + 1
+            n = n // 10
+
+        res.slice(res.len() - len, res.len())
 
 impl u64:
     macro __from_literal(i: __int) -> Self:
@@ -362,6 +379,9 @@ impl usize:
     func print(self) -> ():
         u32.print(__reinterpret_cast self)
 
+    func repr(self) -> bytes:
+        u32.repr(__reinterpret_cast self)
+
 
 impl byte:
     macro __from_literal(lit: __str) -> Self:
@@ -373,6 +393,8 @@ impl byte:
         # static_assert lit.__int_le.__leq(0xff)
         asm:
             (i32.const {lit})
+
+    :__integer_operations(byte, asm: i32)
 
     # macro __from_literal[T: __str | __int](lit: T) -> Self:
     #     match T:
@@ -386,9 +408,31 @@ impl byte:
     #             asm:
     #                 (i32.const {lit.__int_le})
 
+    func repr(self) -> bytes:
+        if self == "\r": return "\"\\r\""
+        if self == "\n": return "\"\\n\""
+        if self == "\t": return "\"\\t\""
+        if self == "\\": return "\"\\\""
+        if self == "\"": return "\"\\\"\""
+
+        let res: bytes = ""
+        if self < 32 || self >= 0x80:
+            res = "\""
+            res.append("\\")
+            res.append((u32(__reinterpret_cast self)).repr())
+            res.append("\"")
+        else:
+            res = bytes.repeat(3, "\"")
+            res[1] = self
+        res
+
 
 impl char:
     macro __from_literal(lit: __str) -> Self:
         # static_assert lit.__int_le.__leq(0xff)
         asm:
             (i32.const {lit.__int_le})
+
+    func repr(self) -> bytes:
+        # TODO
+        byte.repr(__reinterpret_cast self)

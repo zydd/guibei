@@ -307,9 +307,7 @@ class TypeDef(Type):
     def get_attr(self, attr):
         if attr in self.scope.attrs:
             return self.scope.attrs[attr]
-        if self.super_ is None:
-            raise KeyError(attr)
-        return self.super_.get_attr(attr)
+        raise KeyError(f"{self.name} has no member {attr}")
 
     def __eq__(self, value):
         if isinstance(value, TypeRef):
@@ -430,6 +428,13 @@ class EnumValueType(TypeDef):
 
     def primitive(self):
         return self
+
+    def get_attr(self, attr):
+        if attr in self.scope.attrs:
+            return self.scope.attrs[attr]
+        if self.super_ is None:
+            raise KeyError(attr)
+        return self.super_.get_attr(attr)
 
 
 @dataclass
@@ -609,7 +614,7 @@ class GetTupleItem(Expr):
 
 
 @dataclass
-class SetTupleItem(Expr):
+class SetTupleItem(Node):
     expr: Expr
     idx: int
     value: Expr

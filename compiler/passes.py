@@ -434,7 +434,6 @@ def _translate_match_pattern(node: ir.Node, scope) -> ir.Node:
 
 
 def _expand_call_args(arg: ir.Node) -> list:
-    assert isinstance(arg, ir.Expr)
     match arg:
         case ir.TupleExpr():
             return arg.args
@@ -589,7 +588,7 @@ def resolve_member_access(node: ir.Node, scope=None) -> ir.Node:
                 case ir.NativeArrayType() as array_primitive:
                     return ir.GetNativeArrayItem(node.info, array_primitive.element_type, node.expr, node.idx)
 
-                case ir.TemplateInst() | ir.UnknownType():
+                case ir.TemplateInst() | ir.UnknownType() | ir.SelfType():
                     return node
 
                 case _:
@@ -1134,6 +1133,10 @@ def explicit_cast(expr: ir.Expr, type_: ir.Type):
     # Upcast
     if expr.type_.has_base_class(type_):
         return ir.ReinterpretCast(None, type_, expr)
+
+    if isinstance(expr, ir.ReinterpretCast):
+        expr.type_ = type_
+        return expr
 
     # TODO: overloaded
     cast_from = type_.get_attr("__cast_from")

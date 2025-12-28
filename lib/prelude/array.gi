@@ -61,3 +61,19 @@ impl[T] __array[T]:
     func []=(self: Self, i: usize, value: T) -> ():
         assert(i < self.__len)
         self.__data[i] = value
+
+    func repr(self) -> bytes:
+        let res: bytes = "["
+
+        let i: usize = 0
+
+        if i < self.__len:
+            while i < self.__len - 1:
+                res.append(self[i].repr())
+                res.append(", ")
+                i = i + 1
+
+            res.append(self[i].repr())
+
+        res.append("]")
+        res

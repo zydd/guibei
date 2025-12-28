@@ -1,5 +1,5 @@
 func main() -> ():
-    let arr: [i32] = __array[i32].new()
+    let arr: [u32] = __array[u32].new()
     assert(arr.len() == 0)
 
     arr.append(123)

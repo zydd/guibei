@@ -1,4 +1,4 @@
-type pair: (first: i32, second: i32)
+type pair: (first: u32, second: u32)
 
 
 impl pair:
@@ -15,3 +15,10 @@ impl pair:
         self.1.print()
         bytes.print(")")
 
+    func repr(self) -> bytes:
+        let res: bytes = "("
+        res.append(self.first.repr())
+        res.append(", ")
+        res.append(self.second.repr())
+        res.append(")")
+        res

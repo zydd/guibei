@@ -77,6 +77,26 @@ impl bytes:
 
         return result
 
+    func append(self, other: Self) -> ():
+        let super: [byte] = __reinterpret_cast self
+        super.reserve(other.len())
+
+        let i: usize = 0
+        while i < other.len():
+            super.__data[super.__len + i] = other[i]
+            i = i + 1
+        super.__len = self.len() + other.len()
+
+    func repr(self) -> bytes:
+        let res: bytes = bytes.repeat(self.len() + 2, "\"")
+
+        let i: usize = 0
+        while i < self.len():
+            res[i + 1] = self[i]
+            i = i + 1
+
+        res
+
 
 # Option
 
