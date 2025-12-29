@@ -45,6 +45,9 @@ impl bytes:
 
         return True
 
+    func (!=)(self, other: Self) -> bool:
+        not(self == other)
+
     func (+)(self, other: Self) -> Self:
         let combined_len: usize = self.len() + other.len()
         let res: bytes = bytes.repeat(combined_len, 0)
