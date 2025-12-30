@@ -82,6 +82,10 @@ impl bytes:
     func print(self) -> ():
         __print(self)
 
+    func println(self) -> ():
+        __print(self)
+        __print("\n")
+
     func read(count: usize) -> bytes:
         let buffer: usize = usize asm: (global.get $__stackp) + 16
         # FIXME: integral type casting

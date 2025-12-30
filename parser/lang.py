@@ -453,6 +453,7 @@ precedence = [
     unaryop(regex(r"\+|-")),
     binop(regex(r"\*|//|/|%")),
     binop(regex(r"\+|-")),
+    binop(regex(r"<<|>>")),
     binop(regex(r"&(?!&)")),
     binop(regex(r"\|(?!\|)")),
     binop(regex(r"<=|>=|>|<|==|!=")),

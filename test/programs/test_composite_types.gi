@@ -3,9 +3,9 @@ type mat: (pair, pair)
 impl mat:
     func print(self: Self) -> ():
         bytes.print("[")
-        self.0.print()
+        self.0.repr().print()
         bytes.print(", ")
-        self.1.print()
+        self.1.repr().print()
         bytes.print("]")
 
 

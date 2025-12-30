@@ -1141,6 +1141,10 @@ def explicit_cast(expr: ir.Expr, type_: ir.Type):
                 expr,
             )
 
+    # Redundant cast
+    if type_ == expr.type_:
+        return expr
+
     # Downcast
     if type_.has_base_class(expr.type_):
         return ir.RefCast(expr.info, type_, expr)

@@ -106,11 +106,11 @@ def test_bytes(code):
         ('bytes.print("abcd")', "abcd"),
         ('bytes.print("")', ""),
         ('bytes.print("Hello World!\\n")', "Hello World!\n"),
-        ("i32.print(0)", "0"),
-        ("i32.print(-1)", "-1"),
-        ("i32.print(123456789)", "123456789"),
-        ("i32.print(-123456789)", "-123456789"),
-        ("pair(123, 456).print()", "(123, 456)"),
+        ("i32.repr(0).print()", "0"),
+        ("i32.repr(-1).print()", "-1"),
+        ("i32.repr(123456789).print()", "123456789"),
+        ("i32.repr(-123456789).print()", "-123456789"),
+        ("pair(123, 456).repr().print()", "(123, 456)"),
     ],
 )
 def test_print(code, stdout):

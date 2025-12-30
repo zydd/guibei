@@ -1,54 +1,58 @@
 #
 unaryr ?
-unaryr !
-infix ??  # cannot mix with operators of the same precedence, e.g: a??b?
+unaryr !  beside ?
+infix ??  beside ?  # cannot mix with operators of the same precedence, e.g: a??b?
 
 #
-infixr **
+infixr ** below ?
 
 #
-unaryl +
-unaryl -
+unaryl +  below **
+unaryl -  below **
+unaryl ~  below **
 
 #
-infixl *
-infixl /
-infixl //
-infixl %
+infixl *  below unaryl +
+infixl /  below unaryl +
+infixl // below unaryl +
+infixl %  below unaryl +
 
 #
-infixl +
-infixl -
+infixl +  below *
+infixl -  below *
 
 #
-infixl <<
-infixl >>
+infixl << below infixl +
+infixl >> below infixl +
 
 #
-infixl &
+infixl &  below <<
 
 #
-infixl ^
+infixl ^  below &
 
 #
-infixl |
+infixl |  below ^
 
 #
-infix ==
-infix !=
-infix >=
-infix <=
-infix >
-infix <
+infix ==  below |
+infix !=  below |
+infix >=  below |
+infix <=  below |
+infix >   below |
+infix <   below |
 
 #
-infixr &&
+infixr && below ==
 
 #
-infixr ||
+infixr || below &&
 
 #
-infixr $
+infix ..  below ||
+
+#
+infixr $  below ..
 
 
 

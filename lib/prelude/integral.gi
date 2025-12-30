@@ -30,6 +30,12 @@ macro :__integer_operations(Self, native_type):
     func (-)(self, rhs: Self) -> Self:
         asm: ({native_type}.sub {self} {rhs})
 
+    func (<<)(self, rhs: Self) -> Self:
+        asm: ({native_type}.shl {self} {rhs})
+
+    func (>>)(self, rhs: Self) -> Self:
+        asm: ({native_type}.shr_s {self} {rhs})
+
     func (&)(self, rhs: Self) -> Self:
         asm: ({native_type}.and {self} {rhs})
 
@@ -71,6 +77,12 @@ macro :__unsigned_integer_operations(Self, native_type):
     func (-)(self, rhs: Self) -> Self:
         asm: ({native_type}.sub {self} {rhs})
 
+    func (<<)(self, rhs: Self) -> Self:
+        asm: ({native_type}.shl {self} {rhs})
+
+    func (>>)(self, rhs: Self) -> Self:
+        asm: ({native_type}.shr_u {self} {rhs})
+
     func (&)(self, rhs: Self) -> Self:
         asm: ({native_type}.and {self} {rhs})
 
@@ -104,9 +116,6 @@ impl i8:
 
     :__integer_operations(i8, asm: i32)
 
-    func print(self) -> ():
-        i32.print(__reinterpret_cast self)
-
 
 impl i16:
     macro __from_literal(i: __int) -> Self:
@@ -115,9 +124,6 @@ impl i16:
             (i32.const {i})
 
     :__integer_operations(i16, asm: i32)
-
-    func print(self) -> ():
-        i32.print(__reinterpret_cast self)
 
 
 impl i32:
@@ -131,38 +137,27 @@ impl i32:
 
     :__integer_operations(i32, asm: i32)
 
-    func print(self) -> ():
-        let n: i32 = self
-        let i: i32 = 20
-        let len: i32 = 0
-        let buffer: i32 = i32 asm: (global.get $__stackp) + 16
+    func repr(self) -> bytes:
+        if self == 0:
+            return "0"
 
-        if n == 0:
-            asm: (i32.store8 {buffer} (i32.const 48))
-            __print_n(buffer, 1)
-            return
+        # len(-2147483648) == 11
+        let res: bytes = bytes.repeat(11, "-")
+        let n: u32 = __reinterpret_cast self
+        let i: usize = res.len()
+        let len: usize = __reinterpret_cast(self < 0)
 
         if self < 0:
+            # FIXME: unary operator declarations
             n = 0 - n
 
         while n:
-            asm: (i32.store8 {buffer + i} {n % 10 + 48})
             i = i - 1
+            res[i] = __reinterpret_cast ((n % 10) + 48)
             len = len + 1
             n = n // 10
 
-        i = 0
-        if self < 0:
-            asm: (i32.store8 {buffer + i} {i32 45})
-            i = i + 1
-            len = len + 1
-
-        while i < len:
-            asm: (i32.store8 {buffer + i} (i32.load {buffer + 21 + i - len}))
-            i = i + 1
-
-        __print_n(buffer, len)
-
+        res.slice(res.len() - len, res.len())
 
 impl i64:
     macro __from_literal(i: __int) -> Self:
@@ -172,38 +167,27 @@ impl i64:
 
     :__integer_operations(i64, asm: i64)
 
-    func print(self) -> ():
-        let n: Self = self
-        let i: i32 = 20
-        let len: i32 = 0
-        let buffer: i32 = i32 asm: (global.get $__stackp) + 16
+    func repr(self) -> bytes:
+        if self == 0:
+            return "0"
 
-        if n == 0:
-            asm: (i32.store8 {buffer} (i32.wrap_i64 {n % 10 + 48}))
-            __print_n(buffer, 1)
-            return
+        # len(-9223372036854775808) == 20
+        let res: bytes = bytes.repeat(20, "-")
+        let n: u64 = __reinterpret_cast self
+        let i: usize = res.len()
+        let len: usize = __reinterpret_cast(self < 0)
 
         if self < 0:
+            # FIXME: unary operator declarations
             n = 0 - n
 
         while n != 0:
-            asm: (i32.store8 {buffer + i} (i32.wrap_i64 {n % 10 + 48}))
-            n = n // 10
             i = i - 1
+            res[i] = asm: (i32.wrap_i64 {(n % 10) + 48})
             len = len + 1
+            n = n // 10
 
-        i = 0
-        if self < 0:
-            asm: (i32.store8 {buffer + i} {i32 45})
-            i = i + 1
-            len = len + 1
-
-        while i < len:
-            asm: (i32.store8 {buffer + i} (i32.load {buffer + 21 + i - len}))
-            i = i + 1
-
-        __print_n(buffer, len)
-
+        res.slice(res.len() - len, res.len())
 
 
 impl u8:
@@ -215,9 +199,6 @@ impl u8:
 
     :__integer_operations(u8, asm: i32)
 
-    func print(self) -> ():
-        u32.print(__reinterpret_cast self)
-
 
 impl u16:
     macro __from_literal(i: __int) -> Self:
@@ -227,9 +208,6 @@ impl u16:
             (i32.const {i})
 
     :__integer_operations(u16, asm: i32)
-
-    func print(self) -> ():
-        u32.print(__reinterpret_cast self)
 
 
 impl u32:
@@ -241,35 +219,11 @@ impl u32:
 
     :__unsigned_integer_operations(u32, asm: i32)
 
-    func print(self) -> ():
-        let n: Self = self
-        let i: Self = 20
-        let len: Self = 0
-        let buffer: Self = Self asm: (global.get $__stackp) + 16
-
-        if n == 0:
-            asm: (i32.store8 {buffer} (i32.const 48))
-            __print_n(__reinterpret_cast buffer, 1)
-            return
-
-        while n:
-            asm: (i32.store8 {buffer + i} {n % 10 + 48})
-            i = i - 1
-            len = len + 1
-            n = n // 10
-
-        i = 0
-        while i < len:
-            asm: (i32.store8 {buffer + i} (i32.load {buffer + 21 + i - len}))
-            i = i + 1
-
-        __print_n(__reinterpret_cast buffer, __reinterpret_cast len)
-
     func repr(self) -> bytes:
         if self == 0:
             return "0"
 
-        # len(4294967296) == 10
+        # len(4294967295) == 10
         let res: bytes = bytes.repeat(10, " ")
         let n: Self = self
         let i: usize = res.len()
@@ -283,6 +237,7 @@ impl u32:
 
         res.slice(res.len() - len, res.len())
 
+
 impl u64:
     macro __from_literal(i: __int) -> Self:
         # static_assert val.__geq(0)
@@ -292,37 +247,23 @@ impl u64:
 
     :__unsigned_integer_operations(u64, asm: i64)
 
-    func print(self) -> ():
+    func repr(self) -> bytes:
+        if self == 0:
+            return "0"
+
+        # len(18446744073709551615) == 20
+        let res: bytes = bytes.repeat(20, " ")
         let n: Self = self
-        let i: i32 = 20
-        let len: i32 = 0
-        let buffer: i32 = i32 asm: (global.get $__stackp) + 16
-
-        if n == 0:
-            asm: (i32.store8 {buffer} (i32.const 48))
-            __print_n(buffer, 1)
-            return
-
-        if self < 0:
-            n = 0 - n
+        let i: usize = res.len()
+        let len: usize = 0
 
         while n != 0:
-            asm: (i32.store8 {buffer + i} (i32.wrap_i64 {n % 10 + 48}))
             i = i - 1
+            res[i] = asm: (i32.wrap_i64 {(n % 10) + 48})
             len = len + 1
             n = n // 10
 
-        i = 0
-        if self < 0:
-            asm: (i32.store8 {buffer + i} {i32 45})
-            i = i + 1
-            len = len + 1
-
-        while i < len:
-            asm: (i32.store8 {buffer + i} (i32.load {buffer + 21 + i - len}))
-            i = i + 1
-
-        __print_n(buffer, len)
+        res.slice(res.len() - len, res.len())
 
 
 impl usize:
@@ -375,9 +316,6 @@ impl usize:
 
     func (!=)(self, rhs: Self) -> bool:
         asm: (i32.ne {self} {rhs})
-
-    func print(self) -> ():
-        u32.print(__reinterpret_cast self)
 
     func repr(self) -> bytes:
         u32.repr(__reinterpret_cast self)

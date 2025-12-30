@@ -59,7 +59,7 @@ def run(code, exit_ok=None, exit_err=None, stdout=None):
             assert result.returncode != 0, "Execution succeeded while expecting failure"
 
         if stdout is not None:
-            assert result.stdout == stdout
+            assert result.stdout == stdout, result.stdout
 
         print(out.name)
         print(result.stdout)

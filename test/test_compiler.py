@@ -101,7 +101,7 @@ def test_self_type_fail(code):
 @pytest.mark.parametrize(
     "code",
     [
-        'u32.print(u32 "1234")',
+        'u32.repr(u32 "1234").print()',
     ],
 )
 def test_str_literal_cast(code):

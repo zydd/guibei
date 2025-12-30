@@ -9,6 +9,11 @@
 # - Allow explicit casting between integral types: u32(char"c")
 
 
+# macro ($)[T, A](fn: func(A) -> T, arg: A) -> T:
+#     fn(arg)
+
+
+
 type TokenState: (line: usize, column_begin: usize, column_end: usize, spaced: bool)
 
 
@@ -157,7 +162,7 @@ func main() -> ():
     let code: bytes = fd.read(65536)
 
     bytes.print("\nread: ")
-    usize.print(code.len())
+    code.len().repr().print()
     bytes.print("\n")
 
     let tk: Tokenizer = Tokenizer.new()

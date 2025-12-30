@@ -29,9 +29,6 @@ impl bool:
             return True
         rhs
 
-    func print(self) -> ():
-        bytes.print(self.repr())
-
     func repr(self) -> bytes:
         match self:
             case bool.True:
