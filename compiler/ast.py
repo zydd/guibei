@@ -283,6 +283,11 @@ class Break(Node):
 
 
 @dataclass
+class Continue(Node):
+    pass
+
+
+@dataclass
 class TemplateFor(Node):
     bindings: list[Identifier]
     iterable: Node

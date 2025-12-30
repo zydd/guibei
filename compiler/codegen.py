@@ -311,6 +311,9 @@ def translate_wasm(node: ir.Node) -> list[str | int | list]:
         case ir.Break():
             return [["br", f"${node.block_name}", *translate_wasm(node.expr)]]
 
+        case ir.Continue():
+            return [["br", f"${node.block_name}"]]
+
         case ir.Loop():
             body = translate_wasm(node.scope)
             assert node.post_condition is None

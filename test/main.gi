@@ -21,22 +21,29 @@ enum Token:
     Name(TokenState, bytes)
     String(TokenState, bytes)
     Int(TokenState, bytes)
-    Symbol(TokenState, byte)
+    Op(TokenState, bytes)
+    LPAR
+    RPAR
+    LBRACE
+    RBRACE
+    LBRACKET
+    RBRACKET
+    COMMA
 
 impl Token:
     func repr(self) -> bytes:
         match self:
-            case Token.Name(st, val):
-                return "Name(" + val.repr() + ", " + st.spaced.repr() + ")"
-
-            case Token.String(st, val):
-                return "String(" + val.repr() + ", " + st.spaced.repr() + ")"
-
-            case Token.Int(st, val):
-                return "Int(" + val.repr() + ", " + st.spaced.repr() + ")"
-
-            case Token.Symbol(st, val):
-                return "Symbol(" + val.repr() + ", " + st.spaced.repr() + ")"
+            case Token.Name(st, val):   return "Name" + val.repr()
+            case Token.String(st, val): return "String" + val.repr()
+            case Token.Int(st, val):    return "Int" + val.repr()
+            case Token.Op(st, val):     return "Op" + val.repr()
+            case Token.LPAR:    return "LPAR"
+            case Token.RPAR:    return "RPAR"
+            case Token.LBRACE:  return "LBRACE"
+            case Token.RBRACE:  return "RBRACE"
+            case Token.LBRACKET: return "LBRACKET"
+            case Token.RBRACKET: return "RBRACKET"
+            case Token.COMMA:   return "COMMA"
         assert False
         ""
 
@@ -90,7 +97,9 @@ impl Tokenizer:
         c >= "0" && c <= "9"
 
     func _is_symbol(c: byte) -> bool:
-        c > 32 && c < 127 && not _is_name(c)
+        (c == "!" || c == "$" || c == "%" || c == "&" || c == "'" || c == "*" || c == "+" || c == "-"
+            || c == "." || c == "/" || c == ":" || c == ";" || c == "<" || c == "=" || c == ">"
+            || c == "?" || c == "@" || c == "\\" || c == "^" || c == "`" || c == "|" || c == "~")
 
     func parse(self, code: bytes) -> ():
         while self.i < code.len():
@@ -110,9 +119,29 @@ impl Tokenizer:
                 self.current.tokens.append(name)
             elif _is_digit(c):
                 self.current.tokens.append(self.parse_int(code))
-            elif _is_symbol(c):
+            elif c == "(":
+                self.current.tokens.append(Token.LPAR)
                 self.i = self.i + 1
-                self.current.tokens.append(Token.Symbol(self.state(self.i - 1), c))
+            elif c == ")":
+                self.current.tokens.append(Token.RPAR)
+                self.i = self.i + 1
+            elif c == "{":
+                self.current.tokens.append(Token.LBRACE)
+                self.i = self.i + 1
+            elif c == "}":
+                self.current.tokens.append(Token.RBRACE)
+                self.i = self.i + 1
+            elif c == "[":
+                self.current.tokens.append(Token.LBRACKET)
+                self.i = self.i + 1
+            elif c == "]":
+                self.current.tokens.append(Token.RBRACKET)
+                self.i = self.i + 1
+            elif c == ",":
+                self.current.tokens.append(Token.COMMA)
+                self.i = self.i + 1
+            elif _is_symbol(c):
+                self.current.tokens.append(self.parse_op(code))
             else:
                 c.repr().print()
                 assert False
@@ -131,6 +160,12 @@ impl Tokenizer:
         while self.i < code.len() && _is_name(code[self.i]):
             self.i = self.i + 1
         Token.Name(self.state(start), code.slice(start, self.i))
+
+    func parse_op(self, code: bytes) -> Token.Op:
+        let start: usize = self.i
+        while self.i < code.len() && _is_symbol(code[self.i]):
+            self.i = self.i + 1
+        Token.Op(self.state(start), code.slice(start, self.i))
 
     func parse_int(self, code: bytes) -> Token.Int:
         let start: usize = self.i
@@ -158,7 +193,7 @@ impl Tokenizer:
 
 
 func main() -> ():
-    let fd: File = File.open_ro("tokens.gi")
+    let fd: File = File.open_ro("main.gi")
     let code: bytes = fd.read(65536)
 
     bytes.print("\nread: ")

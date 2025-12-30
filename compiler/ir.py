@@ -1050,6 +1050,15 @@ class Break(Node):
 
 
 @dataclass
+class Continue(Node):
+    block_name: str
+
+    def __init__(self, info, block_name: str):
+        super().__init__(info)
+        self.block_name = block_name
+
+
+@dataclass
 class TemplateFor(Node):
     bindings: list[ArgDecl]
     iterable: Expr

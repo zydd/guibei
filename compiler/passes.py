@@ -349,12 +349,15 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
         case ir.Untranslated(ast_node=ast.While() as while_stmt):
             pre_condition = ir.Untranslated(while_stmt.condition)
             loop_scope = ir.Scope(scope, "__while", body=[ir.Untranslated(stmt) for stmt in while_stmt.body])
-            loop_scope.break_scope = loop_scope.name + ".__block"  # FIXME: declare properly
+            loop_scope.break_scope = loop_scope.name  # FIXME: declare properly
             loop = ir.Loop(while_stmt.info, pre_condition, loop_scope)
             return translate_function_defs(loop, loop_scope)
 
         case ir.Untranslated(ast_node=ast.Break() as break_stmt):
-            return ir.Break(break_stmt.info, scope.break_scope, ir.VoidExpr(None))
+            return ir.Break(break_stmt.info, scope.break_scope + ".__block", ir.VoidExpr(None))
+
+        case ir.Untranslated(ast_node=ast.Continue() as break_stmt):
+            return ir.Continue(break_stmt.info, scope.break_scope + ".__loop")
 
         case ir.Untranslated(ast_node=ast.GetItem() as ast_node):
             expr = translate_function_defs(ir.Untranslated(ast_node.expr), scope)

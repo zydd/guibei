@@ -3,7 +3,7 @@ from parser.indent import *
 
 from compiler import ast
 
-operator_characters = "-~`!@$%^&*+=|;:',<.>/?"
+operator_characters = r"!$%&'*+-./:;<=>?@\^`|~"
 
 
 @generate
@@ -311,6 +311,12 @@ def break_statement():
 
 
 @generate
+def continue_statement():
+    yield regex("continue")
+    return ast.Continue()
+
+
+@generate
 def case_block():
     yield regex("case +")
     cond = yield expr()
@@ -405,6 +411,7 @@ def statement():
         ast_for_block(),
         while_block(),
         break_statement(),
+        continue_statement(),
         if_block(),
         match_block(),
         return_statement(),
