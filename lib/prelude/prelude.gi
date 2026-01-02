@@ -127,7 +127,6 @@ enum Option:
     None
     Some(i32)
 
-
 impl Option:
     func is_some(self) -> bool:
         match self:
@@ -149,10 +148,27 @@ impl Option:
 # Result
 
 
-enum Result:
-    Ok(i32)
-    Error(bytes)
+# enum Result[R, E]:
+#     Ok(R)
+#     Error(E)
 
+# impl[R, E] Result[R, E]:
+#     func is_ok(self) -> bool:
+#         match self:
+#             case Result.Ok(_):
+#                 return False
+#             case Option.Error(_):
+#                 return True
+#         asm: unreachable
+
+#     func unwrap(self) -> i32:
+#         match self:
+#             case Option.Error(err):
+#                 bytes.print("Trying to unwrap error result: " + err.repr())
+#                 asm: unreachable
+#             case Option.Ok(value):
+#                 return value
+#         asm: unreachable
 
 # builtin
 
@@ -163,5 +179,14 @@ func not(a: bool) -> bool:
 
 func assert(cond: bool) -> ():
     if not cond:
+        asm:
+            unreachable
+
+
+func assert2(cond: bool, msg: bytes) -> ():
+    if not cond:
+        bytes.print("\x1b[31mAssertion failed: ")
+        msg.print()
+        bytes.print("\x1b[0m\n\n")
         asm:
             unreachable

@@ -77,3 +77,12 @@ impl[T] __array[T]:
 
         res.append("]")
         res
+
+    func last(self) -> T:
+        assert(self.__len > 0)
+        self.__data[self.__len - 1]
+
+    func pop_last(self) -> T:
+        assert(self.__len > 0)
+        self.__len = self.__len - 1
+        self.__data[self.__len]

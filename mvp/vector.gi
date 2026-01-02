@@ -35,16 +35,3 @@ impl[T] Iter for range[T]:
 
 macro (..)(a: i32, b: i32):
     range(a, b)
-
-
-type i32
-
-impl i32:
-    macro __type_reference:
-        asm:
-            i32
-
-    macro __implicit_cast(val: __int) -> Self:
-        static_assert val.__leq(0x7fffffff)
-        asm:
-            (i32.const {val})
