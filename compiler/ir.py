@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import itertools
 
 from collections import OrderedDict
@@ -62,8 +63,6 @@ class Scope(Node):
         self.break_scope: str | None = parent.break_scope if parent else None
 
     def __deepcopy__(self, memo):
-        import copy
-
         new_scope = Scope(
             self.parent,
             self.name,
@@ -324,6 +323,9 @@ class TypeDef(Type):
     def __copy__(self):
         raise RuntimeError
 
+    def ref(self, info=None):
+        return TypeRef(info, self)
+
 
 @dataclass
 class IntegralType(Type):
@@ -480,7 +482,6 @@ class TemplateDef(Node):
         name: str,
         super_: Type | None,
         scope: Scope,
-        instances: dict[tuple[str, ...], TypeDef],
         args: list[TemplateArg],
     ):
         super().__init__(info)
@@ -488,7 +489,7 @@ class TemplateDef(Node):
         self.name = name
         self.super_ = super_
         self.scope = scope
-        self.instances = instances
+        self.instances = dict()
         self.args = args
         for arg in args:
             self.scope.register_type(arg.name, TemplateArgRef(None, arg))
@@ -500,7 +501,38 @@ class TemplateDef(Node):
         template_scope = Scope(scope, node.name)
         args = [TemplateArg(arg, arg.name) for arg in node.args]
         template_type = TemplateDef(
-            node.info, node.name, UntranslatedType(node.super_) if node.super_ else None, template_scope, {}, args
+            node.info, node.name, UntranslatedType(node.super_) if node.super_ else None, template_scope, args
+        )
+        return template_type
+
+    def ref(self, info=None):
+        return TemplateRef(info, self)
+
+
+@dataclass
+class EnumTemplateDef(TemplateDef):
+    count: int
+    discr_type: TypeRef
+
+    def __init__(self, info, name: str, scope: Scope, args: list[TemplateArg], count: int, discr_type: TypeRef):
+        super().__init__(info, name, None, scope, args)
+        self.count = count
+        self.discr_type = discr_type
+
+    @staticmethod
+    def translate(node: ast.EnumTemplateDef, scope: Scope):  # type:ignore[override]
+        template_scope = Scope(scope, node.name)
+        args = [TemplateArg(arg, arg.name) for arg in node.args]
+        assert scope.module_scope
+        enum_discr = scope.module_scope.attrs["__enum_discr"]
+        assert isinstance(enum_discr, TypeDef)
+        template_type = EnumTemplateDef(
+            node.info,
+            node.name,
+            template_scope,
+            args,
+            len(node.values),
+            enum_discr.ref(),
         )
         return template_type
 
@@ -511,6 +543,9 @@ class TemplateArg(Type):
 
     def primitive(self):
         raise NotImplementedError
+
+    def ref(self, info=None):
+        return TemplateArgRef(info, self)
 
 
 @dataclass
@@ -525,6 +560,31 @@ class TemplateInst(Type):
         template = TemplateRef(None, template_def)
         args: list[Type] = [UntranslatedType(arg) for arg in node.args]
         return TemplateInst(node.info, template, args)
+
+
+@dataclass
+class TemplateSubtype(Type):
+    type_: Type
+
+    def __init__(self, type_: Type):
+        super().__init__(None)
+        self.type_ = type_
+
+    def __deepcopy__(self, memo):
+        match self.type_:
+            case EnumValueType() as t:
+                type_ = EnumValueType(
+                    t.info,
+                    t.super_,
+                    t.name,
+                    copy.deepcopy(t.scope),
+                    discr=t.discr,
+                    discr_type=t.discr_type,
+                    field_types=copy.deepcopy(t.field_types),
+                )
+            case _:
+                raise NotImplementedError(type(self.type_))
+        return TemplateSubtype(type_)
 
 
 # ----------------------------------------------------------------------

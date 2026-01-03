@@ -148,27 +148,26 @@ impl Option:
 # Result
 
 
-# enum Result[R, E]:
-#     Ok(R)
-#     Error(E)
+enum Result[R, E]:
+    Ok(R)
+    Error(E)
 
-# impl[R, E] Result[R, E]:
-#     func is_ok(self) -> bool:
-#         match self:
-#             case Result.Ok(_):
-#                 return False
-#             case Option.Error(_):
-#                 return True
-#         asm: unreachable
+impl[R, E] Result[R, E]:
+    func is_ok(self) -> bool:
+        match self:
+            case Result[R, E].Ok(_):
+                return True
+            case Result[R, E].Error(_):
+                return False
+        asm: unreachable
 
-#     func unwrap(self) -> i32:
-#         match self:
-#             case Option.Error(err):
-#                 bytes.print("Trying to unwrap error result: " + err.repr())
-#                 asm: unreachable
-#             case Option.Ok(value):
-#                 return value
-#         asm: unreachable
+    func unwrap(self) -> i32:
+        match self:
+            case Result[R, E].Error(err):
+                panic("Trying to unwrap error result: " + err.repr())
+            case Result[R, E].Ok(value):
+                return value
+        asm: unreachable
 
 # builtin
 
@@ -179,14 +178,17 @@ func not(a: bool) -> bool:
 
 func assert(cond: bool) -> ():
     if not cond:
-        asm:
-            unreachable
+        panic("Assertion failed")
 
 
 func assert2(cond: bool, msg: bytes) -> ():
     if not cond:
-        bytes.print("\x1b[31mAssertion failed: ")
-        msg.print()
-        bytes.print("\x1b[0m\n\n")
-        asm:
-            unreachable
+        panic("Assertion failed: " + msg)
+
+
+func panic(msg: bytes) -> ():
+    bytes.print("\x1b[31m")
+    bytes.print(msg)
+    bytes.print("\x1b[0m\n\n")
+    asm:
+        unreachable

@@ -175,6 +175,13 @@ def _inline_template_args(node: ir.Node, template_args: dict[str, ir.TypeRef], t
             # Update var reference due to deepcopy
             return ir.VarRef(node.info, function_args[node.var.name])
 
+        case ir.TemplateSubtype():
+            self_type = template_args["Self"].type_
+            assert isinstance(self_type, ir.TypeDef)
+            assert isinstance(node.type_, ir.TypeDef)
+            node.type_.name = f"{self_type.name}.{node.type_.name}"
+            return _inline_template_args(node.type_, template_args, template_name, function_args)
+
         case ir.FunctionDef():
             function_args = {arg.name: arg for arg in node.type_.args}
             function_vars = {var.name: var for var in node.scope.attrs.values() if isinstance(var, ir.VarDecl)}
@@ -193,18 +200,26 @@ def instantiate(node: ir.TemplateDef, args: list[ir.TypeRef]) -> ir.TypeDef:
     assert len(args) == len(node.args)
 
     key = tuple(arg.name for arg in args)
-    if key in node.instances:
-        return node.instances[key]
+    assert key not in node.instances
 
     arg_names = "$" + "$".join([arg.name for arg in args])
     instance_scope = ir.Scope(node.scope, arg_names)
 
-    instance = ir.TypeDef(
-        node.info,
-        None,
-        node.name + "." + arg_names,  # TODO: remove "."
-        instance_scope,
-    )
+    instance: ir.Type
+    match node:
+        case ir.EnumTemplateDef():
+            instance = ir.EnumType(
+                node.info, node.name + "." + arg_names, instance_scope, node.count, node.discr_type  # TODO: remove "."
+            )
+        case ir.TemplateDef():
+            instance = ir.TypeDef(
+                node.info,
+                None,
+                node.name + "." + arg_names,  # TODO: remove "."
+                instance_scope,
+            )
+        case _:
+            raise NotImplementedError(type(node))
 
     type_map: dict = dict(zip((arg.name for arg in node.args), args))
     type_map["Self"] = ir.TypeRef(None, instance)
@@ -217,5 +232,4 @@ def instantiate(node: ir.TemplateDef, args: list[ir.TypeRef]) -> ir.TypeDef:
 
         instance_scope.attrs[name] = _inline_template_args(copy.deepcopy(attr), type_map, node.name)
 
-    node.instances[key] = instance
     return instance

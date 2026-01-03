@@ -228,7 +228,11 @@ def operator_identifier():
 
 @generate
 def array_index(array):
-    idx = yield brackets(optional(expr()))
+    idx = yield brackets(sep_by(regex(r"\s*,\s*"), expr(), min_count=1))
+    if len(idx) > 1:
+        idx = ast.TupleExpr(idx)
+    else:
+        idx = idx[0]
     return ast.GetItem(array, idx)
 
 
@@ -383,9 +387,14 @@ def enum_def():
 
     yield regex("enum +")
     name = yield _name()
+    args = yield optional(brackets(sep_by(regex(r"\s*,\s*"), identifier(), min_count=1)))
     yield regex(r" *:")
     values = yield indented_block(enum_val())
-    return ast.EnumType(name, values)
+
+    if args:
+        return ast.EnumTemplateDef(name, args, values)
+    else:
+        return ast.EnumType(name, values)
 
 
 @generate

@@ -53,6 +53,31 @@ def register_toplevel_decls(node: ast.Node, module: ir.Module):
         case ast.TemplateDef():
             module.scope.register_type(node.name, ir.TemplateDef.translate(node, module.scope))
 
+        case ast.EnumTemplateDef():
+            template_def = ir.EnumTemplateDef.translate(node, module.scope)
+            module.scope.register_type(node.name, template_def)
+            if all(value.fields is None for value in node.values):
+                print("Warning: No fields in templated enum")
+
+            discr_type = module.scope.attrs["__enum_discr"]
+            assert isinstance(discr_type, ir.TypeDef)
+            discr_type = ir.TypeRef(None, discr_type)
+            enum_type = ir.TemplateInst(None, template_def.ref, [arg.ref() for arg in template_def.args])
+            for i, val in enumerate(node.values):
+                field_types: list[ir.Type] = (
+                    [ir.UntranslatedType(t) for t in val.fields.field_types] if val.fields else []
+                )
+                enum_val = ir.EnumValueType(
+                    val.info,
+                    ir.SelfType(template_def),
+                    val.name,
+                    ir.Scope(template_def.scope, val.name),
+                    discr=i,
+                    discr_type=discr_type,
+                    field_types=field_types,
+                )
+                template_def.scope.register_type(val.name, ir.TemplateSubtype(enum_val))
+
         case ast.FunctionDef():
             fn_def = ir.FunctionDef.translate(node, module.scope)
             module.scope.add_method(node.name, fn_def)
@@ -343,7 +368,6 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
                 if not fields:
                     return ir.VoidExpr(ast_node.info)
                 else:
-                    assert all(isinstance(field, ir.Expr) for field in fields)
                     return ir.TupleExpr(ast_node.info, ir.UnknownType(), fields)
 
         case ir.Untranslated(ast_node=ast.While() as while_stmt):
@@ -368,8 +392,14 @@ def translate_function_defs(node: ir.Node, scope=None) -> ir.Node:
                     return ir.GetItem(node.info, ir.UnknownType(), expr, idx)
 
                 case ir.TemplateRef():
-                    assert isinstance(idx, ir.Type)
-                    return ir.TemplateInst(node.info, expr, [idx])
+                    match idx:
+                        case ir.Type():
+                            idx_list: list = [idx]
+                        case ir.TupleExpr():
+                            idx_list = idx.args
+                        case _:
+                            raise NotImplementedError
+                    return ir.TemplateInst(node.info, expr, idx_list)
 
                 case _:
                     raise NotImplementedError(type(expr))
@@ -763,10 +793,16 @@ def instantiate_templates(node: ir.Node, scope=None) -> ir.Node:
                 return node
 
             assert all(isinstance(type_, ir.TypeRef) for type_ in node.args)
+
+            key = tuple(arg.name for arg in node.args)  # type:ignore[attr-defined]
+            if key in node.template.template.instances:
+                return ir.TypeRef(node.info, node.template.template.instances[key])
+
             type_ = traverse_ir.instantiate(node.template.template, node.args)  # type:ignore[arg-type]
-            type_ = instantiate_templates(type_, scope)  # type:ignore[assignment]
             assert isinstance(type_, ir.TypeDef)
-            return ir.TypeRef(None, type_)
+            node.template.template.instances[key] = type_
+            type_ = instantiate_templates(type_, scope)  # type:ignore[assignment]
+            return ir.TypeRef(node.info, type_)
 
     return node
 
@@ -1249,6 +1285,9 @@ def specialize_match(node: ir.Node) -> ir.Node:
                 case other:
                     raise NotImplementedError(type(other))
 
+        case ir.TemplateDef():
+            node.instances = traverse_ir.traverse_dict(specialize_match, node.instances)
+
         case _:
             return traverse_ir.traverse(specialize_match, node)
     return node
@@ -1351,6 +1390,12 @@ def _get_type_dependencies(node, type_: ir.Type | None, depth):
 
 def type_sorting(node: ir.Node) -> ir.Node:
     match node:
+        case ir.TemplateDef():
+            for inst in node.instances.values():
+                type_sorting(inst)
+
+            return node
+
         case ir.TypeDef():
             if not node.sorting:
                 _get_type_dependencies(node, node, 0)
@@ -1374,7 +1419,6 @@ ir_passes: list = [
     check_no_untranslated_types,
     translate_function_defs,
     check_no_untranslated_nodes,
-    write_tree("inner.ir"),
     instantiate_templates,
     resolve_member_access,
     propagate_types,
@@ -1384,6 +1428,7 @@ ir_passes: list = [
     specialize_match,
     check_no_unknown_types,
     convert_enum_inst,
+    write_tree("inner.ir"),
     inline_macros,
     type_sorting,
     done,
@@ -1404,7 +1449,6 @@ def run(prog: ast.Module):
             "__native_array",
             ir.NativeArrayType(None, ir.TemplateArgRef(None, template_arg)),
             ir.Scope(root_scope, "__native_array"),
-            dict(),
             [template_arg],
         ),
     )

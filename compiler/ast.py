@@ -96,6 +96,13 @@ class TypeIdentifier(Type):
 
 
 @dataclass
+class EnumTemplateDef(Node):
+    name: str
+    args: list[Identifier]
+    values: list[EnumValueType]
+
+
+@dataclass
 class EnumType(Type):
     name: str
     values: list[EnumValueType]

@@ -235,14 +235,11 @@ cast_expr_parser = cast_expr(precedence[0](expr_term))
     "code, par",
     [
         ("i32 3", "(i32) 3"),
-        ("i32[] 3", "(i32[]) 3"),
-        ("i32[][] 3", "(i32[][]) 3"),
         ("tuple_type.1 3", "(tuple_type.1) 3"),
-        ("tuple_type.1[] 3", "(tuple_type.1[]) 3"),
-        ("struct.subtype.attr.1[] 3", "(struct.subtype.attr.1[]) 3"),
+        ("struct.subtype.attr 3", "(struct.subtype.attr) 3"),
         ("type1 value", "(type1) value"),
         ("a b c d", "((a b) c) d"),
-        ("a b[].c d", "(a ((b[]).c)) d"),
+        ("a b.c d", "(a (b.c)) d"),
     ],
 )
 def test_cast_expr(code, par):
